@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { AppUser, UserStatus } from "../types/user";
-import { apiClient } from "../lib/apiClient";
+import apiClient from "../services/apiClient";
 import { ENDPOINTS } from "../config/endpoints";
 import { getErrorMessage, generateToken } from "../lib/utils";
 

@@ -1,3 +1,5 @@
+import { tokenStorage } from "../lib/tokenStorage";
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -12,18 +14,17 @@ export interface ApiErrorPayload {
   errors?: Record<string, string[]>;
 }
 
-type QueryValue = string | number | boolean | null | undefined;
-export type QueryParams = Record<string, QueryValue>;
+export type QueryParams = Record<string, string | number | boolean | null | undefined>;
 
-const API_BASE_URL = (import.meta.env.DEV ? "" : import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-const TOKEN_KEY = "token";
+// Base URL configuration - use environment variable or fallback
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
-function buildUrl(path: string, params?: QueryParams) {
+/**
+ * Build URL with query parameters
+ */
+function buildUrl(path: string, params?: QueryParams): string {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  const baseUrl =
-    API_BASE_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-  const url = path.startsWith("http") ? new URL(path) : new URL(`${baseUrl}${cleanPath}`);
+  const url = path.startsWith("http") ? new URL(path) : new URL(`${BASE_URL}${cleanPath}`);
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -33,21 +34,29 @@ function buildUrl(path: string, params?: QueryParams) {
     });
   }
 
-  return API_BASE_URL || path.startsWith("http") ? url.toString() : `${url.pathname}${url.search}`;
+  // For relative paths, return pathname + search for compatibility
+  if (!path.startsWith("http")) {
+    return `${url.pathname}${url.search}`;
+  }
+
+  return url.toString();
 }
 
-function redirectToLogin() {
-  localStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem("wgs_auth_user");
-  sessionStorage.removeItem("wgs_auth_user");
+/**
+ * Clear auth data and redirect to login
+ */
+function redirectToLogin(): void {
+  tokenStorage.clear();
 
-  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-    window.location.assign("/login");
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
   }
 }
 
-async function parseJsonSafe(response: Response) {
+/**
+ * Safely parse JSON response, handling empty responses
+ */
+async function parseJsonSafe(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
 
@@ -58,18 +67,23 @@ async function parseJsonSafe(response: Response) {
   }
 }
 
+/**
+ * Core request function with auth token injection and error handling
+ */
 async function request<T>(
   path: string,
   options: RequestInit & { params?: QueryParams; redirectOnUnauthorized?: boolean } = {},
 ): Promise<T> {
   const { params, redirectOnUnauthorized = true, ...requestOptions } = options;
   const headers = new Headers(requestOptions.headers);
-  const token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+  const token = tokenStorage.getToken();
 
+  // Inject auth token
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
+  // Set default headers
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
   }
@@ -87,11 +101,13 @@ async function request<T>(
 
   if (!response.ok) {
     const errorPayload = (typeof parsed === "object" && parsed ? parsed : {}) as ApiErrorPayload;
+
     const message =
       errorPayload.message ||
       errorPayload.error ||
       (response.status === 401 ? "Email/username atau password salah." : "Terjadi kesalahan pada server.");
 
+    // Handle 401 - unauthorized
     if (response.status === 401 && redirectOnUnauthorized) {
       redirectToLogin();
     }
@@ -102,22 +118,30 @@ async function request<T>(
     });
   }
 
+  // Handle non-JSON response (e.g., Ngrok warning page)
   if (typeof parsed === "string") {
-    throw new Error(
-      parsed.includes("ERR_NGROK_6024")
-        ? "Ngrok meminta header skip warning. Restart dev server lalu coba lagi."
-        : "Response server bukan JSON. Periksa endpoint API yang dipanggil.",
-    );
+    if (parsed.includes("ERR_NGROK_6024")) {
+      throw new Error("Ngrok meminta header skip warning. Restart dev server lalu coba lagi.");
+    }
+    throw new Error("Response server bukan JSON. Periksa endpoint API yang dipanggil.");
   }
 
   return parsed as T;
 }
 
-function serializeBody(body?: unknown) {
-  if (body === undefined || body instanceof FormData) return body as BodyInit | undefined;
+/**
+ * Serialize body for request
+ */
+function serializeBody(body?: unknown): BodyInit | undefined {
+  if (body === undefined || body instanceof FormData) {
+    return body as BodyInit | undefined;
+  }
   return JSON.stringify(body);
 }
 
+/**
+ * Unwrap data from API response wrapper
+ */
 export function unwrapData<T>(response: ApiResponse<T> | T): T {
   if (
     response &&
@@ -127,21 +151,33 @@ export function unwrapData<T>(response: ApiResponse<T> | T): T {
   ) {
     return (response as ApiResponse<T>).data;
   }
-
   return response as T;
 }
 
+/**
+ * API client using native fetch
+ * Note: Consider using services/apiClient.ts (axios-based) for better error handling
+ */
 export const apiClient = {
   get: <T>(path: string, params?: QueryParams, options?: RequestInit) =>
     request<T>(path, { ...options, method: "GET", params }),
+
   post: <T>(path: string, body?: unknown, options?: RequestInit & { redirectOnUnauthorized?: boolean }) =>
-    request<T>(path, { ...options, method: "POST", body: serializeBody(body) }),
+    request<T>(path, {
+      ...options,
+      method: "POST",
+      body: serializeBody(body),
+    }),
+
   put: <T>(path: string, body?: unknown, options?: RequestInit) =>
     request<T>(path, { ...options, method: "PUT", body: serializeBody(body) }),
+
   patch: <T>(path: string, body?: unknown, options?: RequestInit) =>
     request<T>(path, { ...options, method: "PATCH", body: serializeBody(body) }),
+
   delete: <T>(path: string, options?: RequestInit) =>
     request<T>(path, { ...options, method: "DELETE" }),
 };
 
-export { API_BASE_URL, TOKEN_KEY, buildUrl };
+// Re-export for compatibility
+export { BASE_URL as API_BASE_URL };

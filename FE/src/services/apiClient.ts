@@ -1,8 +1,8 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from "axios";
 import type { ApiErrorResponse } from "../types/api";
+import { tokenStorage } from "../lib/tokenStorage";
 
-const BASE_URL = "https://stylar-nonseverable-denver.ngrok-free.dev/api";
-const TOKEN_KEY = "wgs_auth_token";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
 class ApiClient {
   private axiosInstance: AxiosInstance;
@@ -26,9 +26,9 @@ class ApiClient {
   private setupRequestInterceptor() {
     this.axiosInstance.interceptors.request.use(
       (config) => {
-        // Get token from localStorage or sessionStorage
-        const token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
-        
+        // Get token from tokenStorage (handles both localStorage and sessionStorage)
+        const token = tokenStorage.getToken();
+
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -131,10 +131,7 @@ class ApiClient {
    * Clear authentication data from storage
    */
   private clearAuthData() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem("wgs_user_data");
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem("wgs_user_data");
+    tokenStorage.clear();
   }
 
   /**

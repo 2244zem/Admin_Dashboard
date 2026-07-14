@@ -120,10 +120,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     <Link
       to="/privasisyarat"
       onClick={() => setIsOpen(false)}
-      className={`w-full flex items-center gap-4 py-1 px-3 rounded-md text-sm  transition-all duration-200 cursor-pointer ${
+      className={`w-full flex items-center gap-4 py-1 px-3 rounded-md text-sm transition-all duration-200 cursor-pointer ${
         location.pathname === "/privasisyarat"
-          ? " text-black"
-          : "bg-[#0F4C8] "
+          ? "text-black"
+          : "text-slate-600 hover:text-slate-800 hover:bg-slate-200/50"
       }`}
     >
       <ShieldCheck className="w-[18px] h-[18px]" />

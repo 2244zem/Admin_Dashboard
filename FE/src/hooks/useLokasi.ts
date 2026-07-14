@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { apiClient } from "../lib/apiClient";
+import apiClient from "../services/apiClient";
 import { ENDPOINTS } from "../config/endpoints";
 import { getErrorMessage } from "../lib/utils";
 

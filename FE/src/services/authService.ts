@@ -1,8 +1,6 @@
 import apiClient from "./apiClient";
+import { tokenStorage } from "../lib/tokenStorage";
 import type { LoginResponse, CheckTokenResponse, RefreshTokenResponse } from "../types/api";
-
-const TOKEN_KEY = "wgs_auth_token";
-const USER_DATA_KEY = "wgs_user_data";
 
 export interface User {
   id: number;
@@ -27,11 +25,9 @@ class AuthService {
         password,
       });
 
-      // Store token and user data based on rememberMe preference
-      const storage = rememberMe ? localStorage : sessionStorage;
-      
-      storage.setItem(TOKEN_KEY, response.token);
-      storage.setItem(USER_DATA_KEY, JSON.stringify(response.user));
+      // Store token and user data using tokenStorage for consistency
+      tokenStorage.setToken(response.token, rememberMe);
+      tokenStorage.setUser(response.user, rememberMe);
 
       return response;
     } catch (error) {
@@ -43,10 +39,7 @@ class AuthService {
    * Logout user - clear all auth data from storage
    */
   logout(): void {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_DATA_KEY);
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_DATA_KEY);
+    tokenStorage.clear();
   }
 
   /**
@@ -54,19 +47,19 @@ class AuthService {
    * @returns Promise<boolean>
    */
   async checkToken(): Promise<boolean> {
-    const token = this.getToken();
-    
+    const token = tokenStorage.getToken();
+
     if (!token) {
       return false;
     }
 
     try {
       const response = await apiClient.get<CheckTokenResponse>("/auth/check-token");
-      
+
       if (response.valid && response.user) {
         // Update user data if backend returns updated info
-        const storage = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage;
-        storage.setItem(USER_DATA_KEY, JSON.stringify(response.user));
+        const isRemembered = !!localStorage.getItem("token");
+        tokenStorage.setUser(response.user, isRemembered);
         return true;
       }
 
@@ -87,11 +80,11 @@ class AuthService {
   async refreshToken(): Promise<string> {
     try {
       const response = await apiClient.post<RefreshTokenResponse>("/auth/refresh-token");
-      
+
       // Update token in the same storage that was used originally
-      const storage = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage;
-      storage.setItem(TOKEN_KEY, response.token);
-      
+      const isRemembered = !!localStorage.getItem("token");
+      tokenStorage.setToken(response.token, isRemembered);
+
       return response.token;
     } catch (error) {
       // If refresh fails, logout user
@@ -105,7 +98,7 @@ class AuthService {
    * @returns string | null
    */
   getToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+    return tokenStorage.getToken();
   }
 
   /**
@@ -113,18 +106,7 @@ class AuthService {
    * @returns User | null
    */
   getCurrentUser(): User | null {
-    const userDataStr = localStorage.getItem(USER_DATA_KEY) || sessionStorage.getItem(USER_DATA_KEY);
-    
-    if (!userDataStr) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(userDataStr) as User;
-    } catch (error) {
-      console.error("Failed to parse user data:", error);
-      return null;
-    }
+    return tokenStorage.getUser() as User | null;
   }
 
   /**
@@ -163,11 +145,11 @@ class AuthService {
   }
 
   /**
-   * Check if token is stored in localStorage (remember me was enabled)
+   * Check if remember me was enabled (token stored in localStorage)
    * @returns boolean
    */
   isRememberMeEnabled(): boolean {
-    return !!localStorage.getItem(TOKEN_KEY);
+    return !!localStorage.getItem("token");
   }
 }
 

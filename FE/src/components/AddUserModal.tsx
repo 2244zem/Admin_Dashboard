@@ -108,13 +108,13 @@ const AddUserModal = ({ open, onClose, onSave }: AddUserModalProps) => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">No Telepon</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Peran</label>
                 <select
                   value={form.role}
                   onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
                   className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
                 >
-                  <option value="">Pilih Nomor Telepon</option>
+                  <option value="">Pilih Peran Pengguna</option>
                   {ROLE_OPTIONS.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.label}

@@ -16,12 +16,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Decode JWT payload for client-side usage only.
+ * NOTE: This only DECODES the token for reading claims. Signature verification
+ * MUST be done by the backend. A malicious user could modify the token payload
+ * and the frontend would still decode it. The backend must always verify the
+ * token signature before trusting any claims.
+ */
 function decodeJwtPayload(token: string): Record<string, any> | null {
   try {
     const [, payload] = token.split(".");
     if (!payload) return null;
+
+    // Handle URL-safe base64 encoding used in JWT
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(normalized));
+
+    // Add padding if needed for atob
+    const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+
+    // Decode base64 and parse JSON
+    const decoded = atob(padded);
+    return JSON.parse(decoded);
   } catch {
     return null;
   }
@@ -68,7 +83,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = tokenStorage.getToken();
 
-    if (!token || tokenStorage.isTokenExpired(token)) {
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Client-side token expiry check is for UX only
+    // Backend MUST verify token signature and expiry on every request
+    if (tokenStorage.isTokenExpired(token)) {
+      console.warn("Token expired on client. Backend will reject the request.");
       tokenStorage.clear();
       setIsLoading(false);
       return;

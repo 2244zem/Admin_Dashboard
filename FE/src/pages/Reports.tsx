@@ -657,7 +657,9 @@ const Reports = () => {
 };
 
 // ---------- Modal Edit Laporan (lokal, hanya dipakai di halaman ini) ----------
-// API hanya mendukung update: status, admin_catatan
+const EDIT_LOKASI_OPTIONS = ["Toilet Lantai 2", "Lobi Utama", "Lantai 4 - Ruang Rapat 4C", "Parkir Barat B2"];
+const EDIT_KATEGORI_OPTIONS = ["Kebersihan Fasilitas", "Kerusakan Fasilitas", "Ketersediaan Barang", "Lainnya"];
+const EDIT_OB_OPTIONS = ["Rahman", "Slamet Rahardjo", "Samsul Bahri", "Ujang Komar", "Bambang S.", "Iwan Setiawan"];
 const EDIT_STATUS_OPTIONS = ["Menunggu", "Ditugaskan", "Selesai", "Ditolak"];
 
 interface EditLaporanModalProps {
@@ -668,8 +670,13 @@ interface EditLaporanModalProps {
 
 const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) => {
   const [form, setForm] = useState<{
+    name: string;
+    loc: string;
+    area: string;
     status: string;
-    admin_catatan: string;
+    assignedTo: string;
+    desc: string;
+    catatanOb: string;
   } | null>(null);
 
   // Sinkronkan form setiap kali laporan target berubah (modal dibuka untuk laporan baru).
@@ -677,8 +684,13 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
   useMemo(() => {
     if (laporan) {
       setForm({
+        name: laporan.name,
+        loc: laporan.loc,
+        area: laporan.area ?? EDIT_KATEGORI_OPTIONS[0],
         status: laporan.status,
-        admin_catatan: laporan.desc || "",
+        assignedTo: laporan.assignedTo ?? "",
+        desc: laporan.desc,
+        catatanOb: "",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -687,12 +699,17 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
   if (!laporan || !form) return null;
 
   const idTransaksi = laporan.id_laporan ?? "-";
+  const waktuSelesai = laporan.createdAt;
 
   const handleSubmit = () => {
     onSave({
       ...laporan,
+      name: form.name,
+      loc: form.loc,
+      area: form.area as Laporan["area"],
       status: form.status as Laporan["status"],
-      desc: form.admin_catatan,
+      desc: form.desc,
+      assignedTo: form.assignedTo,
     });
   };
 
@@ -736,62 +753,161 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
             </div>
 
             <div className="px-6 py-5 space-y-5">
-              {/* Header Info (read-only) */}
+              {/* Status (editable) */}
+              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</p>
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    className="text-sm font-semibold rounded-lg px-3 py-1 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer bg-white"
+                  >
+                    {EDIT_STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <span className="text-xs text-gray-500">ID: {idTransaksi}</span>
+              </div>
+
+              {/* Nama Karyawan / Lokasi */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">ID Laporan</p>
-                  <p className="text-sm font-medium text-gray-800">{idTransaksi}</p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                    Nama Karyawan
+                  </p>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="w-full text-sm font-medium text-gray-800 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                  />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Nama Pelapor</p>
-                  <p className="text-sm font-medium text-gray-800">{laporan.name}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Lokasi</p>
-                  <p className="text-sm font-medium text-gray-800">{laporan.loc}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Waktu Laporan</p>
-                  <p className="text-sm text-gray-600">{new Date(laporan.createdAt).toLocaleString("id-ID")}</p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                    Lokasi
+                  </p>
+                  <select
+                    value={form.loc}
+                    onChange={(e) => setForm({ ...form, loc: e.target.value })}
+                    className="w-full text-sm font-medium text-blue-600 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                  >
+                    {[form.loc, ...EDIT_LOKASI_OPTIONS.filter((l) => l !== form.loc)].map((l) => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* Status (editable) */}
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Status Laporan</p>
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                  className="w-full text-sm font-medium rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer bg-white"
-                >
-                  {EDIT_STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+              {/* Kategori / OB yang Mengerjakan */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                    Area
+                  </p>
+                  <select
+                    value={form.area}
+                    onChange={(e) => setForm({ ...form, area: e.target.value })}
+                    className="w-full text-sm font-medium text-gray-800 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                  >
+                    {[form.area, ...EDIT_KATEGORI_OPTIONS.filter((k) => k !== form.area)].map((k) => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                    OB yang Mengerjakan
+                  </p>
+                  <select
+                    value={form.assignedTo}
+                    onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+                    className="w-full text-sm font-medium text-gray-800 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                  >
+                    <option value="">Belum ditugaskan</option>
+                    {[form.assignedTo, ...EDIT_OB_OPTIONS.filter((o) => o !== form.assignedTo)]
+                      .filter(Boolean)
+                      .map((o) => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                  </select>
+                </div>
               </div>
 
-              {/* Admin Catatan (editable) */}
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                  Catatan Admin
-                </p>
-                <textarea
-                  value={form.admin_catatan}
-                  onChange={(e) => setForm({ ...form, admin_catatan: e.target.value })}
-                  rows={3}
-                  placeholder="Tambahkan catatan internal..."
-                  className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 leading-relaxed outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"
-                />
+              {/* Waktu Laporan / Waktu Selesai (read-only) */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                    Waktu Laporan
+                  </p>
+                  <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {new Date(laporan.createdAt).toLocaleString("id-ID")}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                    Waktu Selesai
+                  </p>
+                  {waktuSelesai ? (
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-green-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {new Date(waktuSelesai).toLocaleString("id-ID")}
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-400">-</span>
+                  )}
+                </div>
               </div>
 
-              {/* Deskripsi Laporan (read-only) */}
+              {/* Deskripsi Laporan (editable) */}
               <div>
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
                   Deskripsi Laporan
                 </p>
-                <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 text-sm text-gray-600 leading-relaxed">
-                  {laporan.desc}
+                <textarea
+                  value={form.desc}
+                  onChange={(e) => setForm({ ...form, desc: e.target.value })}
+                  rows={3}
+                  className="w-full bg-blue-50/40 border border-blue-100 rounded-lg px-4 py-3 text-sm text-gray-700 leading-relaxed outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"
+                />
+              </div>
+
+              {/* Bukti Foto */}
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                  Bukti Foto {waktuSelesai ? "(Hasil Pengerjaan)" : "(Laporan Awal)"}
+                </p>
+                <div className="rounded-xl overflow-hidden border border-gray-100">
+                  <img
+                    src={laporan.foto}
+                    alt={laporan.desc}
+                    className="w-full h-56 object-cover"
+                  />
                 </div>
+                {form.assignedTo && waktuSelesai && (
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Diupload oleh {form.assignedTo} pada {new Date(waktuSelesai).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB
+                  </p>
+                )}
+              </div>
+
+              {/* Catatan untuk OB */}
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                  Buat catatan untuk OB
+                </p>
+                <textarea
+                  value={form.catatanOb}
+                  onChange={(e) => setForm({ ...form, catatanOb: e.target.value })}
+                  rows={3}
+                  placeholder="Tulis catatan atau instruksi tambahan..."
+                  className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 leading-relaxed outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"
+                />
               </div>
             </div>
 

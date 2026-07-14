@@ -1,30 +1,41 @@
-import { API_BASE_URL, TOKEN_KEY } from "./client";
-import type { ApiNotification } from "./notifikasi";
+import { tokenStorage } from "../lib/tokenStorage";
+
+// Base URL from environment
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
 interface NotificationSocketOptions {
-  onNotification: (payload: ApiNotification) => void;
+  onNotification: (payload: unknown) => void;
   onConnected?: () => void;
   onError?: (event: Event) => void;
   reconnectDelayMs?: number;
 }
 
+/**
+ * Connect to WebSocket for real-time notifications
+ * Uses tokenStorage for consistent token retrieval
+ */
 export function connectNotificationSocket(options: NotificationSocketOptions) {
-  const token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+  const token = tokenStorage.getToken();
   let socket: WebSocket | null = null;
-  let reconnectTimer: number | undefined;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let closedByClient = false;
 
   const connect = () => {
-    if (!token) return;
+    if (!token) {
+      console.warn("WebSocket: No token available, skipping connection");
+      return;
+    }
 
-    const baseUrl = API_BASE_URL || window.location.origin;
-    const url = new URL(baseUrl);
+    const url = new URL(BASE_URL);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.pathname = "/ws";
-    url.search = "";
     url.searchParams.set("token", token);
 
     socket = new WebSocket(url.toString());
+
+    socket.onopen = () => {
+      console.log("WebSocket: Connected");
+    };
 
     socket.onmessage = (event) => {
       try {
@@ -39,11 +50,15 @@ export function connectNotificationSocket(options: NotificationSocketOptions) {
       }
     };
 
-    socket.onerror = (event) => options.onError?.(event);
+    socket.onerror = (event) => {
+      console.error("WebSocket: Error", event);
+      options.onError?.(event);
+    };
 
     socket.onclose = () => {
+      console.log("WebSocket: Disconnected");
       if (closedByClient) return;
-      reconnectTimer = window.setTimeout(connect, options.reconnectDelayMs ?? 5000);
+      reconnectTimer = setTimeout(connect, options.reconnectDelayMs ?? 5000);
     };
   };
 
@@ -51,7 +66,7 @@ export function connectNotificationSocket(options: NotificationSocketOptions) {
 
   return () => {
     closedByClient = true;
-    if (reconnectTimer) window.clearTimeout(reconnectTimer);
+    if (reconnectTimer) clearTimeout(reconnectTimer);
     socket?.close();
   };
 }
