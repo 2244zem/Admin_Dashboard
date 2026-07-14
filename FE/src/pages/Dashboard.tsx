@@ -8,7 +8,7 @@ import * as XLSX from "xlsx";
 import useLaporan from "../hooks/useLaporan";
 import useTasks from "../hooks/useTasks";
 import PageHeader from "../components/ui/PageHeader";
-import LoadingSpinner from "../components/ui/LoadingSpinner";
+import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 
 type Tab = "Mingguan" | "Bulanan" | "Tahunan";
@@ -236,7 +236,7 @@ const Dashboard = () => {
     });
   };
 
-  const hasLoadingState = isLaporanLoading || isTasksLoading;
+  const hasLoadingState = (isLaporanLoading || isTasksLoading) && laporanList.length === 0 && taskList.length === 0;
   const hasErrorState = laporanError || tasksError;
 
   return (
@@ -246,7 +246,20 @@ const Dashboard = () => {
 
         <main className="flex-1 overflow-auto bg-white p-8">
           {hasLoadingState ? (
-            <LoadingSpinner text="Memuat data statistik dashboard..." />
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <Skeleton className="h-9 w-64 rounded-full" />
+                <Skeleton className="h-10 w-32 rounded-lg" />
+              </div>
+              <StatCardsSkeleton count={4} />
+              <Skeleton className="h-64 w-full rounded-xl my-5" />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <div className="lg:col-span-2">
+                  <TableSkeleton columns={6} rows={4} withAvatar />
+                </div>
+                <Skeleton className="h-64 w-full rounded-xl" />
+              </div>
+            </div>
           ) : hasErrorState ? (
             <ErrorState
               message={laporanError || tasksError || "Gagal memuat dashboard"}

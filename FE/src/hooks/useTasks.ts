@@ -118,9 +118,12 @@ export function useTasks() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = useCallback(async (params?: any) => {
-    setIsLoading(true);
-    setError(null);
+  const fetchTasks = useCallback(async (params?: any, opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       // Build clean params object, only include defined values
       const queryParams: any = {};
@@ -146,14 +149,16 @@ export function useTasks() {
     } catch (err: any) {
       console.error("❌ Fetch tasks failed:", err);
       console.error("❌ Error details:", { statusCode: err.statusCode, payload: err.payload });
-      setError(getErrorMessage(err));
+      if (!silent) setError(getErrorMessage(err));
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchTasks();
+    const interval = setInterval(() => fetchTasks(undefined, { silent: true }), 5000);
+    return () => clearInterval(interval);
   }, [fetchTasks]);
 
   const createTask = async (payload: any) => {

@@ -177,12 +177,15 @@ export function useUsers() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUsers = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchUsers = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       if (!import.meta.env.VITE_API_BASE_URL) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (!silent) await new Promise((resolve) => setTimeout(resolve, 300));
         setUserList(getStoredUsers());
         return;
       }
@@ -225,9 +228,9 @@ export function useUsers() {
     } catch (err: any) {
       console.error("❌ Failed to fetch users:", err);
       console.error("❌ Error details:", { statusCode: err.statusCode, payload: err.payload });
-      setError(getErrorMessage(err));
+      if (!silent) setError(getErrorMessage(err));
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, []);
 
@@ -283,6 +286,8 @@ export function useUsers() {
 
   useEffect(() => {
     fetchUsers();
+    const interval = setInterval(() => fetchUsers({ silent: true }), 5000);
+    return () => clearInterval(interval);
   }, [fetchUsers]);
 
   // Sync state changes on local-data-changed events

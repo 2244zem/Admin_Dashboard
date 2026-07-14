@@ -15,7 +15,7 @@ import useKategori from "../hooks/useKategori";
 import useTugasOptions from "../hooks/useTugasOptions";
 import Can from "../components/auth/Can";
 import PageHeader from "../components/ui/PageHeader";
-import LoadingSpinner from "../components/ui/LoadingSpinner";
+import { StatCardsSkeleton, CardListSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
@@ -280,7 +280,13 @@ const Tasks = () => {
 
         <main className="flex-1 overflow-auto bg-white p-8 font-sans">
           {isTasksLoading && tasks.length === 0 ? (
-            <LoadingSpinner text="Memuat data tugas..." />
+            <div>
+              <Skeleton className="h-9 w-72 rounded-full mb-6" />
+              <StatCardsSkeleton count={4} />
+              <div className="mt-6">
+                <CardListSkeleton count={3} />
+              </div>
+            </div>
           ) : tasksError ? (
             <ErrorState message={tasksError} onRetry={fetchTasks} />
           ) : isEmpty ? (

@@ -4,7 +4,7 @@ import useLokasi from "../hooks/useLokasi";
 import type { Gedung, Lantai, Ruangan } from "../hooks/useLokasi";
 import Can from "../components/auth/Can";
 import PageHeader from "../components/ui/PageHeader";
-import LoadingSpinner from "../components/ui/LoadingSpinner";
+import { Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import GedungFormModal from "../components/lokasi/GedungFormModal";
@@ -221,7 +221,19 @@ const DataLokasi = () => {
         {/* BODY: 2 KOLOM */}
         <main className="flex-1 overflow-hidden flex flex-col md:flex-row gap-6 p-8 bg-white">
           {isLoading && gedungList.length === 0 ? (
-            <LoadingSpinner text="Memuat data lokasi..." />
+            <>
+              <div className="w-full md:w-[300px] flex-shrink-0 space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full rounded-xl" />
+                ))}
+              </div>
+              <div className="flex-1 space-y-3">
+                <Skeleton className="h-10 w-48 rounded-lg" />
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-14 w-full rounded-xl" />
+                ))}
+              </div>
+            </>
           ) : error ? (
             <ErrorState message={error} onRetry={fetchGedung} />
           ) : (

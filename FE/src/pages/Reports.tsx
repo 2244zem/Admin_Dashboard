@@ -6,7 +6,7 @@ import type { Laporan } from "../types/laporan";
 import ReportDetailModal from "../components/ReportDetailModal";
 import useLaporan from "../hooks/useLaporan";
 import PageHeader from "../components/ui/PageHeader";
-import LoadingSpinner from "../components/ui/LoadingSpinner";
+import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 // import EmptyState from "../components/ui/EmptyState";
 
@@ -151,8 +151,16 @@ const Reports = () => {
         <PageHeader title="Laporan Pengguna" />
 
         <main className="flex-1 overflow-auto bg-white p-8">
-          {isLoading ? (
-            <LoadingSpinner text="Memuat data laporan..." />
+          {isLoading && laporanList.length === 0 ? (
+            <div>
+              <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
+                <Skeleton className="h-24 flex-1 rounded-xl" />
+                <Skeleton className="h-24 flex-1 rounded-xl" />
+                <Skeleton className="h-24 flex-1 rounded-xl" />
+              </div>
+              <StatCardsSkeleton count={4} />
+              <TableSkeleton columns={6} rows={5} withAvatar />
+            </div>
           ) : error ? (
             <ErrorState message={error} onRetry={() => fetchLaporan(apiFilters)} />
           ) : (

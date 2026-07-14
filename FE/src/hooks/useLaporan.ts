@@ -256,9 +256,12 @@ export function useLaporan(filters?: any) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLaporan = useCallback(async (activeFilters?: any) => {
-    setIsLoading(true);
-    setError(null);
+  const fetchLaporan = useCallback(async (activeFilters?: any, opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       const params = activeFilters || filters || {};
       console.log("📋 fetchLaporan: fetching with params:", params);
@@ -304,14 +307,16 @@ export function useLaporan(filters?: any) {
       setLaporanList(enriched);
     } catch (err: any) {
       console.error("📋 fetchLaporan: error:", err);
-      setError(getErrorMessage(err));
+      if (!silent) setError(getErrorMessage(err));
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [filters]);
 
   useEffect(() => {
     fetchLaporan();
+    const interval = setInterval(() => fetchLaporan(undefined, { silent: true }), 5000);
+    return () => clearInterval(interval);
   }, [fetchLaporan]);
 
   const updateLaporanStatus = async (_id: number, _status: StatusLaporan) => {

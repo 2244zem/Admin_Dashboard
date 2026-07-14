@@ -9,7 +9,7 @@ import EditUserModal from "../components/EditUserModal";
 import { ROLE_OPTIONS, STATUS_USER_COLOR } from "../types/user";
 import type { AppUser, UserRole } from "../types/user";
 import PageHeader from "../components/ui/PageHeader";
-import LoadingSpinner from "../components/ui/LoadingSpinner";
+import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
@@ -169,8 +169,16 @@ const Users = () => {
         <PageHeader title="Manajemen User" />
 
         <main className="flex-1 overflow-auto bg-white p-8">
-          {isLoading ? (
-            <LoadingSpinner text="Memuat data pengguna..." />
+          {isLoading && userList.length === 0 ? (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-10 w-40 rounded-lg" />
+              </div>
+              <StatCardsSkeleton count={4} />
+              <Skeleton className="h-20 w-full rounded-xl mb-6" />
+              <TableSkeleton columns={6} rows={3} withAvatar />
+            </div>
           ) : error ? (
             <ErrorState message={error} onRetry={fetchUsers} />
           ) : (
