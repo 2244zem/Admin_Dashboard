@@ -9,6 +9,7 @@ export interface Laporan {
   id_laporan?: string; // Field dari backend service layer (format: LPR-001, etc)
   name: string;
   initial: string;
+  karyawanId?: string; // ID karyawan pelapor untuk lookup foto profil dari tabel user
   loc: string; // Lokasi lengkap dalam format string (Gedung - Lantai - Ruangan)
   area: AreaLaporan; // Kategori lokasi (Toilet, Lobi, Area Kantor, Parkir)
   lokasi_id?: string; // ID lokasi untuk grouping di stats

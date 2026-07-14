@@ -1,8 +1,38 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Laporan, StatusLaporan, AreaLaporan, LevelLaporan } from "../types/laporan";
 import { getAdminLaporan, getAdminLaporanDetail, getUserProfile, updateAdminLaporan, deleteAdminLaporan } from "../api/laporan";
+import { getAdminUsers } from "../api/user";
 import { API_BASE_URL } from "../api/client";
 import { getErrorMessage } from "../lib/utils";
+
+function normalizeName(name: unknown): string {
+  return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+interface UserPhotoMaps {
+  byId: Map<string, string>;
+  byName: Map<string, string>;
+}
+
+async function buildUserPhotoMaps(): Promise<UserPhotoMaps> {
+  const byId = new Map<string, string>();
+  const byName = new Map<string, string>();
+  try {
+    const payload: any = await getAdminUsers({ page: 1, limit: 200 });
+    const rows: any[] = extractArray(payload);
+    for (const u of rows) {
+      const photo = resolveImageUrl(u.profile_picture || u.foto_profil || u.avatar);
+      if (!photo) continue;
+      const id = String(u.id ?? u.user_id ?? "");
+      const name = normalizeName(u.nama_lengkap || u.namaLengkap || u.name || u.username);
+      if (id) byId.set(id, photo);
+      if (name) byName.set(name, photo);
+    }
+  } catch (err) {
+    console.warn("⚠️ buildUserPhotoMaps: gagal memuat foto profil user:", err);
+  }
+  return { byId, byName };
+}
 
 function extractArray(payload: any): any[] {
   console.log("📋 extractArray: checking payload structure, keys:", Object.keys(payload || {}));
@@ -195,6 +225,16 @@ export function mapApiLaporanToLaporan(row: any): Laporan {
     id_laporan: row.id_laporan,
     name,
     initial: getInitial(name),
+    karyawanId: String(
+      row.karyawan_id ||
+        row.user_id ||
+        row.pelapor_id ||
+        row.id_karyawan ||
+        row.karyawan?.id ||
+        row.user?.id ||
+        row.pelapor?.id ||
+        ""
+    ) || undefined,
     loc: lokasi,
     area: mapArea(row),
     lokasi_id: row.lokasi_id || row.kategori || row.area || "Area Kantor",
@@ -248,7 +288,20 @@ export function useLaporan(filters?: any) {
         console.log("📋 fetchLaporan: first item:", JSON.stringify(extracted[0])?.slice(0, 500));
       }
 
-      setLaporanList(extracted.map(mapApiLaporanToLaporan));
+      const mapped = extracted.map(mapApiLaporanToLaporan);
+
+      // Enrich foto profil dari tabel user (endpoint laporan tidak selalu mengembalikan foto profil)
+      const photoMaps = await buildUserPhotoMaps();
+      const enriched = mapped.map((l) => {
+        if (l.fotoProfil) return l;
+        const fotoProfil =
+          (l.karyawanId && photoMaps.byId.get(l.karyawanId)) ||
+          photoMaps.byName.get(normalizeName(l.name)) ||
+          undefined;
+        return fotoProfil ? { ...l, fotoProfil } : l;
+      });
+
+      setLaporanList(enriched);
     } catch (err: any) {
       console.error("📋 fetchLaporan: error:", err);
       setError(getErrorMessage(err));
@@ -322,7 +375,13 @@ export function useLaporan(filters?: any) {
     // getAdminLaporanDetail already calls unwrapData, so payload is the raw data object
     const payload = await getAdminLaporanDetail(laporanId);
     console.log("📋 getLaporanDetail: raw payload from API:", JSON.stringify(payload, null, 2));
-    return { ...laporan, ...mapApiLaporanToLaporan(payload), backendId: laporanId };
+    const mapped = mapApiLaporanToLaporan(payload);
+    return {
+      ...laporan,
+      ...mapped,
+      fotoProfil: mapped.fotoProfil || laporan.fotoProfil,
+      backendId: laporanId,
+    };
   };
 
   return {

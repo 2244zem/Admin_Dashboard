@@ -143,10 +143,25 @@ class ApiClient {
   }
 
   /**
+   * Ensure FormData bodies are sent as multipart (let the browser set the
+   * boundary) instead of being force-converted to JSON by the default
+   * application/json Content-Type header.
+   */
+  private withFormDataConfig(data: any, config?: AxiosRequestConfig): AxiosRequestConfig | undefined {
+    if (typeof FormData !== "undefined" && data instanceof FormData) {
+      return {
+        ...config,
+        headers: { ...(config?.headers as any), "Content-Type": undefined },
+      };
+    }
+    return config;
+  }
+
+  /**
    * POST request
    */
   async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.axiosInstance.post<T>(url, data, config);
+    const response = await this.axiosInstance.post<T>(url, data, this.withFormDataConfig(data, config));
     return response.data;
   }
 
@@ -154,7 +169,7 @@ class ApiClient {
    * PUT request
    */
   async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.axiosInstance.put<T>(url, data, config);
+    const response = await this.axiosInstance.put<T>(url, data, this.withFormDataConfig(data, config));
     return response.data;
   }
 
@@ -170,7 +185,7 @@ class ApiClient {
    * PATCH request
    */
   async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.axiosInstance.patch<T>(url, data, config);
+    const response = await this.axiosInstance.patch<T>(url, data, this.withFormDataConfig(data, config));
     return response.data;
   }
 }

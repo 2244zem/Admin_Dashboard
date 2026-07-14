@@ -1,8 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import type { AppUser, UserStatus } from "../types/user";
 import apiClient from "../services/apiClient";
+import { activateUserToken, renewUserToken } from "../api/user";
 import { ENDPOINTS } from "../config/endpoints";
 import { getErrorMessage, generateToken } from "../lib/utils";
+
+// Map UI status (Indonesian labels) -> backend status value.
+// TODO: sesuaikan nilai di kanan dengan enum status yang sebenarnya diterima backend.
+const STATUS_TO_BACKEND: Record<UserStatus, string> = {
+  Aktif: "Aktif",
+  "Non-Aktif": "Non-Aktif",
+  Menunggu: "Menunggu",
+  "Aktivasi Kadaluwarsa": "Aktivasi Kadaluwarsa",
+};
 
 const mockInitialUsers: AppUser[] = [];
 
@@ -241,8 +251,8 @@ export function useUsers() {
       const data: any = await apiClient.get<any>("/api/admin/user/all-ob");
       console.log("👷 fetchOB: RAW response from backend:", JSON.stringify(data, null, 2));
 
-      // Extract users - the endpoint returns array directly or wrapped in {data: [...]}
-      let extracted = Array.isArray(data) ? data : data?.data || data?.items || [];
+      // Extract users - handles array directly or any nested wrapper shape
+      let extracted = extractUsers(data);
 
       console.log(`✅ fetchOB: Extracted ${extracted.length} OB users`, extracted);
 
@@ -423,37 +433,30 @@ export function useUsers() {
         return { success: true, message: "Perubahan Berhasil Disimpan" };
       }
 
-      // Build FormData with multipart/form-data for PATCH /api/admin/user/{user_id}
-      const formData = new FormData();
-      if (payload.username) formData.append("username", payload.username);
-      if (payload.email) formData.append("email", payload.email);
-      if (payload.namaLengkap) formData.append("nama_lengkap", payload.namaLengkap);
+      // Backend expects application/json for PATCH /api/admin/user/{user_id}
+      const body: Record<string, unknown> = {};
+      if (payload.username) body.username = payload.username;
+      if (payload.email) body.email = payload.email;
+      if (payload.namaLengkap) body.nama_lengkap = payload.namaLengkap;
       // Map role name (Admin/OB/HR/Karyawan) back to UUID for API
       if (payload.role) {
         const roleUUID = Object.entries(ROLE_UUID_MAP).find(([, r]) => r === payload.role)?.[0];
-        if (roleUUID) formData.append("role_id", roleUUID);
+        if (roleUUID) body.role_id = roleUUID;
       }
-      // Only append password if provided (avoid resetting to empty)
-      if (payload.password) formData.append("password", payload.password);
+      // Only send password if provided (avoid resetting to empty)
+      if (payload.password) body.password = payload.password;
 
-      // Handle status update - convert UI status to is_active
+      // Send both is_active (boolean) and status (string) for account state
       if (payload.status) {
-        const isActive = payload.status === "Aktif";
-        formData.append("is_active", isActive ? "true" : "false");
-        console.log("🔍 Setting is_active based on status:", payload.status, "->", isActive);
-      }
-
-      console.log("🔍 Updating user with backendId:", backendId, "type:", typeof backendId);
-      console.log("🔍 FormData entries:");
-      for (const [key, value] of formData.entries()) {
-        console.log(`  ${key}:`, value);
+        body.is_active = payload.status === "Aktif";
+        body.status = STATUS_TO_BACKEND[payload.status as UserStatus] ?? payload.status;
+        console.log("🔍 Setting status:", payload.status, "-> is_active:", body.is_active, "status:", body.status);
       }
 
       const endpoint = `/api/admin/user/${encodeURIComponent(backendId)}`;
-      console.log("🔍 Full PATCH endpoint:", endpoint);
+      console.log("🔍 Updating user with backendId:", backendId, "endpoint:", endpoint, "body:", body);
 
-      // Use apiClient for PATCH with FormData
-      const responseData = await apiClient.patch<any>(endpoint, formData);
+      const responseData = await apiClient.patch<any>(endpoint, body);
       console.log("🔍 PATCH success response:", responseData);
 
       await fetchUsers();
@@ -487,8 +490,10 @@ export function useUsers() {
       await fetchUsers();
     } catch (err: any) {
       console.error("🗑️ Delete user error:", err);
-      console.error("🗑️ Error payload:", err.payload);
-      const msg = getErrorMessage(err);
+      console.error("🗑️ Error details:", { statusCode: err?.statusCode, message: err?.message, payload: err?.payload });
+      const baseMsg = getErrorMessage(err);
+      const code = err?.statusCode ? ` (HTTP ${err.statusCode})` : "";
+      const msg = `${baseMsg}${code}`;
       setError(msg);
       throw new Error(msg);
     } finally {
@@ -519,70 +524,16 @@ export function useUsers() {
         return;
       }
 
-      console.log("🔑 Renewing token for backendId:", backendId);
+      console.log("🔑 Renewing token for backendId:", backendId, "hours:", hours);
 
-      // Try different endpoint patterns for token renewal
-      const endpoints = [
-        `/api/admin/user/${backendId}/activate`,
-        `/api/admin/user/${backendId}/renew-token`,
-        `/api/admin/user/${backendId}/token/renew`,
-        `/api/admin/user/${backendId}/refresh`,
-      ];
-
-      let success = false;
-      let lastError: Error | null = null;
-
-      for (const endpoint of endpoints) {
-        try {
-          console.log("🔑 Trying endpoint:", endpoint);
-          await apiClient.post<any>(endpoint, hours ? { hours } : {});
-          success = true;
-          console.log("✅ Token renewed with endpoint:", endpoint);
-          break;
-        } catch (err: any) {
-          console.log("⚠️ Endpoint failed:", endpoint, "status:", err.statusCode);
-          lastError = err;
-          // Continue to next endpoint
-        }
-      }
-
-      if (!success) {
-        // If all endpoints fail, try using PATCH to update user status
-        console.log("🔑 Trying PATCH to update user status instead");
-
-        // Try different PATCH payloads
-        const patchPayloads = [
-          { is_active: true },
-          { is_active: true, token_expired_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
-          { status: "Aktif" },
-          { is_active: "true" },
-        ];
-
-        let patchSuccess = false;
-        for (const payload of patchPayloads) {
-          try {
-            console.log("🔑 Trying PATCH with payload:", payload);
-            const formData = new FormData();
-            Object.entries(payload).forEach(([key, value]) => {
-              if (value !== undefined && value !== null) {
-                formData.append(key, String(value));
-              }
-            });
-
-            const response = await apiClient.patch<any>(`/api/admin/user/${backendId}`, formData);
-            console.log("🔑 PATCH response:", response);
-            patchSuccess = true;
-            success = true;
-            console.log("✅ Token renewed via PATCH update with payload:", payload);
-            break;
-          } catch (err: any) {
-            console.log("⚠️ PATCH payload failed:", payload, "error:", err.message);
-          }
-        }
-
-        if (!patchSuccess) {
-          throw new Error(`Gagal memperbarui token. Semua endpoint gagal: ${lastError?.message || 'Unknown error'}`);
-        }
+      // Use documented endpoints: prefer renew-token, fall back to activate.
+      try {
+        await renewUserToken(backendId, hours);
+        console.log("✅ Token renewed via /renew-token");
+      } catch (renewErr: any) {
+        console.log("⚠️ /renew-token failed:", renewErr?.statusCode, renewErr?.message, "- trying /activate");
+        await activateUserToken(backendId);
+        console.log("✅ Token activated via /activate");
       }
 
       await fetchUsers();
