@@ -44,6 +44,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   obPrefill,
   kategoriOptions = [],
   tugasOptions = [],
+  obOptions = [],
   gedungOptions = [],
   lantaiOptions = [],
 }) => {
@@ -140,19 +141,13 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Tugas</label>
-                  <select
-                    value={form.tugas_id}
-                    onChange={(e) => handleFormChange("tugas_id", e.target.value)}
-                    disabled={!form.kategori_id}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Pilih Tugas</option>
-                    {tugasOptions
-                      .filter(t => !form.kategori_id || t.kategori_id === form.kategori_id)
-                      .map((t) => (
-                        <option key={t.id} value={t.id}>{t.nama}</option>
-                      ))}
-                  </select>
+                  <input
+                    type="text"
+                    value={form.namaTugas}
+                    onChange={(e) => handleFormChange("namaTugas", e.target.value)}
+                    placeholder="Tulis nama tugas..."
+                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
