@@ -92,21 +92,14 @@ function mapApiToGedungList(lokasiPayload: any, lantaiPayload: any, ruanganPaylo
 const GEDUNG_KEY = ["gedung"] as const;
 
 async function fetchGedungQuery(): Promise<Gedung[]> {
-  console.log("🏢 fetchGedungQuery: VITE_API_BASE_URL =", import.meta.env.VITE_API_BASE_URL);
-
   // Empty VITE_API_BASE_URL = pakai vite proxy → tetap fetch dari API
   // localStorage mock hanya untuk development offline tanpa backend
-  console.log("🏢 Fetching from API...");
   const [lokasi, lantai, ruangan] = await Promise.all([
     apiClient.get<any>(ENDPOINTS.LOKASI_GEDUNG_LIST),
     apiClient.get<any>("/api/lantai"),
     apiClient.get<any>("/api/ruangan"),
   ]);
-  console.log("🏢✅ API lokasi:", JSON.stringify(lokasi, null, 2));
-  console.log("🏢✅ API lantai:", JSON.stringify(lantai, null, 2));
-  console.log("🏢✅ API ruangan:", JSON.stringify(ruangan, null, 2));
   const mapped = mapApiToGedungList(lokasi, lantai, ruangan);
-  console.log("🏢✅ Mapped gedung:", JSON.stringify(mapped, null, 2));
   return validateList<Gedung>(gedungSchema, mapped, "gedung");
 }
 
@@ -160,18 +153,12 @@ export function useLokasi() {
   // Gedung CRUD - selalu panggil API (vite proxy akan redirect ke backend)
   const createGedung = async (payload: { nama: string; kapasitas: string }) => {
     try {
-      console.log("🏢➕ createGedung payload:", JSON.stringify({
-        nama_lokasi: payload.nama,
-        jumlah_lantai: Number(payload.kapasitas) || 0,
-      }));
-      const result = await apiClient.post(ENDPOINTS.LOKASI_GEDUNG_CREATE, {
+      await apiClient.post(ENDPOINTS.LOKASI_GEDUNG_CREATE, {
         nama_lokasi: payload.nama,
         jumlah_lantai: Number(payload.kapasitas) || 0,
       });
-      console.log("🏢✅ createGedung result:", JSON.stringify(result, null, 2));
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ createGedung error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -179,14 +166,12 @@ export function useLokasi() {
 
   const updateGedung = async (id: string, payload: { nama: string; kapasitas: string }) => {
     try {
-      console.log("🏢✏️ updateGedung:", stripPrefix(id), payload);
       await apiClient.patch(ENDPOINTS.LOKASI_GEDUNG_UPDATE(stripPrefix(id)), {
         nama_lokasi: payload.nama,
         jumlah_lantai: Number(payload.kapasitas) || 0,
       });
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ updateGedung error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -194,11 +179,9 @@ export function useLokasi() {
 
   const deleteGedung = async (id: string) => {
     try {
-      console.log("🏢🗑️ deleteGedung:", stripPrefix(id));
       await apiClient.delete(ENDPOINTS.LOKASI_GEDUNG_DELETE(stripPrefix(id)));
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ deleteGedung error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -211,12 +194,9 @@ export function useLokasi() {
         lokasi_id: stripPrefix(gedungId),
         nomor_lantai: Number.parseInt(payload.nama.replace(/\D/g, ""), 10) || 0,
       };
-      console.log("🏢➕ createLantai payload:", JSON.stringify(apiPayload));
-      const result = await apiClient.post(ENDPOINTS.LOKASI_LANTAI_CREATE(gedungId), apiPayload);
-      console.log("🏢✅ createLantai result:", JSON.stringify(result, null, 2));
+      await apiClient.post(ENDPOINTS.LOKASI_LANTAI_CREATE(gedungId), apiPayload);
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ createLantai error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -224,13 +204,11 @@ export function useLokasi() {
 
   const updateLantai = async (id: string, payload: { nama: string }) => {
     try {
-      console.log("🏢✏️ updateLantai:", stripPrefix(id), payload);
       await apiClient.patch(ENDPOINTS.LOKASI_LANTAI_UPDATE(stripPrefix(id)), {
         nomor_lantai: Number.parseInt(payload.nama.replace(/\D/g, ""), 10) || 0,
       });
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ updateLantai error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -238,11 +216,9 @@ export function useLokasi() {
 
   const deleteLantai = async (id: string) => {
     try {
-      console.log("🏢🗑️ deleteLantai:", stripPrefix(id));
       await apiClient.delete(ENDPOINTS.LOKASI_LANTAI_DELETE(stripPrefix(id)));
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ deleteLantai error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -255,12 +231,9 @@ export function useLokasi() {
         lantai_id: stripPrefix(lantaiId),
         nama: payload.nama,
       };
-      console.log("🏢➕ createRuangan payload:", JSON.stringify(apiPayload));
-      const result = await apiClient.post(ENDPOINTS.LOKASI_RUANGAN_CREATE(lantaiId), apiPayload);
-      console.log("🏢✅ createRuangan result:", JSON.stringify(result, null, 2));
+      await apiClient.post(ENDPOINTS.LOKASI_RUANGAN_CREATE(lantaiId), apiPayload);
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ createRuangan error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -268,13 +241,11 @@ export function useLokasi() {
 
   const updateRuangan = async (id: string, payload: { nama: string }) => {
     try {
-      console.log("🏢✏️ updateRuangan:", stripPrefix(id), payload);
       await apiClient.patch(ENDPOINTS.LOKASI_RUANGAN_UPDATE(stripPrefix(id)), {
         nama: payload.nama,
       });
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ updateRuangan error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -282,11 +253,9 @@ export function useLokasi() {
 
   const deleteRuangan = async (id: string) => {
     try {
-      console.log("🏢🗑️ deleteRuangan:", stripPrefix(id));
       await apiClient.delete(ENDPOINTS.LOKASI_RUANGAN_DELETE(stripPrefix(id)));
       await fetchGedung();
     } catch (err: any) {
-      console.error("🏢❌ deleteRuangan error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }

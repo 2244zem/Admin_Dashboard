@@ -85,7 +85,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const apiError = error as ApiErrorResponse;
       setReportsError(apiError.message || "Gagal memuat data laporan");
-      console.error("Failed to fetch reports:", error);
     } finally {
       setReportsLoading(false);
     }
@@ -126,7 +125,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const apiError = error as ApiErrorResponse;
       setTasksError(apiError.message || "Gagal memuat data tugas");
-      console.error("Failed to fetch tasks:", error);
     } finally {
       setTasksLoading(false);
     }
@@ -266,13 +264,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       // Graceful degradation for notifications - don't block app if endpoint unavailable
       if (error?.statusCode === 502 || error?.statusCode === 503) {
-        console.warn(" Notifications endpoint unavailable (502/503), using empty state");
         setNotifications([]);
         setNotificationsError(null); // Don't show error to user for non-critical feature
       } else {
         const apiError = error as ApiErrorResponse;
         setNotificationsError(apiError.message || "Gagal memuat notifikasi");
-        console.error("Failed to fetch notifications:", error);
       }
     } finally {
       setNotificationsLoading(false);

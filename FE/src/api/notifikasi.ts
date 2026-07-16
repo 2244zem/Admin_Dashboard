@@ -30,16 +30,13 @@ function extractNotifications(payload: any): { hari_ini: ApiNotification[]; kema
 export async function getNotifikasi(): Promise<NotifikasiGrouped | null> {
   try {
     const raw = await apiClient.get<any>("/api/notifikasi");
-    console.log("📬 Raw notifikasi response:", raw);
 
     // unwrapData: { success, message, data: {...} } -> { hari_ini, kemarin }
     const payload = unwrapData<NotifikasiGrouped>(raw);
     const grouped = extractNotifications(payload);
-    console.log("📬 Parsed notifikasi grouped:", grouped);
 
     return grouped;
-  } catch (err) {
-    console.error("❌ Failed to fetch notifications:", err);
+  } catch {
     return null;
   }
 }
@@ -55,14 +52,12 @@ export async function markAllNotificationsRead(): Promise<void> {
 export async function getUnreadNotificationCount(): Promise<number> {
   try {
     const raw = await apiClient.get<any>("/api/notifikasi/unread-count");
-    console.log("🔢 Raw unread count response:", raw);
 
     // unwrapData: { success, message, data: 0 } -> 0
     const data = unwrapData<number>(raw);
     if (typeof data === "number") return data;
     return 0;
-  } catch (err) {
-    console.error("❌ Failed to fetch unread count:", err);
+  } catch {
     return 0;
   }
 }

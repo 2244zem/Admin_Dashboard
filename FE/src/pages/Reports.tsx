@@ -88,7 +88,6 @@ const Reports = () => {
 
   const handleDetailStatusChange = async (newStatus: "Menunggu" | "Ditugaskan" | "Selesai" | "Ditolak") => {
     if (!detailTarget) return;
-    console.log("🔄 Reports: changing status from", detailTarget.status, "to", newStatus);
     try {
       await updateLaporan(detailTarget.backendId || String(detailTarget.id), {
         ...detailTarget,
@@ -97,8 +96,8 @@ const Reports = () => {
       // Refresh detail data
       const refreshed = await getLaporanDetail({ ...detailTarget, status: newStatus });
       setDetailTarget(refreshed);
-    } catch (err) {
-      console.error("Gagal mengubah status:", err);
+    } catch {
+      // Error handled by hook
     }
   };
 
@@ -107,7 +106,6 @@ const Reports = () => {
   const openEditModal = (row: Laporan) => setEditTarget(row);
   const closeEditModal = () => setEditTarget(null);
   const handleSaveEdit = async (_updated: Laporan) => {
-    console.log("✏️ Reports: saving edit for laporan", _updated.backendId || _updated.id);
     try {
       // Only send fields supported by backend API: status, admin_catatan
       await updateLaporan(_updated.backendId || String(_updated.id), {
@@ -115,8 +113,8 @@ const Reports = () => {
         admin_catatan: _updated.desc,
       });
       closeEditModal();
-    } catch (err) {
-      console.error("Gagal mengupdate laporan:", err);
+    } catch {
+      // Error handled by hook
     }
   };
 
@@ -126,12 +124,11 @@ const Reports = () => {
   const closeDeleteConfirm = () => setDeleteTarget(null);
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    console.log("🗑️ Reports: deleting laporan", deleteTarget.backendId || deleteTarget.id);
     try {
       await deleteLaporan(deleteTarget.backendId || String(deleteTarget.id));
       closeDeleteConfirm();
-    } catch (err) {
-      console.error("Gagal menghapus laporan:", err);
+    } catch {
+      // Error handled by hook
     }
   };
 

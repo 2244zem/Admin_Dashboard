@@ -30,8 +30,6 @@ function mapNotifType(type: unknown): NotifType {
 }
 
 export function mapApiNotificationToAppNotification(row: ApiNotification): AppNotification {
-  console.log("📬 Mapping notification:", row);
-
   // Field sesuai kontrak backend:
   // id, tipe, judul, pesan, is_read, created_at, pengirim.nama_lengkap
   const rawId = row.id ?? row.notification_id ?? row._id ?? row.uuid ?? "";
@@ -69,9 +67,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const grouped = await getNotifikasi();
       const unreadPayload: unknown = await getUnreadNotificationCount();
 
-      console.log("📥 Fetched notifications grouped:", grouped);
-      console.log("📥 Fetched unread count:", unreadPayload);
-
       const merged = [
         ...(grouped?.hari_ini || []),
         ...(grouped?.kemarin || []),
@@ -79,7 +74,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      console.log("📋 Mapped notifications:", merged);
       setNotifications(merged);
 
       // Parse unread count - handle different response formats
@@ -91,10 +85,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         count = obj.unread_count ?? obj.unreadCount ?? obj.count ?? 0;
       }
 
-      console.log("🔢 Setting unread count:", count);
       setUnreadCount(Number.isFinite(count) ? count : 0);
-    } catch (err) {
-      console.error("❌ Failed to fetch notifications:", err);
+    } catch {
+      // Silent fail for notifications
     }
   }, [isAuthenticated]);
 
@@ -119,43 +112,36 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // Cleanup function untuk disconnect WebSocket
     return connectNotificationSocket({
       onNotification: (payload) => {
-        console.log("🔔 WebSocket notification received:", payload);
-
         // Skip jika CONNECTED event (bukan notifikasi asli)
         if ((payload as any)?.type === "CONNECTED") {
-          console.log("ℹ️ Ignoring CONNECTED event");
           return;
         }
 
         try {
           const notification = mapApiNotificationToAppNotification(payload as ApiNotification);
-          console.log("✅ Mapped realtime notification:", notification);
 
           // Check if notification already exists (avoid duplicates)
           setNotifications((prev) => {
             const exists = prev.some((n) => n.id === notification.id);
             if (exists) {
-              console.log("ℹ️ Notification already exists, skipping");
               return prev;
             }
-            console.log("➕ Adding new notification to list");
             return [notification, ...prev];
           });
 
           // Increment unread count only for unread notifications
           if (!notification.read) {
-            console.log("🔢 Incrementing unread count");
             setUnreadCount((prev) => prev + 1);
           }
-        } catch (err) {
-          console.error("❌ Error mapping realtime notification:", err);
+        } catch {
+          // Silent fail for notification mapping
         }
       },
       onConnected: () => {
-        console.log("✅ WebSocket connected");
+        // Connected
       },
-      onError: (event) => {
-        console.error("❌ WebSocket error:", event);
+      onError: () => {
+        // Silent fail for WebSocket errors
       },
     });
   }, [isAuthenticated]);
@@ -165,8 +151,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       await markAllNotificationsRead();
       setNotifications((prev) => prev.map((notification) => ({ ...notification, read: true })));
       setUnreadCount(0);
-    } catch (err) {
-      console.error("❌ Failed to mark all read:", err);
+    } catch {
+      // Silent fail for mark all read
     }
   };
 
@@ -177,8 +163,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         prev.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch (err) {
-      console.error("❌ Failed to mark read:", err);
+    } catch {
+      // Silent fail for mark read
     }
   };
 

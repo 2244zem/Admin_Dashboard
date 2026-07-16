@@ -19,43 +19,36 @@ const STATUS_TO_BACKEND: Record<UserStatus, string> = {
 function extractUsers(payload: any): any[] {
   // CRITICAL: Backend can return array directly OR wrapped in object
   // Priority order for extraction:
-  
+
   // 1. If payload itself is already an array -> return it directly
   if (Array.isArray(payload)) {
-    console.log("✅ extractUsers: payload is already an array", payload.length);
     return payload;
   }
-  
+
   // 2. Check common wrapper structures
   const data = payload?.data ?? payload;
-  
+
   // Check for items array (paginated format)
   if (Array.isArray(data?.items)) {
-    console.log("✅ extractUsers: found data.items", data.items.length);
     return data.items;
   }
-  
+
   // Check if data itself is array
   if (Array.isArray(data)) {
-    console.log("✅ extractUsers: data is array", data.length);
     return data;
   }
-  
+
   // Check for other possible formats
   if (Array.isArray(data?.users)) {
-    console.log("✅ extractUsers: found data.users", data.users.length);
     return data.users;
   }
   if (Array.isArray(data?.user)) {
-    console.log("✅ extractUsers: found data.user", data.user.length);
     return data.user;
   }
   if (Array.isArray(data?.data)) {
-    console.log("✅ extractUsers: found data.data", data.data.length);
     return data.data;
   }
-  
-  console.warn("⚠️ extractUsers: No array found in payload", payload);
+
   return [];
 }
 
@@ -70,30 +63,26 @@ const ROLE_UUID_MAP: Record<string, AppUser["role"]> = {
 function normalizeRole(roleData: any): AppUser["role"] {
   // Priority 1: Check if we have a role_id (UUID) and map it directly
   if (roleData?.role_id && ROLE_UUID_MAP[roleData.role_id]) {
-    console.log(`✅ normalizeRole: Mapped UUID ${roleData.role_id} → ${ROLE_UUID_MAP[roleData.role_id]}`);
     return ROLE_UUID_MAP[roleData.role_id];
   }
-  
+
   // Priority 2: Check if roleData itself is a UUID string
   if (typeof roleData === "string" && ROLE_UUID_MAP[roleData]) {
-    console.log(`✅ normalizeRole: Mapped UUID string ${roleData} → ${ROLE_UUID_MAP[roleData]}`);
     return ROLE_UUID_MAP[roleData];
   }
-  
+
   // Priority 3: Try to extract from nested role object
   const nestedRoleId = roleData?.role?.id || roleData?.role?.role_id;
   if (nestedRoleId && ROLE_UUID_MAP[nestedRoleId]) {
-    console.log(`✅ normalizeRole: Mapped nested UUID ${nestedRoleId} → ${ROLE_UUID_MAP[nestedRoleId]}`);
     return ROLE_UUID_MAP[nestedRoleId];
   }
-  
+
   // Priority 4: Fallback to name-based matching (for legacy/mock data)
   const value = String(roleData?.nama_role || roleData?.name || roleData || "").toLowerCase();
   if (value.includes("admin")) return "Admin";
   if (value.includes("hr") || value.includes("human resource")) return "HR";
   if (value === "ob" || value.includes("office")) return "OB";
-  
-  console.warn("⚠️ normalizeRole: Could not map role, defaulting to Karyawan", roleData);
+
   return "Karyawan";
 }
 
@@ -103,8 +92,6 @@ function mapApiUserToAppUser(row: any): AppUser {
   const rawId = row.id ?? row.user_id ?? "";
   const backendId = String(rawId);
   const numericId = Number.parseInt(backendId.replace(/\D/g, ""), 10) || Date.now();
-
-  console.log(`👤 Mapping user: ${name} → rawId: ${rawId} (${typeof rawId}) → backendId: ${backendId}`);
 
   // Pass entire row to normalizeRole so it can access role_id
   const mappedRole = normalizeRole(row.role_id || row.role || row);
@@ -216,8 +203,7 @@ export function useUsers() {
         queryFn: fetchOBQuery,
         staleTime: 30_000,
       });
-    } catch (err: any) {
-      console.error("fetchOB failed:", err);
+    } catch {
       return [];
     }
   }, [queryClient]);
@@ -252,26 +238,9 @@ export function useUsers() {
         role_id: payload.role, // MUST be UUID
       };
 
-      console.log("🔍 Creating user with payload:", requestPayload);
-      console.log("📋 Payload details:", {
-        username: `"${requestPayload.username}" (${typeof requestPayload.username})`,
-        email: `"${requestPayload.email}" (${typeof requestPayload.email})`,
-        nama_lengkap: `"${requestPayload.nama_lengkap}" (${typeof requestPayload.nama_lengkap})`,
-        role_id: `"${requestPayload.role_id}" (${typeof requestPayload.role_id})`,
-      });
-
       const res = await apiClient.post<any>(ENDPOINTS.USERS_CREATE, requestPayload);
-      console.log(" User created successfully:", res);
-      console.log(" User list refreshed");
       return res;
     } catch (err: any) {
-      console.error(" Failed to create user:", err);
-      console.error(" Error details:", {
-        message: err.message,
-        statusCode: err.statusCode,
-        stack: err.stack,
-      });
-
       // More specific error message for 502
       const msg = getErrorMessage(err);
       if (msg.includes("502") || msg.includes("Bad Gateway")) {
@@ -311,14 +280,11 @@ export function useUsers() {
       if (payload.status) {
         body.is_active = payload.status === "Aktif";
         body.status = STATUS_TO_BACKEND[payload.status as UserStatus] ?? payload.status;
-        console.log("🔍 Setting status:", payload.status, "-> is_active:", body.is_active, "status:", body.status);
       }
 
       const endpoint = `/api/admin/user/${encodeURIComponent(backendId)}`;
-      console.log("🔍 Updating user with backendId:", backendId, "endpoint:", endpoint, "body:", body);
 
       const responseData = await apiClient.patch<any>(endpoint, body);
-      console.log("🔍 PATCH success response:", responseData);
 
       return responseData;
     } catch (err: any) {
@@ -329,14 +295,10 @@ export function useUsers() {
 
   const deleteUser = async (backendId: string) => {
     try {
-      console.log("🗑️ Deleting user with backendId:", backendId, "type:", typeof backendId);
       const endpoint = `/api/admin/user/${encodeURIComponent(backendId)}`;
-      console.log("🗑️ Full DELETE endpoint:", endpoint);
 
       await apiClient.delete(endpoint);
     } catch (err: any) {
-      console.error("🗑️ Delete user error:", err);
-      console.error("🗑️ Error details:", { statusCode: err?.statusCode, message: err?.message, payload: err?.payload });
       const baseMsg = getErrorMessage(err);
       const code = err?.statusCode ? ` (HTTP ${err.statusCode})` : "";
       const msg = `${baseMsg}${code}`;
@@ -346,20 +308,14 @@ export function useUsers() {
 
   const renewToken = async (backendId: string, hours: number = 24) => {
     try {
-      console.log("🔑 Renewing token for backendId:", backendId, "hours:", hours);
-
       // Use documented endpoints: prefer renew-token, fall back to activate.
       try {
         await renewUserToken(backendId, hours);
-        console.log("✅ Token renewed via /renew-token");
-      } catch (renewErr: any) {
-        console.log("⚠️ /renew-token failed:", renewErr?.statusCode, renewErr?.message, "- trying /activate");
+      } catch {
         await activateUserToken(backendId);
-        console.log("✅ Token activated via /activate");
       }
 
     } catch (err: any) {
-      console.error("❌ renewToken error:", err);
       const msg = getErrorMessage(err);
       throw new Error(msg);
     }
@@ -375,27 +331,21 @@ export function useUsers() {
    */
   const getUserDetail = useCallback(async (backendId: string): Promise<AppUser | null> => {
     try {
-      console.log("🔍 getUserDetail: fetching user with backendId:", backendId);
       const response = await getUserDetailApi(backendId);
-      console.log("🔍 getUserDetail: raw response:", response);
 
       // Handle response that might be wrapped in data object
       const userData = (response as any)?.data ?? response;
 
       if (!userData || typeof userData !== 'object') {
-        console.warn("⚠️ getUserDetail: no valid user data in response");
         return null;
       }
 
       const mappedUser = mapApiUserToAppUser(userData);
-      console.log("✅ getUserDetail: mapped user:", mappedUser);
       return mappedUser;
-    } catch (err: any) {
-      console.error("❌ getUserDetail: error fetching user:", err);
+    } catch {
       // If API fails, try to find from cached list as fallback
       const cachedUser = userList.find((u) => u.backendId === backendId);
       if (cachedUser) {
-        console.log("🔄 getUserDetail: using cached user from list");
         return cachedUser;
       }
       return null;

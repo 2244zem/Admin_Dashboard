@@ -18,7 +18,6 @@ if (!import.meta.env.DEV) {
 
 // Clear old localStorage mock data - we're now using real API
 if (localStorage.getItem('localGedung')) {
-  console.log("🧹 Clearing old localGedung cache - using real API now");
   localStorage.removeItem('localGedung');
 }
 

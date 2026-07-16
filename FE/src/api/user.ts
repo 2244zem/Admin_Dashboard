@@ -19,7 +19,6 @@ export type ApiOB = Record<string, any>;
 
 export async function getAdminUsers(params?: AdminUsersParams) {
   const response = await apiClient.get<any>("/api/admin/user", { params });
-  console.log("👥 Raw users response:", response);
   return (response as any)?.data ?? response;
 }
 

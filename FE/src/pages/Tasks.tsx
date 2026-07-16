@@ -106,7 +106,9 @@ const Tasks = () => {
     fetchUsers();
     fetchKategori();
     fetchTugas();
-    fetchOB().then(setObList).catch(console.error);
+    fetchOB().then(setObList).catch(() => {
+      // Silent fail for fetchOB
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -304,8 +306,7 @@ const Tasks = () => {
     try {
       const fresh = await fetchTaskDetail(task.id);
       setDetailData(fresh ?? task);
-    } catch (err) {
-      console.error(err);
+    } catch {
       setDetailData(task);
     } finally {
       setIsDetailLoading(false);

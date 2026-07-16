@@ -68,7 +68,6 @@ function extractArray(payload: any): any[] {
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.items)) return flattenItems([payload.items]);
 
-  console.warn("📋 extractArray: No array found in payload", payload);
   return [];
 }
 
@@ -88,8 +87,6 @@ function mapUiStatus(status: StatusTask): ChecklistStatus {
 }
 
 export function mapApiChecklistToTask(row: any): Task {
-  console.log("📋 mapApiChecklistToTask: raw row keys:", Object.keys(row || {}));
-
   const tanggal = row.tanggal || row.created_at || row.updated_at || row.waktu || new Date().toISOString();
   const tugas = row.tugas || {};
   const kategori = row.kategori || tugas.kategori || {};
@@ -162,7 +159,6 @@ function toChecklistPayload(payload: any) {
   if (payload.status) result.status = mapUiStatus(payload.status);
   if (payload.catatan) result.catatan = payload.catatan;
 
-  console.log("📤 toChecklistPayload result:", JSON.stringify(result, null, 2));
   return result;
 }
 
@@ -181,20 +177,11 @@ const TASKS_REFETCH_INTERVAL = 30_000;
 
 async function fetchTasksQuery(filters?: TaskFilters): Promise<Task[]> {
   try {
-    console.log("📋 fetchTasksQuery: fetching tasks with filters:", filters);
     const payload = await getChecklistHarian(filters);
-    console.log("📋 fetchTasksQuery: payload type:", typeof payload, "isArray:", Array.isArray(payload));
-    console.log("📋 fetchTasksQuery: payload keys:", Object.keys(payload || {}));
     const extracted = extractArray(payload);
-    console.log("📋 fetchTasksQuery: extracted array length:", extracted.length);
-    if (extracted.length === 0) {
-      console.warn("📋 fetchTasksQuery: WARNING - No items extracted from payload!");
-    }
     const mapped = extracted.map(mapApiChecklistToTask);
-    console.log("📋 fetchTasksQuery: mapped tasks count:", mapped.length);
     return validateList<Task>(taskSchema, mapped, "task");
   } catch (err) {
-    console.error("📋 fetchTasksQuery: ERROR:", err);
     throw err;
   }
 }
@@ -241,11 +228,9 @@ export function useTasks(filters?: TaskFilters) {
       setMutationError(null);
       try {
       const result = await fn();
-      console.log("📋 runMutation: invalidating tasks to force refetch...");
       // invalidateQueries ignores staleTime and forces the active query to
       // refetch, so newly created/updated tasks always appear in the UI.
       await queryClient.invalidateQueries({ queryKey: TASKS_KEY });
-      console.log("📋 runMutation: refetch complete");
       return result;
       } catch (err: any) {
         const msg = getErrorMessage(err);
@@ -295,12 +280,10 @@ export function useTasks(filters?: TaskFilters) {
       // Handle wrapped response
       const detail = data?.data ?? data;
       if (!detail || typeof detail !== 'object') {
-        console.warn("fetchTaskDetail: no valid data in response");
         return null;
       }
       return mapApiChecklistToTask(detail);
-    } catch (err) {
-      console.error("fetchTaskDetail error:", err);
+    } catch {
       return null;
     }
   };

@@ -49,16 +49,13 @@ const UserDetail = () => {
       setDetailError(null);
 
       try {
-        console.log("🔍 UserDetail: fetching user with id:", id);
         const userData = await getUserDetail(id);
         if (userData) {
           setUser(userData);
-          console.log("✅ UserDetail: user loaded:", userData.namaLengkap);
         } else {
           setDetailError("Pengguna tidak ditemukan");
         }
       } catch (err: any) {
-        console.error("❌ UserDetail: error loading user:", err);
         setDetailError(err.message || "Gagal memuat data pengguna");
       } finally {
         setIsLoadingDetail(false);
@@ -72,7 +69,6 @@ const UserDetail = () => {
   const handleConfirmDelete = useCallback(async () => {
     if (!user?.backendId) return;
     try {
-      console.log("🗑️ Deleting user with backendId:", user.backendId);
       await deleteUser(user.backendId);
       push("success", "Pengguna berhasil dihapus");
       navigate("/users");
@@ -84,7 +80,6 @@ const UserDetail = () => {
   const handleRenewToken = useCallback(async () => {
     if (!user?.backendId) return;
     try {
-      console.log("🔑 Renewing token for user with backendId:", user.backendId);
       await renewToken(user.backendId, selectedDuration);
       push("success", "Token akses berhasil diperpanjang");
       setShowTokenModal(false);

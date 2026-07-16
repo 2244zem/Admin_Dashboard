@@ -121,11 +121,10 @@ const Dashboard = () => {
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      console.log("🗑️ Dashboard: deleting laporan", deleteTarget.backendId || deleteTarget.id);
       await deleteLaporan(deleteTarget.backendId || String(deleteTarget.id));
       closeDeleteConfirm();
-    } catch (err) {
-      console.error("Gagal menghapus laporan:", err);
+    } catch {
+      // Error handled silently
     }
   };
 
@@ -185,15 +184,9 @@ const Dashboard = () => {
 
   // ---- Daily Checklist OB (dihitung dari taskList grouped by OB) ----
   const checklistOB = useMemo(() => {
-    console.log("📊 Dashboard: taskList length:", taskList.length);
-    if (taskList.length > 0) {
-      console.log("📊 Dashboard: first task:", JSON.stringify(taskList[0]));
-    }
-
     const map = new Map<string, typeof taskList>();
     taskList.forEach((t) => {
       const key = t.petugas?.nama || "Unknown";
-      console.log("📊 Dashboard: grouping task by petugas.nama:", key);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(t);
     });
@@ -201,7 +194,6 @@ const Dashboard = () => {
     const result = Array.from(map.entries()).map(([nama, items]) => {
       const selesai = items.filter((t) => t.status === "Selesai").length;
       const gedungLantai = Array.from(new Set(items.map((t) => `${t.gedung}: Lantai ${t.lantai.replace("Lantai", "").trim()}`)));
-      console.log("📊 Dashboard: OB group:", nama, "total:", items.length, "selesai:", selesai);
       return {
         nama,
         area: gedungLantai.join(" & "),
@@ -213,7 +205,6 @@ const Dashboard = () => {
       };
     });
 
-    console.log("📊 Dashboard: checklistOB result:", result);
     return result;
   }, [taskList, checklistDetail]);
 

@@ -30,22 +30,18 @@ async function buildUserPhotoMaps(): Promise<UserPhotoMaps> {
       if (id) byId.set(id, photo);
       if (name) byName.set(name, photo);
     }
-  } catch (err) {
-    console.warn("⚠️ buildUserPhotoMaps: gagal memuat foto profil user:", err);
+  } catch {
+    // Silently ignore photo map build failures
   }
   return { byId, byName };
 }
 
 function extractArray(payload: any): any[] {
-  console.log("📋 extractArray: checking payload structure, keys:", Object.keys(payload || {}));
-
   if (Array.isArray(payload)) {
-    console.log("📋 extractArray: payload is array, length:", payload.length);
     return payload;
   }
 
   if (!payload || typeof payload !== "object") {
-    console.warn("⚠️ extractArray: payload is not an object:", payload);
     return [];
   }
 
@@ -59,19 +55,16 @@ function extractArray(payload: any): any[] {
   for (const field of arrayFields) {
     // Direct array at field
     if (Array.isArray(payload[field])) {
-      console.log(`📋 extractArray: found array at payload.${field}, length:`, payload[field].length);
       return payload[field];
     }
 
     // Handle nested { laporan: { items: [...] } } structure
     if (payload[field]?.items && Array.isArray(payload[field].items)) {
-      console.log(`📋 extractArray: found array at payload.${field}.items, length:`, payload[field].items.length);
       return payload[field].items;
     }
 
     // Handle nested { data: { items: [...] } } structure
     if (payload[field]?.data && Array.isArray(payload[field].data)) {
-      console.log(`📋 extractArray: found array at payload.${field}.data, length:`, payload[field].data.length);
       return payload[field].data;
     }
   }
@@ -83,7 +76,6 @@ function extractArray(payload: any): any[] {
     }
     // Handle { data: { laporan: { items: [...] } } } - nested structure
     if (payload.data?.laporan?.items && Array.isArray(payload.data.laporan.items)) {
-      console.log(`📋 extractArray: found array at payload.data.laporan.items, length:`, payload.data.laporan.items.length);
       return payload.data.laporan.items;
     }
     // Handle { data: { items: [...] } }
@@ -93,11 +85,9 @@ function extractArray(payload: any): any[] {
 
   // Handle { laporan: { items: [...] } } directly without data wrapper
   if (payload.laporan?.items && Array.isArray(payload.laporan.items)) {
-    console.log(`📋 extractArray: found array at payload.laporan.items, length:`, payload.laporan.items.length);
     return payload.laporan.items;
   }
 
-  console.warn("⚠️ extractArray: No array found, payload keys:", Object.keys(payload));
   return [];
 }
 
@@ -147,8 +137,6 @@ function resolveImageUrl(value: unknown): string | undefined {
 }
 
 export function mapApiLaporanToLaporan(row: any): Laporan {
-  console.log("📸 mapApiLaporanToLaporan: raw row keys:", Object.keys(row || {}));
-
   const name =
     row.nama_karyawan ||
     row.karyawan?.nama_lengkap ||
@@ -323,18 +311,15 @@ export function useLaporan(filters?: any) {
   };
 
   const deleteLaporan = async (id: string) => {
-    console.log("🗑️ deleteLaporan: deleting laporan with id:", id);
     try {
       await deleteAdminLaporan(id);
       await fetchLaporan();
     } catch (err) {
-      console.error("🗑️ deleteLaporan: error:", err);
       throw err;
     }
   };
 
   const updateLaporan = async (id: string, payload: any) => {
-    console.log("✏️ updateLaporan: updating laporan", id, "with payload:", payload);
     try {
       // Backend API supports: status, admin_catatan, prioritas, ob_id
       // See CLAUDE.md API Reference for full spec
@@ -355,17 +340,13 @@ export function useLaporan(filters?: any) {
 
       // Check if there's at least one field to update
       if (Object.keys(backendPayload).length === 0) {
-        console.warn("✏️ updateLaporan: no valid fields to update");
         return;
       }
 
-      console.log("✏️ updateLaporan: sending to backend:", backendPayload);
       const result = await updateAdminLaporan(id, backendPayload);
-      console.log("✏️ updateLaporan: success, result:", result);
       await fetchLaporan();
       return result;
     } catch (err) {
-      console.error("✏️ updateLaporan: error:", err);
       throw err;
     }
   };
@@ -374,7 +355,6 @@ export function useLaporan(filters?: any) {
     const laporanId = laporan.backendId || laporan.id_laporan || String(laporan.id);
     // getAdminLaporanDetail already calls unwrapData, so payload is the raw data object
     const payload = await getAdminLaporanDetail(laporanId);
-    console.log("📋 getLaporanDetail: raw payload from API:", JSON.stringify(payload, null, 2));
     const mapped = mapApiLaporanToLaporan(payload);
     return {
       ...laporan,

@@ -22,7 +22,6 @@ export function connectNotificationSocket(options: NotificationSocketOptions) {
 
   const connect = () => {
     if (!token) {
-      console.warn("WebSocket: No token available, skipping connection");
       return;
     }
 
@@ -35,47 +34,35 @@ export function connectNotificationSocket(options: NotificationSocketOptions) {
     // juga mendukung header/SubProtocol di masa depan.
     url.searchParams.set("token", token);
 
-    console.log("🔌 WebSocket: Connecting to", url.toString());
-
     socket = new WebSocket(url.toString());
 
     socket.onopen = () => {
-      console.log("✅ WebSocket: Connected successfully");
       options.onConnected?.();
     };
 
     socket.onmessage = (event) => {
-      console.log("📨 WebSocket: Message received:", event.data);
-
       try {
         const payload = JSON.parse(event.data);
-        console.log("📦 WebSocket: Parsed payload:", payload);
 
         if (payload?.type === "CONNECTED") {
-          console.log("ℹ️ WebSocket: Ignoring CONNECTED system event");
           options.onConnected?.();
           return;
         }
 
-        console.log(" WebSocket: Calling onNotification with payload");
         options.onNotification(payload);
-      } catch (err) {
-        console.error(" WebSocket: Failed to parse message:", err);
+      } catch {
+        // Silently ignore parse errors
       }
     };
 
     socket.onerror = (event) => {
-      console.error("❌ WebSocket: Error occurred", event);
       options.onError?.(event);
     };
 
-    socket.onclose = (event) => {
-      console.log("🔌 WebSocket: Disconnected, code:", event.code, "reason:", event.reason);
+    socket.onclose = () => {
       if (closedByClient) {
-        console.log("ℹ️ WebSocket: Closed by client, not reconnecting");
         return;
       }
-      console.log("🔄 WebSocket: Reconnecting in", options.reconnectDelayMs ?? 5000, "ms");
       reconnectTimer = setTimeout(connect, options.reconnectDelayMs ?? 5000);
     };
   };
@@ -83,7 +70,6 @@ export function connectNotificationSocket(options: NotificationSocketOptions) {
   connect();
 
   return () => {
-    console.log("🔌 WebSocket: Cleanup called");
     closedByClient = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     socket?.close();

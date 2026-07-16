@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
@@ -16,6 +16,18 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
 
   const [showNotif, setShowNotif] = useState(false);
   const [showAdminMenu, setShowAdminMenu] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const prevUnreadRef = useRef(unreadCount);
+
+  // Trigger pulse animation when new notification arrives
+  useEffect(() => {
+    if (unreadCount > prevUnreadRef.current) {
+      setIsAnimating(true);
+      const timer = setTimeout(() => setIsAnimating(false), 1000);
+      return () => clearTimeout(timer);
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
 
   // Tampilkan max 99+, otherwise tampilkan angka actual
 
@@ -67,9 +79,30 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
               />
             </svg>
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1.5 min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
+              <AnimatePresence>
+                <motion.span
+                  key={unreadCount}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.5, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                  className={`absolute -top-1 -right-1.5 min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white ${isAnimating ? "shadow-lg shadow-red-500/50" : ""}`}
+                >
+                  <AnimatePresence>
+                    {isAnimating && (
+                      <motion.span
+                        initial={{ scale: 1 }}
+                        animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
+                        transition={{ duration: 0.5, repeat: 1 }}
+                        className="absolute inset-0 rounded-full bg-red-400"
+                      />
+                    )}
+                  </AnimatePresence>
+                  <span className="relative z-10">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                </motion.span>
+              </AnimatePresence>
             )}
           </motion.button>
           {showNotif && (

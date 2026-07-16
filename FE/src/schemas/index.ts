@@ -6,9 +6,8 @@ export function validateList<T>(schema: z.ZodTypeAny, items: T[], label: string)
     const result = schema.safeParse(item);
     if (result.success) {
       valid.push(item);
-    } else {
-      console.warn(`[zod] Dropping invalid ${label}:`, result.error.issues, item);
     }
+    // Validation errors silently dropped - not exposed to console for security
   }
   return valid;
 }

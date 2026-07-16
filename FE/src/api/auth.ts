@@ -20,7 +20,6 @@ export interface ActivateAccountPayload {
 export async function login(payload: LoginPayload) {
   try {
     const response = await apiClient.post<any>("/api/auth/login", payload);
-    console.log("🔐 Login response:", response);
 
     // Try to extract data from wrapper
     const data = response?.data ?? response;
@@ -31,7 +30,6 @@ export async function login(payload: LoginPayload) {
 
     return { success: true, data };
   } catch (err: any) {
-    console.error("❌ Login error:", err);
     throw new Error(err?.message || err?.response?.data?.message || "Login gagal. Silakan coba lagi.");
   }
 }

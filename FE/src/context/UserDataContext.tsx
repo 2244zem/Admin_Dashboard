@@ -59,7 +59,6 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const apiError = error as ApiErrorResponse;
       setUsersError(apiError.message || "Gagal memuat data pengguna");
-      console.error("Failed to fetch users:", error);
     } finally {
       setUsersLoading(false);
     }

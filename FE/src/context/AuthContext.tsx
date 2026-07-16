@@ -93,7 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Client-side token expiry check is for UX only
     // Backend MUST verify token signature and expiry on every request
     if (tokenStorage.isTokenExpired(token)) {
-      console.warn("Token expired on client. Backend will reject the request.");
       tokenStorage.clear();
       setIsLoading(false);
       return;

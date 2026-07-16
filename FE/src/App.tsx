@@ -14,6 +14,7 @@ import { ToastProvider } from "./components/Toast";
 import User from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
 import PrivacyTerms from "./pages/PrivacyTerms";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 
 function UnauthorizedPage() {
   const navigate = useNavigate();
@@ -141,13 +142,15 @@ function AppLayout() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <NotificationProvider>
-          <ToastProvider>
-            <AppLayout />
-          </ToastProvider>
-        </NotificationProvider>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <NotificationProvider>
+            <ToastProvider>
+              <AppLayout />
+            </ToastProvider>
+          </NotificationProvider>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
