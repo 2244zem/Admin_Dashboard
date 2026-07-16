@@ -58,7 +58,24 @@ export function generateToken(prefix: string = "LPR"): string {
 
 export function getErrorMessage(error: any): string {
   if (typeof error === "string") return error;
-  if (error?.response?.data?.message) return error.response.data.message;
-  if (error?.message) return error.message;
+  // Response body bisa berupa HTML (mis. proxy/backend mati mengembalikan
+  // halaman error). Jangan stringify mentah — tampilkan pesan bersih.
+  const resp = error?.response;
+  if (resp?.data) {
+    const data = resp.data;
+    if (typeof data === "string") {
+      if (data.trim().startsWith("<")) return "Server tidak merespons (cek koneksi backend).";
+      return data;
+    }
+    if (data?.message) return data.message;
+  }
+  // Axios sering membungkus error jaringan (502/timeout) di .message
+  if (error?.message) {
+    const msg = String(error.message);
+    if (/Network Error|502|Failed to fetch|timeout/i.test(msg)) {
+      return "Gagal terhubung ke server. Pastikan backend sedang berjalan.";
+    }
+    return msg;
+  }
   return "Terjadi kesalahan yang tidak diketahui.";
 }

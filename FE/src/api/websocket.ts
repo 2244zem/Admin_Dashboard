@@ -29,35 +29,53 @@ export function connectNotificationSocket(options: NotificationSocketOptions) {
     const url = new URL(BASE_URL);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.pathname = "/ws";
+    // Backend mengharapkan token di query param (?token=). Ini adalah kontrak
+    // resmi API. Risiko kebocoran (log proxy/history) dikompensasi dengan
+    // token berumur pendek + WSS di production. Catatan: idealnya backend
+    // juga mendukung header/SubProtocol di masa depan.
     url.searchParams.set("token", token);
+
+    console.log("🔌 WebSocket: Connecting to", url.toString());
 
     socket = new WebSocket(url.toString());
 
     socket.onopen = () => {
-      console.log("WebSocket: Connected");
+      console.log("✅ WebSocket: Connected successfully");
+      options.onConnected?.();
     };
 
     socket.onmessage = (event) => {
+      console.log("📨 WebSocket: Message received:", event.data);
+
       try {
         const payload = JSON.parse(event.data);
+        console.log("📦 WebSocket: Parsed payload:", payload);
+
         if (payload?.type === "CONNECTED") {
+          console.log("ℹ️ WebSocket: Ignoring CONNECTED system event");
           options.onConnected?.();
           return;
         }
+
+        console.log(" WebSocket: Calling onNotification with payload");
         options.onNotification(payload);
-      } catch {
-        // Ignore malformed realtime messages.
+      } catch (err) {
+        console.error(" WebSocket: Failed to parse message:", err);
       }
     };
 
     socket.onerror = (event) => {
-      console.error("WebSocket: Error", event);
+      console.error("❌ WebSocket: Error occurred", event);
       options.onError?.(event);
     };
 
-    socket.onclose = () => {
-      console.log("WebSocket: Disconnected");
-      if (closedByClient) return;
+    socket.onclose = (event) => {
+      console.log("🔌 WebSocket: Disconnected, code:", event.code, "reason:", event.reason);
+      if (closedByClient) {
+        console.log("ℹ️ WebSocket: Closed by client, not reconnecting");
+        return;
+      }
+      console.log("🔄 WebSocket: Reconnecting in", options.reconnectDelayMs ?? 5000, "ms");
       reconnectTimer = setTimeout(connect, options.reconnectDelayMs ?? 5000);
     };
   };
@@ -65,6 +83,7 @@ export function connectNotificationSocket(options: NotificationSocketOptions) {
   connect();
 
   return () => {
+    console.log("🔌 WebSocket: Cleanup called");
     closedByClient = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     socket?.close();

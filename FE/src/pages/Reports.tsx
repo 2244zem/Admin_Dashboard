@@ -109,10 +109,10 @@ const Reports = () => {
   const handleSaveEdit = async (_updated: Laporan) => {
     console.log("✏️ Reports: saving edit for laporan", _updated.backendId || _updated.id);
     try {
-      // Only send fields supported by backend API: status, admin_catatan, ob_id
+      // Only send fields supported by backend API: status, admin_catatan
       await updateLaporan(_updated.backendId || String(_updated.id), {
         status: _updated.status,
-        admin_catatan: _updated.desc, // desc as admin notes
+        admin_catatan: _updated.desc,
       });
       closeEditModal();
     } catch (err) {
@@ -162,7 +162,7 @@ const Reports = () => {
               <TableSkeleton columns={6} rows={5} withAvatar />
             </div>
           ) : error ? (
-            <ErrorState message={error} onRetry={() => fetchLaporan(apiFilters)} />
+            <ErrorState message={error} onRetry={fetchLaporan} />
           ) : (
             <>
           {/* Filter cards */}

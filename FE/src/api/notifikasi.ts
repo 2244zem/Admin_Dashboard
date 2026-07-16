@@ -1,4 +1,4 @@
-import { apiClient, unwrapData, type ApiResponse } from "./client";
+import apiClient from "../services/apiClient";
 
 export type ApiNotification = Record<string, any>;
 
@@ -7,22 +7,62 @@ export interface NotifikasiGrouped {
   kemarin: ApiNotification[];
 }
 
-export async function getNotifikasi() {
-  const response = await apiClient.get<ApiResponse<NotifikasiGrouped> | NotifikasiGrouped>("/api/notifikasi");
-  return unwrapData(response);
+function unwrapData<T>(response: any): T {
+  return response?.data ?? response;
 }
 
-export async function markOneRead(id: string) {
-  const response = await apiClient.patch<ApiResponse<unknown> | unknown>(`/api/notifikasi/${id}/read`);
-  return unwrapData(response);
+function toArray(value: unknown): ApiNotification[] {
+  return Array.isArray(value) ? (value as ApiNotification[]) : [];
 }
 
-export async function markAllNotificationsRead() {
-  const response = await apiClient.patch<ApiResponse<unknown> | unknown>("/api/notifikasi/read-all");
-  return unwrapData(response);
+/**
+ * Ekstrak notifikasi grouped dari response.
+ * Kontrak resmi: { success, message, data: { hari_ini: [...], kemarin: [...] } }
+ */
+function extractNotifications(payload: any): { hari_ini: ApiNotification[]; kemarin: ApiNotification[] } {
+  const data = payload?.data ?? payload;
+  return {
+    hari_ini: toArray(data?.hari_ini),
+    kemarin: toArray(data?.kemarin),
+  };
 }
 
-export async function getUnreadNotificationCount() {
-  const response = await apiClient.get<ApiResponse<unknown> | unknown>("/api/notifikasi/unread-count");
-  return unwrapData(response);
+export async function getNotifikasi(): Promise<NotifikasiGrouped | null> {
+  try {
+    const raw = await apiClient.get<any>("/api/notifikasi");
+    console.log("📬 Raw notifikasi response:", raw);
+
+    // unwrapData: { success, message, data: {...} } -> { hari_ini, kemarin }
+    const payload = unwrapData<NotifikasiGrouped>(raw);
+    const grouped = extractNotifications(payload);
+    console.log("📬 Parsed notifikasi grouped:", grouped);
+
+    return grouped;
+  } catch (err) {
+    console.error("❌ Failed to fetch notifications:", err);
+    return null;
+  }
+}
+
+export async function markOneRead(id: string): Promise<void> {
+  await apiClient.patch(`/api/notifikasi/${id}/read`);
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await apiClient.patch("/api/notifikasi/read-all");
+}
+
+export async function getUnreadNotificationCount(): Promise<number> {
+  try {
+    const raw = await apiClient.get<any>("/api/notifikasi/unread-count");
+    console.log("🔢 Raw unread count response:", raw);
+
+    // unwrapData: { success, message, data: 0 } -> 0
+    const data = unwrapData<number>(raw);
+    if (typeof data === "number") return data;
+    return 0;
+  } catch (err) {
+    console.error("❌ Failed to fetch unread count:", err);
+    return 0;
+  }
 }

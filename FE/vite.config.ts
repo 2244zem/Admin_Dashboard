@@ -13,21 +13,20 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'https://stylar-nonseverable-denver.ngrok-free.dev',
+        target: process.env.VITE_PROXY_TARGET || 'https://stylar-nonseverable-denver.ngrok-free.dev',
         changeOrigin: true,
         secure: false,
-        headers: {
-          'ngrok-skip-browser-warning': 'true',
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('ngrok-skip-browser-warning', 'true');
+          });
         },
       },
       '/ws': {
-        target: 'wss://stylar-nonseverable-denver.ngrok-free.dev',
+        target: process.env.VITE_WS_TARGET || 'wss://stylar-nonseverable-denver.ngrok-free.dev',
         changeOrigin: true,
         secure: false,
         ws: true,
-        headers: {
-          'ngrok-skip-browser-warning': 'true',
-        },
       },
     },
   },

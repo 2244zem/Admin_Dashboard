@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppUser, UserStatus } from "../types/user";
 import apiClient from "../services/apiClient";
-import { activateUserToken, renewUserToken } from "../api/user";
+import { activateUserToken, renewUserToken, getUserDetail as getUserDetailApi } from "../api/user";
 import { ENDPOINTS } from "../config/endpoints";
-import { getErrorMessage, generateToken } from "../lib/utils";
+import { getErrorMessage } from "../lib/utils";
+import { appUserSchema, validateList } from "../schemas";
 
 // Map UI status (Indonesian labels) -> backend status value.
 // TODO: sesuaikan nilai di kanan dengan enum status yang sebenarnya diterima backend.
@@ -12,44 +14,6 @@ const STATUS_TO_BACKEND: Record<UserStatus, string> = {
   "Non-Aktif": "Non-Aktif",
   Menunggu: "Menunggu",
   "Aktivasi Kadaluwarsa": "Aktivasi Kadaluwarsa",
-};
-
-const mockInitialUsers: AppUser[] = [];
-
-const getStoredUsers = (): AppUser[] => {
-  const stored = localStorage.getItem("localUsers_v2");
-  let list = stored ? JSON.parse(stored) : mockInitialUsers;
-  
-  // Recalculate dynamic statuses based on expiry date
-  const now = Date.now();
-  let changed = false;
-  
-  const updatedList = list.map((u: AppUser) => {
-    const isExpired = u.tokenExpiredAt ? new Date(u.tokenExpiredAt).getTime() < now : false;
-    let tokenStatus = u.tokenStatus;
-    let status = u.status;
-    
-    if (isExpired && u.role !== "Admin" && tokenStatus !== "Expired") {
-      tokenStatus = "Expired";
-      status = "Aktivasi Kadaluwarsa";
-      changed = true;
-    }
-    
-    if (tokenStatus !== u.tokenStatus || status !== u.status) {
-      return { ...u, tokenStatus, status };
-    }
-    return u;
-  });
-  
-  if (changed || !stored) {
-    localStorage.setItem("localUsers_v2", JSON.stringify(updatedList));
-  }
-  return updatedList;
-};
-
-const setStoredUsers = (users: AppUser[]) => {
-  localStorage.setItem("localUsers_v2", JSON.stringify(users));
-  window.dispatchEvent(new Event("local-data-changed"));
 };
 
 function extractUsers(payload: any): any[] {
@@ -172,183 +136,122 @@ function mapApiUserToAppUser(row: any): AppUser {
   };
 }
 
+const USERS_KEY = ["users"] as const;
+const OB_KEY = ["ob"] as const;
+
+async function fetchUsersQuery(): Promise<AppUser[]> {
+  // Always fetch from the real backend (no mock fallback).
+  let data = await apiClient.get<any>(`${ENDPOINTS.USERS_LIST}`);
+  let extractedUsers = extractUsers(data);
+
+  if (extractedUsers.length === 0) {
+    data = await apiClient.get<any>(`${ENDPOINTS.USERS_LIST}?page=1&limit=100`);
+    extractedUsers = extractUsers(data);
+  }
+
+  const mappedUsers = extractedUsers.map(mapApiUserToAppUser);
+  return validateList<AppUser>(appUserSchema, mappedUsers, "user");
+}
+
+async function fetchOBQuery(): Promise<Array<{ id: string; nama: string }>> {
+  const data: any = await apiClient.get<any>("/api/admin/user/all-ob");
+  const extracted = extractUsers(data);
+  return extracted.map((ob: any) => ({
+    id: String(ob.id || ob.user_id || ""),
+    nama: ob.nama_lengkap || ob.namaLengkap || ob.name || ob.username || "Pengguna",
+  }));
+}
+
+// Polling interval: 30 detik (lebih manusiawi, tidak DDoS-like)
+const USERS_REFETCH_INTERVAL = 30_000;
+
 export function useUsers() {
-  const [userList, setUserList] = useState<AppUser[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [isMutating, setIsMutating] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchUsers = useCallback(async (opts?: { silent?: boolean }) => {
-    const silent = opts?.silent === true;
-    if (!silent) {
-      setIsLoading(true);
-      setError(null);
-    }
-    try {
-      if (!import.meta.env.VITE_API_BASE_URL) {
-        if (!silent) await new Promise((resolve) => setTimeout(resolve, 300));
-        setUserList(getStoredUsers());
-        return;
-      }
-
-      console.log("🔍 Fetching users from /api/admin/user with params:", { page: 1, limit: 100 });
-      
-      // Try without parameters first to see all users
-      let data = await apiClient.get<any>(`${ENDPOINTS.USERS_LIST}`);
-      console.log("✅ Fetched users RAW data (no params):", JSON.stringify(data, null, 2));
-      
-      let extractedUsers = extractUsers(data);
-      console.log("🔍 Extracted users array (no params):", extractedUsers);
-      console.log("🔍 Extracted users count (no params):", extractedUsers.length);
-      
-      // If still empty, try with pagination
-      if (extractedUsers.length === 0) {
-        console.log("🔄 Trying with pagination params...");
-        data = await apiClient.get<any>(`${ENDPOINTS.USERS_LIST}?page=1&limit=100`);
-        console.log("✅ Fetched users RAW data (with params):", JSON.stringify(data, null, 2));
-        extractedUsers = extractUsers(data);
-        console.log("🔍 Extracted users array (with params):", extractedUsers);
-      }
-      
-      if (extractedUsers.length === 0) {
-        console.warn("⚠️ Backend returned EMPTY array even without params!");
-        console.warn("💡 This means:");
-        console.warn("   - No users exist in database, OR");
-        console.warn("   - Backend filters out all inactive users, OR");
-        console.warn("   - Backend requires user activation before showing in list");
-        console.warn("🔧 Solution: Contact backend developer to:");
-        console.warn("   1. Check if user was actually created in database");
-        console.warn("   2. Add parameter to include inactive users");
-        console.warn("   3. Or modify endpoint to return all users regardless of status");
-      }
-      
-      const mappedUsers = extractedUsers.map(mapApiUserToAppUser);
-      console.log("✅ Mapped users:", mappedUsers);
-      
-      setUserList(mappedUsers);
-    } catch (err: any) {
-      console.error("❌ Failed to fetch users:", err);
-      console.error("❌ Error details:", { statusCode: err.statusCode, payload: err.payload });
-      if (!silent) setError(getErrorMessage(err));
-    } finally {
-      if (!silent) setIsLoading(false);
-    }
-  }, []);
-
-  const fetchOB = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      if (!import.meta.env.VITE_API_BASE_URL) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const allUsers = getStoredUsers();
-        const obUsers = allUsers.filter((u) => u.role === "OB");
-        return obUsers.map((u) => ({
-          id: String(u.backendId || u.id),
-          nama: u.namaLengkap,
-        }));
-      }
-
-      // Use dedicated endpoint for all OB users without pagination
-      console.log("👷 fetchOB: Calling /api/admin/user/all-ob");
-
-      const data: any = await apiClient.get<any>("/api/admin/user/all-ob");
-      console.log("👷 fetchOB: RAW response from backend:", JSON.stringify(data, null, 2));
-
-      // Extract users - handles array directly or any nested wrapper shape
-      let extracted = extractUsers(data);
-
-      console.log(`✅ fetchOB: Extracted ${extracted.length} OB users`, extracted);
-
-      if (extracted.length === 0) {
-        console.warn("⚠️ fetchOB: Backend returned NO OB users!");
-      }
-      
-      const mapped = extracted.map((ob: any) => ({
-        id: String(ob.id || ob.user_id || ""),
-        nama: ob.nama_lengkap || ob.namaLengkap || ob.name || ob.username || "Pengguna",
-      }));
-      
-      console.log(`✅ fetchOB: Returning ${mapped.length} OB options:`, mapped);
-      return mapped;
-    } catch (err: any) {
-      console.error("❌ fetchOB failed:", err);
-      console.error("❌ Error details:", { 
-        message: err.message, 
-        statusCode: err.statusCode,
-        payload: err.payload 
-      });
-      setError(getErrorMessage(err));
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
+  // Cleanup on unmount
   useEffect(() => {
-    fetchUsers();
-    const interval = setInterval(() => fetchUsers({ silent: true }), 5000);
-    return () => clearInterval(interval);
-  }, [fetchUsers]);
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
-  // Sync state changes on local-data-changed events
+  const query = useQuery({
+    queryKey: USERS_KEY,
+    queryFn: fetchUsersQuery,
+    // Polling lebih lambat (30 detik) untuk mencegah DDoS
+    refetchInterval: USERS_REFETCH_INTERVAL,
+    // Jangan refetch saat tab tidak aktif (hemat resources)
+    refetchIntervalInBackground: false,
+    // Retry dengan backoff exponential
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+
+  const userList = query.data ?? [];
+  const isLoading = query.isPending || isMutating;
+  const error = mutationError ?? (query.error ? getErrorMessage(query.error) : null);
+
+  // Sync state changes on local-data-changed events (local mock mode)
   useEffect(() => {
     const handleLocalChange = () => {
       if (!import.meta.env.VITE_API_BASE_URL) {
-        setUserList(getStoredUsers());
+        queryClient.invalidateQueries({ queryKey: USERS_KEY });
       }
     };
     window.addEventListener("local-data-changed", handleLocalChange);
     return () => window.removeEventListener("local-data-changed", handleLocalChange);
-  }, []);
+  }, [queryClient]);
+
+  const fetchUsers = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: USERS_KEY });
+  }, [queryClient]);
+
+  const fetchOB = useCallback(async () => {
+    try {
+      return await queryClient.fetchQuery({
+        queryKey: OB_KEY,
+        queryFn: fetchOBQuery,
+        staleTime: 30_000,
+      });
+    } catch (err: any) {
+      console.error("fetchOB failed:", err);
+      return [];
+    }
+  }, [queryClient]);
+
+  const runMutation = useCallback(
+    async <T,>(fn: () => Promise<T>): Promise<T> => {
+      setIsMutating(true);
+      setMutationError(null);
+      try {
+        const result = await fn();
+        await queryClient.invalidateQueries({ queryKey: USERS_KEY });
+        return result;
+      } catch (err: any) {
+        const msg = getErrorMessage(err);
+        setMutationError(msg);
+        throw new Error(msg);
+      } finally {
+        setIsMutating(false);
+      }
+    },
+    [queryClient]
+  );
 
   const addUser = async (payload: { namaLengkap: string; email: string; noTelepon: string; role: any }) => {
-    setIsLoading(true);
     try {
-      if (!import.meta.env.VITE_API_BASE_URL) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const list = getStoredUsers();
-        const emailTaken = list.some((u) => u.email.toLowerCase() === payload.email.trim().toLowerCase());
-        if (emailTaken) {
-          throw new Error("Gagal menyimpan pengguna. Email sudah digunakan.");
-        }
-
-        const newUser: AppUser = {
-          id: Date.now(),
-          namaLengkap: payload.namaLengkap.trim(),
-          username: `${payload.namaLengkap.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${payload.role.toLowerCase()}`,
-          email: payload.email.trim(),
-          noTelepon: payload.noTelepon.trim(),
-          role: payload.role,
-          departemen: payload.role === "OB" ? "Facility Services" : "Operasional Kantor",
-          status: "Menunggu",
-          createdAt: new Date().toISOString(),
-          tokenStatus: "Aktif",
-          tokenExpiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          tokenString: generateToken(payload.role.toUpperCase().slice(0, 2)),
-          deviceId: "-",
-          appVersion: "-",
-          stats: { tasksCompleted: 0, avgResponseMinutes: 0, rejected: 0 },
-          activityLog: [],
-        };
-
-        const updatedList = [newUser, ...list];
-        setStoredUsers(updatedList);
-        setUserList(updatedList);
-        return { success: true, message: "Pengguna Berhasil Disimpan" };
-      }
-
-      // Backend API spec (POST /api/admin/user):
-      // Content-Type: application/json
-      // Body: { username, email, nama_lengkap, role_id (UUID) }
       const username = payload.email.split("@")[0];
-      
+
       const requestPayload = {
         username,
         email: payload.email,
         nama_lengkap: payload.namaLengkap,
         role_id: payload.role, // MUST be UUID
       };
-      
+
       console.log("🔍 Creating user with payload:", requestPayload);
       console.log("📋 Payload details:", {
         username: `"${requestPayload.username}" (${typeof requestPayload.username})`,
@@ -359,8 +262,6 @@ export function useUsers() {
 
       const res = await apiClient.post<any>(ENDPOINTS.USERS_CREATE, requestPayload);
       console.log(" User created successfully:", res);
-      console.log(" Refreshing user list...");
-      await fetchUsers();
       console.log(" User list refreshed");
       return res;
     } catch (err: any) {
@@ -370,11 +271,9 @@ export function useUsers() {
         statusCode: err.statusCode,
         stack: err.stack,
       });
-      
-      const msg = getErrorMessage(err);
-      setError(msg);
-      
+
       // More specific error message for 502
+      const msg = getErrorMessage(err);
       if (msg.includes("502") || msg.includes("Bad Gateway")) {
         throw new Error(
           "Backend server error (502 Bad Gateway).\n\n" +
@@ -388,56 +287,13 @@ export function useUsers() {
           "- Verifikasi endpoint POST /api/admin/user berfungsi dengan benar"
         );
       }
-      
+
       throw new Error(msg);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const updateUser = async (backendId: string, payload: any) => {
-    setIsLoading(true);
     try {
-      if (!import.meta.env.VITE_API_BASE_URL) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const list = getStoredUsers();
-        const emailTaken = list.some(
-          (u) => u.backendId !== backendId && u.email.toLowerCase() === payload.email.trim().toLowerCase()
-        );
-        if (emailTaken) {
-          throw new Error("Gagal menyimpan perubahan. Email sudah digunakan pengguna lain.");
-        }
-
-        const updatedList = list.map((u) => {
-          if (u.backendId === backendId) {
-            let tokenStatus = u.tokenStatus;
-            let tokenExpiredAt = u.tokenExpiredAt;
-            if (payload.status === "Aktif" && u.status !== "Aktif") {
-              tokenStatus = "Aktif";
-              tokenExpiredAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-            } else if (payload.status === "Aktivasi Kadaluwarsa") {
-              tokenStatus = "Expired";
-            }
-            return {
-              ...u,
-              namaLengkap: payload.namaLengkap.trim(),
-              username: payload.username.trim(),
-              email: payload.email.trim(),
-              noTelepon: payload.noTelepon.trim(),
-              role: payload.role,
-              status: payload.status as UserStatus,
-              tokenStatus,
-              tokenExpiredAt,
-            };
-          }
-          return u;
-        });
-
-        setStoredUsers(updatedList);
-        setUserList(updatedList);
-        return { success: true, message: "Perubahan Berhasil Disimpan" };
-      }
-
       // Backend expects application/json for PATCH /api/admin/user/{user_id}
       const body: Record<string, unknown> = {};
       if (payload.username) body.username = payload.username;
@@ -464,71 +320,32 @@ export function useUsers() {
       const responseData = await apiClient.patch<any>(endpoint, body);
       console.log("🔍 PATCH success response:", responseData);
 
-      await fetchUsers();
       return responseData;
     } catch (err: any) {
       const msg = getErrorMessage(err);
-      setError(msg);
       throw new Error(msg);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const deleteUser = async (backendId: string) => {
-    setIsLoading(true);
     try {
-      if (!import.meta.env.VITE_API_BASE_URL) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const list = getStoredUsers();
-        const updatedList = list.filter((u) => u.backendId !== backendId);
-        setStoredUsers(updatedList);
-        setUserList(updatedList);
-        return;
-      }
-
       console.log("🗑️ Deleting user with backendId:", backendId, "type:", typeof backendId);
       const endpoint = `/api/admin/user/${encodeURIComponent(backendId)}`;
       console.log("🗑️ Full DELETE endpoint:", endpoint);
 
       await apiClient.delete(endpoint);
-      await fetchUsers();
     } catch (err: any) {
       console.error("🗑️ Delete user error:", err);
       console.error("🗑️ Error details:", { statusCode: err?.statusCode, message: err?.message, payload: err?.payload });
       const baseMsg = getErrorMessage(err);
       const code = err?.statusCode ? ` (HTTP ${err.statusCode})` : "";
       const msg = `${baseMsg}${code}`;
-      setError(msg);
       throw new Error(msg);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const renewToken = async (backendId: string, hours: number = 24) => {
-    setIsLoading(true);
     try {
-      if (!import.meta.env.VITE_API_BASE_URL) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const list = getStoredUsers();
-        const updatedList = list.map((u) => {
-          if (u.backendId !== backendId) return u;
-          const now = Date.now();
-          const currentExpiry = new Date(u.tokenExpiredAt).getTime();
-          const base = u.tokenStatus === "Aktif" && currentExpiry > now ? currentExpiry : now;
-          return {
-            ...u,
-            tokenStatus: "Aktif" as const,
-            status: "Aktif" as UserStatus,
-            tokenExpiredAt: new Date(base + hours * 60 * 60 * 1000).toISOString(),
-          };
-        });
-        setStoredUsers(updatedList);
-        setUserList(updatedList);
-        return;
-      }
-
       console.log("🔑 Renewing token for backendId:", backendId, "hours:", hours);
 
       // Use documented endpoints: prefer renew-token, fall back to activate.
@@ -541,14 +358,10 @@ export function useUsers() {
         console.log("✅ Token activated via /activate");
       }
 
-      await fetchUsers();
     } catch (err: any) {
       console.error("❌ renewToken error:", err);
       const msg = getErrorMessage(err);
-      setError(msg);
       throw new Error(msg);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -556,17 +369,51 @@ export function useUsers() {
     return userList.find((u) => u.id === id);
   };
 
+  /**
+   * Fetch user detail directly from API by backend UUID
+   * This is the primary method for UserDetail page to ensure fresh data
+   */
+  const getUserDetail = useCallback(async (backendId: string): Promise<AppUser | null> => {
+    try {
+      console.log("🔍 getUserDetail: fetching user with backendId:", backendId);
+      const response = await getUserDetailApi(backendId);
+      console.log("🔍 getUserDetail: raw response:", response);
+
+      // Handle response that might be wrapped in data object
+      const userData = (response as any)?.data ?? response;
+
+      if (!userData || typeof userData !== 'object') {
+        console.warn("⚠️ getUserDetail: no valid user data in response");
+        return null;
+      }
+
+      const mappedUser = mapApiUserToAppUser(userData);
+      console.log("✅ getUserDetail: mapped user:", mappedUser);
+      return mappedUser;
+    } catch (err: any) {
+      console.error("❌ getUserDetail: error fetching user:", err);
+      // If API fails, try to find from cached list as fallback
+      const cachedUser = userList.find((u) => u.backendId === backendId);
+      if (cachedUser) {
+        console.log("🔄 getUserDetail: using cached user from list");
+        return cachedUser;
+      }
+      return null;
+    }
+  }, [userList]);
+
   return {
     userList,
     isLoading,
     error,
     fetchUsers,
     fetchOB,
-    addUser,
-    updateUser,
-    deleteUser,
-    renewToken,
+    addUser: (payload: any) => runMutation(() => addUser(payload)),
+    updateUser: (backendId: string, payload: any) => runMutation(() => updateUser(backendId, payload)),
+    deleteUser: (backendId: string) => runMutation(() => deleteUser(backendId)),
+    renewToken: (backendId: string, hours?: number) => runMutation(() => renewToken(backendId, hours)),
     getUserById,
+    getUserDetail,
   };
 }
 

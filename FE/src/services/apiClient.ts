@@ -2,7 +2,7 @@ import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } f
 import type { ApiErrorResponse } from "../types/api";
 import { tokenStorage } from "../lib/tokenStorage";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 class ApiClient {
   private axiosInstance: AxiosInstance;
@@ -20,9 +20,6 @@ class ApiClient {
     this.setupResponseInterceptor();
   }
 
-  /**
-   * Request Interceptor: Automatically inject auth token
-   */
   private setupRequestInterceptor() {
     this.axiosInstance.interceptors.request.use(
       (config) => {
@@ -32,6 +29,9 @@ class ApiClient {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
+
+        // Note: ngrok-skip-browser-warning header should be set on server-side, not here.
+        // Setting it client-side triggers CORS preflight which ngrok rejects.
 
         return config;
       },

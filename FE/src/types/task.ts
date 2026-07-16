@@ -1,20 +1,23 @@
 export type StatusTask = "Belum" | "Proses" | "Selesai" | "Delayed";
 
-// TODO: sesuaikan dengan kontrak API asli dari backend
 export interface Petugas {
   nama: string;
 }
 
-// TODO: sesuaikan dengan kontrak API asli dari backend
 export interface Task {
   id: string;
   kategori: string;
   namaTugas: string;
   gedung: string;
   lantai: string;
+  // 🆕 ID mentah lokasi/lantai dari checklist response, dipakai Tasks.tsx untuk
+  // resolve nama asli lewat daftar lokasi/lantai yang di-fetch terpisah
+  // (endpoint checklist-harian ternyata tidak selalu mengembalikan nama, hanya FK).
+  lokasiId?: string;
+  lantaiId?: string;
   petugas: Petugas;
   waktu: string;
-  tanggal: string; // yyyy-mm-dd
+  tanggal: string;
   catatan?: string;
   status: StatusTask;
 }

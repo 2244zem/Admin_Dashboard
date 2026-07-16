@@ -1,30 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
 import useUsers from "../hooks/useUsers";
 import { useToast } from "../components/Toast";
 import EditUserModal from "../components/EditUserModal";
 import { STATUS_USER_COLOR, TOKEN_DURATION_OPTIONS } from "../types/user";
-import {
-  formatTanggal,
-  formatTanggalWaktuWIB,
-} from "../lib/utils";
+import type { AppUser } from "../types/user";
+import { formatTanggal, formatTanggalWaktuWIB } from "../lib/utils";
 import PageHeader from "../components/ui/PageHeader";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import Can from "../components/auth/Can";
 
+// Type untuk tab performa
 type PerformaTab = "Mingguan" | "Bulanan" | "Tahunan";
 
 const UserDetail = () => {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userList, isLoading, renewToken, updateUser, deleteUser } = useUsers();
+  const { getUserDetail, renewToken, updateUser, deleteUser } = useUsers();
   const { push } = useToast();
 
-  // id from URL params is now backend UUID (string), not frontend numeric ID
-  const user = userList.find((u) => u.backendId === id);
+  // === SEMUA HOOKS DI SINI, SEBELUM EARLY RETURNS ===
 
+  // State untuk data user
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(true);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  // State untuk tab & modal
   const [performaTab, setPerformaTab] = useState<PerformaTab>("Mingguan");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -32,7 +36,113 @@ const UserDetail = () => {
   const [selectedDuration, setSelectedDuration] = useState(24);
   const [copiedToken, setCopiedToken] = useState(false);
 
-  if (isLoading) {
+  // === FETCH USER DATA ===
+  useEffect(() => {
+    const loadUserDetail = async () => {
+      if (!id) {
+        setDetailError("ID pengguna tidak valid");
+        setIsLoadingDetail(false);
+        return;
+      }
+
+      setIsLoadingDetail(true);
+      setDetailError(null);
+
+      try {
+        console.log("🔍 UserDetail: fetching user with id:", id);
+        const userData = await getUserDetail(id);
+        if (userData) {
+          setUser(userData);
+          console.log("✅ UserDetail: user loaded:", userData.namaLengkap);
+        } else {
+          setDetailError("Pengguna tidak ditemukan");
+        }
+      } catch (err: any) {
+        console.error("❌ UserDetail: error loading user:", err);
+        setDetailError(err.message || "Gagal memuat data pengguna");
+      } finally {
+        setIsLoadingDetail(false);
+      }
+    };
+
+    loadUserDetail();
+  }, [id, getUserDetail]);
+
+  // === HANDLERS ===
+  const handleConfirmDelete = useCallback(async () => {
+    if (!user?.backendId) return;
+    try {
+      console.log("🗑️ Deleting user with backendId:", user.backendId);
+      await deleteUser(user.backendId);
+      push("success", "Pengguna berhasil dihapus");
+      navigate("/users");
+    } catch (err: any) {
+      push("error", err.message || "Gagal menghapus pengguna");
+    }
+  }, [user, deleteUser, navigate, push]);
+
+  const handleRenewToken = useCallback(async () => {
+    if (!user?.backendId) return;
+    try {
+      console.log("🔑 Renewing token for user with backendId:", user.backendId);
+      await renewToken(user.backendId, selectedDuration);
+      push("success", "Token akses berhasil diperpanjang");
+      setShowTokenModal(false);
+    } catch (err: any) {
+      push("error", err.message || "Gagal memperpanjang token");
+    }
+  }, [user, renewToken, selectedDuration, push]);
+
+  const handleEditSave = useCallback(async (payload: any) => {
+    if (!user?.backendId) return;
+    try {
+      const res = await updateUser(user.backendId, payload);
+      if (res && res.success === false) {
+        push("error", res.message || "Gagal memperbarui pengguna");
+      } else {
+        push("success", "Perubahan Berhasil Disimpan");
+        setShowEditModal(false);
+        // Refresh data user
+        const updatedUser = await getUserDetail(user.backendId);
+        if (updatedUser) setUser(updatedUser);
+      }
+    } catch (err: any) {
+      push("error", err.message || "Gagal memperbarui pengguna");
+    }
+  }, [user, updateUser, getUserDetail, push]);
+
+  const handleExportPdf = useCallback(() => {
+    push("success", "Laporan performa berhasil diekspor ke PDF");
+  }, [push]);
+
+  const handleCopyToken = useCallback(() => {
+    if (!user?.tokenString) return;
+    navigator.clipboard.writeText(user.tokenString).then(() => {
+      setCopiedToken(true);
+      push("success", "Disalin");
+      setTimeout(() => setCopiedToken(false), 2000);
+    });
+  }, [user, push]);
+
+  // === DERIVED STATE ===
+  const isOB = user?.role === "OB" || user?.role === "HR";
+  const isKaryawan = user?.role === "Karyawan";
+  const isTokenExpired = user?.tokenStatus === "Expired";
+
+  const roleDisplayLabel = (() => {
+    switch (user?.role) {
+      case "OB": return "Office Boy (OB)";
+      case "Karyawan": return "Karyawan";
+      case "HR": return "HR";
+      case "Admin": return "Admin";
+      default: return user?.role || "-";
+    }
+  })();
+
+  // === EARLY RETURNS (SETELAH SEMUA HOOKS) ===
+
+  // Loading state
+  if (isLoadingDetail) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
         <LoadingSpinner text="Memuat data detail pengguna..." />
@@ -40,11 +150,12 @@ const UserDetail = () => {
     );
   }
 
-  if (!user) {
+  // Error state
+  if (detailError || !user) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
         <div className="text-center">
-          <p className="text-gray-500 mb-4 font-semibold">Pengguna tidak ditemukan.</p>
+          <p className="text-gray-500 mb-4 font-semibold">{detailError || "Pengguna tidak ditemukan."}</p>
           <button
             onClick={() => navigate("/users")}
             className="text-sm font-semibold text-[#0F4C81] border border-[#0F4C81] rounded-lg px-4 py-2 hover:bg-blue-50 cursor-pointer"
@@ -56,73 +167,7 @@ const UserDetail = () => {
     );
   }
 
-  // Determine content by role
-  const isOB = user.role === "OB" || user.role === "HR";
-  const isKaryawan = user.role === "Karyawan";
-  const isTokenExpired = user.tokenStatus === "Expired";
-
-  const handleConfirmDelete = async () => {
-    if (!user.backendId) return;
-    try {
-      console.log("🗑️ Deleting user with backendId:", user.backendId);
-      await deleteUser(user.backendId);
-      push("success", "Pengguna berhasil dihapus");
-      navigate("/users");
-    } catch {
-      push("error", "Gagal menghapus pengguna");
-    }
-  };
-
-  const handleRenewToken = async () => {
-    if (!user.backendId) return;
-    try {
-      console.log("🔑 Renewing token for user with backendId:", user.backendId);
-      await renewToken(user.backendId, selectedDuration);
-      push("success", "Token akses berhasil diperpanjang");
-      setShowTokenModal(false);
-    } catch {
-      push("error", "Gagal memperpanjang token");
-    }
-  };
-
-  const handleEditSave = async (payload: any) => {
-    if (!user.backendId) return;
-    try {
-      const res = await updateUser(user.backendId, payload);
-      if (res && res.success === false) {
-        push("error", res.message || "Gagal memperbarui pengguna");
-      } else {
-        push("success", "Perubahan Berhasil Disimpan");
-        setShowEditModal(false);
-      }
-    } catch (err: any) {
-      push("error", err.message || "Gagal memperbarui pengguna");
-    }
-  };
-
-  const handleExportPdf = () => {
-    push("success", "Laporan performa berhasil diekspor ke PDF");
-  };
-
-  const handleCopyToken = () => {
-    navigator.clipboard.writeText(user.tokenString || "").then(() => {
-      setCopiedToken(true);
-      push("success", "Disalin");
-      setTimeout(() => setCopiedToken(false), 2000);
-    });
-  };
-
-  // Role display label
-  const roleDisplayLabel = (() => {
-    switch (user.role) {
-      case "OB": return "Office Boy (OB)";
-      case "Karyawan": return "Karyawan";
-      case "HR": return "HR";
-      case "Admin": return "Admin";
-      default: return user.role;
-    }
-  })();
-
+  // === RENDER ===
   return (
     <div className="flex h-screen bg-white font-sans text-gray-800">
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -146,7 +191,7 @@ const UserDetail = () => {
             </div>
           </div>
 
-          {/* Grid utama: kolom kiri & kolom kanan */}
+          {/* Grid utama */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* Kolom kiri */}
             <div className="lg:col-span-2 flex flex-col gap-6">
@@ -175,7 +220,7 @@ const UserDetail = () => {
                     </p>
                     <p className="flex items-center gap-1.5 text-xs font-semibold">
                       <span className={`h-2 w-2 rounded-full ${user.status === "Aktif" ? "bg-green-500" : "bg-gray-300"}`}></span>
-                      <span className={STATUS_USER_COLOR[user.status].split(" ")[1]}>{user.status}</span>
+                      <span className={user.status === "Aktif" ? "text-green-600" : "text-gray-500"}>{user.status}</span>
                     </p>
                   </div>
                 </div>
@@ -187,7 +232,7 @@ const UserDetail = () => {
                   </div>
                   <div>
                     <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">Username</p>
-                    <p className="text-sm font-bold text-gray-800">{user.username}</p>
+                    <p className="text-sm font-bold text-gray-800">@{user.username}</p>
                   </div>
                   <div>
                     <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">No Telepon</p>
@@ -200,7 +245,7 @@ const UserDetail = () => {
                 </div>
               </div>
 
-              {/* Statistik Pengguna */}
+              {/* Statistik */}
               <div className="border border-gray-200 rounded-xl p-6 bg-white">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-sm font-bold text-gray-800">
@@ -223,55 +268,30 @@ const UserDetail = () => {
                   )}
                 </div>
 
-                {isOB ? (
-                  /* OB / HR: show multi stats */
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-gray-50 rounded-xl p-5 text-center">
-                      <div className="flex justify-center mb-2">
-                        <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gray-50 rounded-xl p-5 text-center">
+                    <div className="flex justify-center mb-2">
+                      <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                       </div>
-                      <span className="text-3xl font-bold text-gray-800">{user.stats?.tasksCompleted || 0}</span>
-                      <p className="text-xs text-gray-500 font-semibold mt-1">Laporan Diterima</p>
                     </div>
-                    <div className="bg-gray-50 rounded-xl p-5 text-center">
-                      <div className="flex justify-center mb-2">
-                        <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
+                    <span className="text-3xl font-bold text-gray-800">{user.stats?.tasksCompleted || 0}</span>
+                    <p className="text-xs text-gray-500 font-semibold mt-1">Tugas Selesai</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-5 text-center">
+                    <div className="flex justify-center mb-2">
+                      <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                       </div>
-                      <span className="text-3xl font-bold text-gray-800">{200}</span>
-                      <p className="text-xs text-gray-500 font-semibold mt-1">Laporan Selesai</p>
                     </div>
+                    <span className="text-3xl font-bold text-gray-800">{user.stats?.rejected || 0}</span>
+                    <p className="text-xs text-gray-500 font-semibold mt-1">Laporan Ditolak</p>
                   </div>
-                ) : isKaryawan ? (
-                  /* Karyawan: show single stat (Laporan Terkirim) */
-                  <div className="flex flex-col items-center justify-center py-6 mb-6">
-                    <div className="h-14 w-14 bg-blue-100 rounded-full flex items-center justify-center text-[#0F4C81] mb-3">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <span className="text-4xl font-bold text-[#0F4C81]">{user.stats?.tasksCompleted || 342}</span>
-                    <p className="text-sm text-gray-500 font-semibold mt-1">Laporan Terkirim</p>
-                  </div>
-                ) : (
-                  /* Admin / fallback */
-                  <div className="flex flex-col items-center justify-center py-6 mb-6">
-                    <div className="h-14 w-14 bg-blue-100 rounded-full flex items-center justify-center text-[#0F4C81] mb-3">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <span className="text-4xl font-bold text-[#0F4C81]">{user.stats?.tasksCompleted || 0}</span>
-                    <p className="text-sm text-gray-500 font-semibold mt-1">Tugas Selesai</p>
-                  </div>
-                )}
+                </div>
 
                 <button
                   onClick={handleExportPdf}
@@ -287,7 +307,7 @@ const UserDetail = () => {
 
             {/* Kolom kanan */}
             <div className="flex flex-col gap-6">
-              {/* Status Token Akses - card style matching screenshot */}
+              {/* Status Token */}
               <div className={`border rounded-xl p-5 ${isTokenExpired ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"}`}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className={`h-5 w-5 rounded-full flex items-center justify-center ${isTokenExpired ? "bg-red-200 text-red-600" : "bg-green-200 text-green-600"}`}>
@@ -305,9 +325,6 @@ const UserDetail = () => {
                 </div>
 
                 <div className="space-y-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Status Saat Ini</span>
-                  </div>
                   <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${isTokenExpired ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>
                     {isTokenExpired ? "Expired / Kadaluwarsa" : "Aktif"}
                   </span>
@@ -316,10 +333,6 @@ const UserDetail = () => {
                     <p className="text-xs text-gray-500">Waktu Kadaluwarsa</p>
                     <p className="text-sm font-bold text-gray-800">{formatTanggalWaktuWIB(user.tokenExpiredAt)}</p>
                   </div>
-
-                  <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                    Token ini dapat digunakan untuk otentikasi sistem.
-                  </p>
                 </div>
 
                 <button
@@ -334,8 +347,8 @@ const UserDetail = () => {
                 </button>
               </div>
 
-              {/* PENGATURAN AKUN */}
-              <Can permission="users:all">
+              {/* Pengaturan Akun */}
+              <Can permission="users:all" roles={["Admin", "HR"]} anyOf>
                 <div className="border border-gray-200 rounded-xl p-6 bg-white">
                   <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4">Pengaturan Akun</h3>
                   <div className="flex flex-col gap-2.5">
@@ -365,38 +378,12 @@ const UserDetail = () => {
                   </div>
                 </div>
               </Can>
-
-              {/* Log Sistem */}
-              {user.activityLog && user.activityLog.length > 0 && (
-                <div className="border border-gray-200 rounded-xl p-6 bg-white">
-                  <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4">Log Sistem</h3>
-                  <div className="space-y-3">
-                    {user.activityLog.slice(0, 5).map((log) => {
-                      const dots: Record<string, string> = {
-                        blue: "bg-blue-500",
-                        yellow: "bg-yellow-500",
-                        green: "bg-green-500",
-                        red: "bg-red-500",
-                      };
-                      return (
-                        <div key={log.id} className="flex gap-3">
-                          <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${dots[log.colorDot] || "bg-blue-500"}`}></span>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 truncate">{log.title}</p>
-                            <p className="text-[10px] text-gray-400 mt-0.5 font-semibold">{log.time}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </main>
       </div>
 
-      {/* TOKEN DETAIL MODAL */}
+      {/* TOKEN MODAL */}
       <AnimatePresence>
         {showTokenModal && (
           <motion.div
@@ -415,13 +402,8 @@ const UserDetail = () => {
               className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
             >
               <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Detail Token</h3>
-                </div>
-                <button
-                  onClick={() => setShowTokenModal(false)}
-                  className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer"
-                >
+                <h3 className="text-lg font-bold text-gray-900">Detail Token</h3>
+                <button onClick={() => setShowTokenModal(false)} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -429,18 +411,13 @@ const UserDetail = () => {
               </div>
 
               <div className="px-6 py-5 space-y-4">
-                {/* Status Token */}
                 <div>
                   <p className="text-xs font-semibold text-gray-500 mb-1.5">Status Token</p>
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${isTokenExpired ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>
-                      {isTokenExpired ? "Expired / Kadaluwarsa" : "Aktif"}
-                    </span>
-                    <span className="text-[11px] text-gray-400">Terakhir aktif: {formatTanggalWaktuWIB(user.tokenExpiredAt)}</span>
-                  </div>
+                  <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${isTokenExpired ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>
+                    {isTokenExpired ? "Expired / Kadaluwarsa" : "Aktif"}
+                  </span>
                 </div>
 
-                {/* Aktifkan Kembali (hanya tampil jika expired) */}
                 {isTokenExpired && (
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 mb-1.5">Aktifkan Kembali untuk:</label>
@@ -450,15 +427,12 @@ const UserDetail = () => {
                       className="w-full bg-white text-gray-800 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer"
                     >
                       {TOKEN_DURATION_OPTIONS.map((opt) => (
-                        <option key={opt.hours} value={opt.hours}>
-                          {opt.label}
-                        </option>
+                        <option key={opt.hours} value={opt.hours}>{opt.label}</option>
                       ))}
                     </select>
                   </div>
                 )}
 
-                {/* String Token */}
                 <div>
                   <p className="text-xs font-semibold text-gray-500 mb-1.5">String Token</p>
                   <div className="flex items-center gap-2">
@@ -468,43 +442,21 @@ const UserDetail = () => {
                     <button
                       onClick={handleCopyToken}
                       className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer shrink-0 ${
-                        copiedToken
-                          ? "bg-green-100 text-green-700"
-                          : "bg-[#0F4C81] text-white hover:bg-[#0c3c68]"
+                        copiedToken ? "bg-green-100 text-green-700" : "bg-[#0F4C81] text-white hover:bg-[#0c3c68]"
                       }`}
                     >
-                      {copiedToken ? (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                          </svg>
-                          Disalin
-                        </>
-                      ) : (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                          </svg>
-                          Salin Token
-                        </>
-                      )}
+                      {copiedToken ? "Disalin" : "Salin"}
                     </button>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-                <button
-                  onClick={() => setShowTokenModal(false)}
-                  className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 cursor-pointer"
-                >
+                <button onClick={() => setShowTokenModal(false)} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 cursor-pointer">
                   Batal
                 </button>
                 {isTokenExpired && (
-                  <button
-                    onClick={handleRenewToken}
-                    className="px-6 py-2.5 rounded-xl bg-[#0F4C81] hover:bg-[#0c3c68] text-white font-semibold text-sm cursor-pointer"
-                  >
+                  <button onClick={handleRenewToken} className="px-6 py-2.5 rounded-xl bg-[#0F4C81] hover:bg-[#0c3c68] text-white font-semibold text-sm cursor-pointer">
                     Simpan Perubahan
                   </button>
                 )}
@@ -514,7 +466,7 @@ const UserDetail = () => {
         )}
       </AnimatePresence>
 
-      {/* EDIT USER MODAL */}
+      {/* EDIT MODAL */}
       <EditUserModal
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
@@ -522,7 +474,7 @@ const UserDetail = () => {
         onSave={handleEditSave}
       />
 
-      {/* DELETE USER CONFIRM */}
+      {/* DELETE CONFIRM */}
       <ConfirmDialog
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}

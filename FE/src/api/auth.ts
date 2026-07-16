@@ -1,4 +1,4 @@
-import { apiClient, type ApiResponse } from "./client";
+import apiClient from "../services/apiClient";
 
 export interface LoginPayload {
   identifier: string;
@@ -18,33 +18,39 @@ export interface ActivateAccountPayload {
  * Login user with credentials
  */
 export async function login(payload: LoginPayload) {
-  const response = await apiClient.post<ApiResponse<LoginData>>(
-    "/api/auth/login",
-    payload,
-    { redirectOnUnauthorized: false },
-  );
+  try {
+    const response = await apiClient.post<any>("/api/auth/login", payload);
+    console.log("🔐 Login response:", response);
 
-  if (!response.success || !response.data?.jwt_token) {
-    throw new Error(response.message || "Email/username atau password salah.");
+    // Try to extract data from wrapper
+    const data = response?.data ?? response;
+
+    if (!data?.jwt_token) {
+      throw new Error(response?.message || "Email/username atau password salah.");
+    }
+
+    return { success: true, data };
+  } catch (err: any) {
+    console.error("❌ Login error:", err);
+    throw new Error(err?.message || err?.response?.data?.message || "Login gagal. Silakan coba lagi.");
   }
-
-  return response;
 }
 
 /**
  * Check if activation token is valid
  */
 export async function checkActivationToken(token: string) {
-  return apiClient.get<ApiResponse<unknown> | unknown>("/api/auth/check-token", { token });
+  const response = await apiClient.get<any>("/api/auth/check-token", { params: { token } });
+  return (response as any)?.data ?? response;
 }
 
 /**
  * Activate account with new password
  */
 export async function activateAccount(token: string, payload: ActivateAccountPayload) {
-  return apiClient.post<ApiResponse<unknown>>(
+  const response = await apiClient.post<any>(
     `/api/auth/activate-account?token=${encodeURIComponent(token)}`,
     payload,
-    { redirectOnUnauthorized: false },
   );
+  return (response as any)?.data ?? response;
 }

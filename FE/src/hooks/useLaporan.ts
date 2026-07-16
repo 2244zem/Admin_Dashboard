@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Laporan, StatusLaporan, AreaLaporan, LevelLaporan } from "../types/laporan";
-import { getAdminLaporan, getAdminLaporanDetail, getUserProfile, updateAdminLaporan, deleteAdminLaporan } from "../api/laporan";
+import { getAdminLaporan, getAdminLaporanDetail, updateAdminLaporan, deleteAdminLaporan } from "../api/laporan";
 import { getAdminUsers } from "../api/user";
-import { API_BASE_URL } from "../api/client";
+import { API_BASE_URL } from "../lib/apiBaseUrl";
 import { getErrorMessage } from "../lib/utils";
+import { laporanSchema, validateList } from "../schemas";
 
 function normalizeName(name: unknown): string {
   return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -99,30 +101,24 @@ function extractArray(payload: any): any[] {
   return [];
 }
 
-function extractDetail(payload: any): any {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
-  if (payload.laporan && !Array.isArray(payload.laporan)) return extractDetail(payload.laporan);
-  if (payload.data && !Array.isArray(payload.data)) return extractDetail(payload.data);
-  return payload;
-}
-
 function mapStatus(status: unknown): StatusLaporan {
   const value = String(status || "").toUpperCase().replace(/-/g, "_").replace(/ /g, "_");
   // Handle backend enum values (both old format and new format)
   if (["BELUM_DIKERJAKAN", "BELUM", "TODO", "TO_DO", "TO-DO"].includes(value)) return "Menunggu";
   if (["DITUGASKAN", "ASSIGNED", "PROSES", "DIPROSES", "PENDING", "IN_PROGRESS", "INPROGRESS"].includes(value)) return "Ditugaskan";
   if (["SELESAI", "DONE", "COMPLETED"].includes(value)) return "Selesai";
-  if (["DITOLAK", "REJECTED"].includes(value)) return "Ditolak";
+  if (["DITOLAK", "DIBATALKAN", "REJECTED", "CANCELLED", "CANCELED"].includes(value)) return "Ditolak";
   return "Menunggu";
 }
 
 // Convert frontend status to backend API format (UPPERCASE)
+// Backend only accepts: BELUM_DIKERJAKAN | PENDING | SELESAI | DIBATALKAN
 export function statusToBackend(frontendStatus: StatusLaporan): string {
   switch (frontendStatus) {
     case "Menunggu": return "BELUM_DIKERJAKAN";
     case "Ditugaskan": return "PENDING";
     case "Selesai": return "SELESAI";
-    case "Ditolak": return "DITOLAK";
+    case "Ditolak": return "DIBATALKAN"; // Backend uses DIBATALKAN, not DITOLAK
     default: return "BELUM_DIKERJAKAN";
   }
 }
@@ -251,73 +247,72 @@ export function mapApiLaporanToLaporan(row: any): Laporan {
   };
 }
 
+async function fetchLaporanQuery(params: any): Promise<Laporan[]> {
+  const payload = await getAdminLaporan({
+    page: params.page || 1,
+    limit: params.limit || 50,
+    search: params.search,
+    status: params.status === "Semua Status" ? undefined : params.status,
+    prioritas: params.prioritas,
+    lokasi_id: params.lokasi_id,
+    lantai_id: params.lantai_id,
+    start_date: params.start_date,
+    end_date: params.end_date,
+    sort_by: params.sort_by,
+    sort_order: params.sort_order,
+  });
+
+  const extracted = extractArray(payload);
+  const mapped = extracted.map(mapApiLaporanToLaporan);
+
+  // Enrich foto profil dari tabel user (endpoint laporan tidak selalu mengembalikan foto profil)
+  const photoMaps = await buildUserPhotoMaps();
+  const enriched = mapped.map((l) => {
+    if (l.fotoProfil) return l;
+    const fotoProfil =
+      (l.karyawanId && photoMaps.byId.get(l.karyawanId)) ||
+      photoMaps.byName.get(normalizeName(l.name)) ||
+      undefined;
+    return fotoProfil ? { ...l, fotoProfil } : l;
+  });
+
+  return validateList<Laporan>(laporanSchema, enriched, "laporan");
+}
+
+// Polling interval: 30 detik (lebih manusiawi, tidak DDoS-like)
+const LAPORAN_REFETCH_INTERVAL = 30_000;
+
 export function useLaporan(filters?: any) {
-  const [laporanList, setLaporanList] = useState<Laporan[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const laporanFilters = filters || {};
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchLaporan = useCallback(async (activeFilters?: any, opts?: { silent?: boolean }) => {
-    const silent = opts?.silent === true;
-    if (!silent) {
-      setIsLoading(true);
-      setError(null);
-    }
-    try {
-      const params = activeFilters || filters || {};
-      console.log("📋 fetchLaporan: fetching with params:", params);
-
-      // Always use admin endpoint for reports page
-      const payload = await getAdminLaporan({
-        page: params.page || 1,
-        limit: params.limit || 50,  // Increase limit to ensure we get data
-        search: params.search,
-        status: params.status === "Semua Status" ? undefined : params.status,
-        prioritas: params.prioritas,
-        lokasi_id: params.lokasi_id,
-        lantai_id: params.lantai_id,
-        start_date: params.start_date,
-        end_date: params.end_date,
-        sort_by: params.sort_by,
-        sort_order: params.sort_order,
-      });
-
-      console.log("📋 fetchLaporan: raw payload type:", typeof payload);
-      console.log("📋 fetchLaporan: raw payload keys:", payload ? Object.keys(payload) : "null");
-      console.log("📋 fetchLaporan: raw payload:", JSON.stringify(payload)?.slice(0, 1000));
-
-      const extracted = extractArray(payload);
-      console.log("📋 fetchLaporan: extracted", extracted.length, "items");
-      if (extracted.length > 0) {
-        console.log("📋 fetchLaporan: first item:", JSON.stringify(extracted[0])?.slice(0, 500));
-      }
-
-      const mapped = extracted.map(mapApiLaporanToLaporan);
-
-      // Enrich foto profil dari tabel user (endpoint laporan tidak selalu mengembalikan foto profil)
-      const photoMaps = await buildUserPhotoMaps();
-      const enriched = mapped.map((l) => {
-        if (l.fotoProfil) return l;
-        const fotoProfil =
-          (l.karyawanId && photoMaps.byId.get(l.karyawanId)) ||
-          photoMaps.byName.get(normalizeName(l.name)) ||
-          undefined;
-        return fotoProfil ? { ...l, fotoProfil } : l;
-      });
-
-      setLaporanList(enriched);
-    } catch (err: any) {
-      console.error("📋 fetchLaporan: error:", err);
-      if (!silent) setError(getErrorMessage(err));
-    } finally {
-      if (!silent) setIsLoading(false);
-    }
-  }, [filters]);
-
+  // Cleanup on unmount
   useEffect(() => {
-    fetchLaporan();
-    const interval = setInterval(() => fetchLaporan(undefined, { silent: true }), 5000);
-    return () => clearInterval(interval);
-  }, [fetchLaporan]);
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
+  const query = useQuery({
+    queryKey: ["laporan", laporanFilters],
+    queryFn: () => fetchLaporanQuery(laporanFilters),
+    // Polling lebih lambat (30 detik) untuk mencegah DDoS
+    refetchInterval: LAPORAN_REFETCH_INTERVAL,
+    // Jangan refetch saat tab tidak aktif (hemat resources)
+    refetchIntervalInBackground: false,
+    // Retry dengan backoff exponential
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+
+  const laporanList = query.data ?? [];
+  const isLoading = query.isPending;
+  const error = query.error ? getErrorMessage(query.error) : null;
+
+  const fetchLaporan = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ["laporan"] });
+  }, [queryClient]);
 
   const updateLaporanStatus = async (_id: number, _status: StatusLaporan) => {
     throw new Error("Endpoint update status laporan belum tersedia di dokumentasi API.");
@@ -331,7 +326,6 @@ export function useLaporan(filters?: any) {
     console.log("🗑️ deleteLaporan: deleting laporan with id:", id);
     try {
       await deleteAdminLaporan(id);
-      console.log("🗑️ deleteLaporan: success, refreshing list");
       await fetchLaporan();
     } catch (err) {
       console.error("🗑️ deleteLaporan: error:", err);
@@ -342,7 +336,8 @@ export function useLaporan(filters?: any) {
   const updateLaporan = async (id: string, payload: any) => {
     console.log("✏️ updateLaporan: updating laporan", id, "with payload:", payload);
     try {
-      // Backend API supports only: status, prioritas, admin_catatan, ob_id
+      // Backend API supports: status, admin_catatan, prioritas, ob_id
+      // See CLAUDE.md API Reference for full spec
       const backendPayload: Record<string, unknown> = {};
 
       if (payload.status !== undefined) {

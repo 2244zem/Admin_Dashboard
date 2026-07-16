@@ -9,4 +9,5 @@ export interface AppNotification {
   highPriority?: boolean;
   createdAt: string;
   read: boolean;
+  senderName?: string;
 }

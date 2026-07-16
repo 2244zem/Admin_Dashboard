@@ -66,13 +66,13 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route 
-            path="/users/:id" 
+          <Route
+            path="/users/:id"
             element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
+              <ProtectedRoute>
                 <UserDetail />
               </ProtectedRoute>
-            } 
+            }
           />
           <Route
             path="/tasks"
@@ -93,7 +93,7 @@ function AnimatedRoutes() {
           <Route
             path="/datalokasi"
             element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
+              <ProtectedRoute>
                 <DataLokasi />
               </ProtectedRoute>
             }
@@ -101,11 +101,11 @@ function AnimatedRoutes() {
           <Route
             path="/users"
             element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
+              <ProtectedRoute>
                 <User />
               </ProtectedRoute>
-            } 
-          /> 
+            }
+          />
           <Route
   path="/privasisyarat"
   element={

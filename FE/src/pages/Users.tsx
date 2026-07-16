@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import useUsers from "../hooks/useUsers";
 import { useToast } from "../components/Toast";
 import AddUserModal from "../components/AddUserModal";
@@ -45,7 +44,6 @@ function getPaginationRange(current: number, total: number): (number | "...")[] 
 }
 
 const Users = () => {
-  useAuth();
   const { userList, isLoading, error, fetchUsers, addUser, updateUser, deleteUser } = useUsers();
   const { push } = useToast();
   const navigate = useNavigate();
@@ -110,20 +108,14 @@ const Users = () => {
   // --- Modal state ---
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<AppUser | null>(null);
-  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
 
   const handleConfirmDelete = async () => {
-    if (deleteTargetId === null) return;
-    // Find the user by numeric id to get the backendId (UUID)
-    const userToDelete = userList.find((u) => u.id === deleteTargetId);
-    if (!userToDelete?.backendId) {
-      push("error", "Tidak dapat menemukan ID pengguna untuk dihapus");
-      return;
-    }
+    if (!deleteTarget?.backendId) return;
     try {
-      await deleteUser(userToDelete.backendId);
+      await deleteUser(deleteTarget.backendId);
       push("success", "Data pengguna berhasil dihapus");
-      setDeleteTargetId(null);
+      setDeleteTarget(null);
     } catch (err) {
       push("error", err instanceof Error ? err.message : "Gagal menghapus data pengguna");
     }
@@ -131,19 +123,14 @@ const Users = () => {
 
   const handleAddUserSave = async (payload: any) => {
     try {
-      console.log("👤 Starting user creation with payload:", payload);
       const res = await addUser(payload);
-      console.log("✅ addUser returned:", res);
-      
       if (res && res.success === false) {
         push("error", res.message || "Gagal menyimpan pengguna");
       } else {
         push("success", "Pengguna Berhasil Disimpan");
         setShowAddModal(false);
-        console.log("✅ Modal closed, user list should be refreshed");
       }
     } catch (err) {
-      console.error("❌ Error in handleAddUserSave:", err);
       push("error", err instanceof Error ? err.message : "Gagal menyimpan pengguna");
     }
   };
@@ -166,7 +153,7 @@ const Users = () => {
   return (
     <div className="flex h-screen bg-white font-sans text-gray-800">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <PageHeader title="Manajemen User" />
+        <PageHeader title="Manajemen Pengguna " />
 
         <main className="flex-1 overflow-auto bg-white p-8">
           {isLoading && userList.length === 0 ? (
@@ -182,11 +169,11 @@ const Users = () => {
           ) : error ? (
             <ErrorState message={error} onRetry={fetchUsers} />
           ) : (
-            <>
-          {/* Sub-header: Daftar Pengguna + Tambah Pengguna */}
-          <div className="flex items-center justify-between mb-6">
+            <React.Fragment>
+              {/* Sub-header: Daftar Pengguna + Tambah Pengguna */}
+              <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-bold text-[#0F4C81]">Daftar Pengguna</h2>
-            <Can permission="users:all">
+            <Can permission="users:all" roles={["Admin", "HR"]} anyOf>
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
@@ -317,6 +304,7 @@ const Users = () => {
               description="Tidak ada pengguna yang sesuai dengan pencarian atau kriteria penyaringan Anda."
             />
           ) : (
+            <React.Fragment>
             <div className="bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden mb-6">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-gray-600">
@@ -337,7 +325,7 @@ const Users = () => {
                         <motion.tr
                           key={u.id}
                           whileHover={{ backgroundColor: "rgba(15, 76, 129, 0.02)" }}
-                          className="transition-colors cursor-default"
+                          className="transition-colors hover:bg-gray-50"
                         >
                           <td className="px-6 py-4 flex items-center gap-3">
                             {u.avatar ? (
@@ -372,7 +360,7 @@ const Users = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                                 </svg>
                               </button>
-                              <Can permission="users:all">
+                              <Can permission="users:all" roles={["Admin", "HR"]} anyOf>
                                 <button
                                   onClick={() => setEditTarget(u)}
                                   className="text-gray-400 hover:text-yellow-600 p-1.5 rounded transition-colors cursor-pointer"
@@ -383,7 +371,7 @@ const Users = () => {
                                   </svg>
                                 </button>
                                 <button
-                                  onClick={() => setDeleteTargetId(u.id)}
+                                  onClick={() => setDeleteTarget(u)}
                                   className="text-gray-400 hover:text-red-500 p-1.5 rounded transition-colors cursor-pointer"
                                   title="Hapus User"
                                 >
@@ -443,9 +431,10 @@ const Users = () => {
                 </div>
               </div>
             </div>
+            </React.Fragment>
           )}
-            </>
-          )}
+          </React.Fragment>
+        )}
         </main>
       </div>
 
@@ -464,8 +453,8 @@ const Users = () => {
       />
 
       <ConfirmDialog
-        open={deleteTargetId !== null}
-        onClose={() => setDeleteTargetId(null)}
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
         onConfirm={handleConfirmDelete}
         title="Hapus Pengguna Ini?"
         message="Apakah Anda yakin ingin menghapus data pengguna ini? Data yang telah Anda hapus tidak dapat dikembalikan!"

@@ -89,15 +89,6 @@ function exportToExcel(list: Laporan[]) {
   XLSX.writeFile(wb, `laporan_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-// ---------- Helper: avatar inisial ----------
-const AVATAR_COLORS = [
-  { bg: "bg-blue-100", text: "text-blue-600" },
-  { bg: "bg-purple-100", text: "text-purple-600" },
-  { bg: "bg-orange-100", text: "text-orange-600" },
-  { bg: "bg-teal-100", text: "text-teal-600" },
-  { bg: "bg-pink-100", text: "text-pink-600" },
-];
-
 const Dashboard = () => {
   const navigate = useNavigate();
   const laporanFilters = useMemo(

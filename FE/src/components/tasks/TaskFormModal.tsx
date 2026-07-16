@@ -1,93 +1,80 @@
-import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import useTugasOptions from "../../hooks/useTugasOptions";
 
-interface TaskForm {
-  kategori_id: string;
-  tugas_id: string;
-  namaTugas: string;
-  lokasi_id: string;
-  lantai_id: string;
-  ob_id: string;
-  tanggal: string;
-  jam: string;
-  catatan: string;
-}
-
-interface SelectOption {
-  id: string;
-  nama: string;
-  kategori_id?: string; // For tugas options
-}
+interface Option { id: string; nama: string }
 
 interface TaskFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (form: TaskForm) => void;
+  onSave: (form: {
+    kategori_id: string;
+    tugas_id: string;
+    lokasi_id: string;
+    lantai_id: string;
+    ob_id: string;
+    catatan: string;
+  }) => void | Promise<void>;
   mode: "create" | "edit";
-  initialData?: TaskForm | null;
-  editingTaskId?: string | null;
-  obPrefill?: string;
-  kategoriOptions?: SelectOption[];
-  tugasOptions?: SelectOption[];
-  obOptions?: SelectOption[];
-  gedungOptions?: SelectOption[];
-  lantaiOptions?: SelectOption[];
+  initialData: any;
+  gedungOptions: Option[];
+  lantaiOptions: Option[];
+  kategoriOptions: Option[];
+  obOptions: Option[];
 }
 
-export const TaskFormModal: React.FC<TaskFormModalProps> = ({
+export default function TaskFormModal({
   isOpen,
   onClose,
   onSave,
   mode,
   initialData,
-  editingTaskId,
-  obPrefill,
-  kategoriOptions = [],
-  tugasOptions = [],
-  obOptions = [],
-  gedungOptions = [],
-  lantaiOptions = [],
-}) => {
-  const todayISO = () => new Date().toISOString().slice(0, 10);
+  gedungOptions,
+  lantaiOptions,
+  kategoriOptions,
+  obOptions,
+}: TaskFormModalProps) {
+  const { tugasList, fetchTugas } = useTugasOptions();
 
-  const [form, setForm] = useState<TaskForm>({
-    kategori_id: "",
-    tugas_id: "",
-    namaTugas: "",
-    lokasi_id: "",
-    lantai_id: "",
-    ob_id: "",
-    tanggal: todayISO(),
-    jam: "",
-    catatan: "",
-  });
+  const [kategoriId, setKategoriId] = useState("");
+  const [tugasId, setTugasId] = useState("");
+  const [lokasiId, setLokasiId] = useState("");
+  const [lantaiId, setLantaiId] = useState("");
+  const [obId, setObId] = useState("");
+  const [catatan, setCatatan] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      if (mode === "edit" && initialData) {
-        setForm(initialData);
-      } else {
-        setForm({
-          kategori_id: "",
-          tugas_id: "",
-          namaTugas: "",
-          lokasi_id: "",
-          lantai_id: "",
-          ob_id: obPrefill || "",
-          tanggal: todayISO(),
-          jam: "",
-          catatan: "",
-        });
-      }
+    if (!isOpen) return;
+    if (initialData) {
+      setKategoriId(initialData.kategori_id || "");
+      setTugasId(""); // tugas_id lama tidak dikirim balik dari mapper, biarkan user pilih ulang
+      setLokasiId(initialData.lokasi_id || "");
+      setLantaiId(initialData.lantai_id || "");
+      setObId(initialData.ob_id || "");
+      setCatatan(initialData.catatan || "");
+    } else {
+      setKategoriId("");
+      setTugasId("");
+      setLokasiId("");
+      setLantaiId("");
+      setObId("");
+      setCatatan("");
     }
-  }, [isOpen, mode, initialData, obPrefill]);
+  }, [isOpen, initialData]);
 
-  const handleFormChange = (field: keyof TaskForm, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  // Nama Tugas bergantung pada Kategori dipilih dulu
+  useEffect(() => {
+    if (kategoriId) fetchTugas(kategoriId);
+  }, [kategoriId, fetchTugas]);
 
-  const handleSimpan = () => {
-    onSave(form);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onSave({ kategori_id: kategoriId, tugas_id: tugasId, lokasi_id: lokasiId, lantai_id: lantaiId, ob_id: obId, catatan });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -109,14 +96,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden"
           >
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">
-                  {mode === "edit" ? "Edit Tugas" : "Buat Tugas Baru"}
-                </h2>
-                {mode === "edit" && editingTaskId && (
-                  <p className="text-xs text-gray-400 mt-0.5">Mengubah data tugas {editingTaskId}</p>
-                )}
-              </div>
+              <h2 className="text-lg font-bold text-gray-900">
+                {mode === "edit" ? "Edit Tugas" : "Buat Tugas Baru"}
+              </h2>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -129,9 +111,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Kategori</label>
                   <select
-                    value={form.kategori_id}
-                    onChange={(e) => handleFormChange("kategori_id", e.target.value)}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                    value={kategoriId}
+                    onChange={(e) => { setKategoriId(e.target.value); setTugasId(""); }}
+                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">Pilih Kategori</option>
                     {kategoriOptions.map((k) => (
@@ -141,22 +123,27 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Tugas</label>
-                  <input
-                    type="text"
-                    value={form.namaTugas}
-                    onChange={(e) => handleFormChange("namaTugas", e.target.value)}
-                    placeholder="Tulis nama tugas..."
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                  />
+                  <select
+                    value={tugasId}
+                    onChange={(e) => setTugasId(e.target.value)}
+                    disabled={!kategoriId}
+                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <option value="">{kategoriId ? "Pilih Tugas" : "Pilih Kategori dulu"}</option>
+                    {tugasList.map((t) => (
+                      <option key={t.id} value={t.id}>{t.nama}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Lokasi Gedung</label>
                   <select
-                    value={form.lokasi_id}
-                    onChange={(e) => handleFormChange("lokasi_id", e.target.value)}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                    value={lokasiId}
+                    onChange={(e) => setLokasiId(e.target.value)}
+                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">Pilih Gedung</option>
                     {gedungOptions.map((g) => (
@@ -167,9 +154,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Lokasi Lantai</label>
                   <select
-                    value={form.lantai_id}
-                    onChange={(e) => handleFormChange("lantai_id", e.target.value)}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                    value={lantaiId}
+                    onChange={(e) => setLantaiId(e.target.value)}
+                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">Pilih Lantai</option>
                     {lantaiOptions.map((l) => (
@@ -178,14 +165,43 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   </select>
                 </div>
               </div>
+
+              {/*
+                NOTE: Desain (gambar 2) TIDAK menampilkan dropdown OB di modal ini.
+                Tapi API POST /api/checklist-harian secara skema mewajibkan ob_id.
+                Dari bug sesi sebelumnya, mengirim tanpa ob_id memicu 404
+                "Related data not found". toChecklistPayload() di checklist.ts
+                sudah menangani ini dengan aman (ob_id hanya dikirim kalau terisi),
+                artinya backend KEMUNGKINAN membolehkan create tanpa ob_id
+                (task masuk status "Belum Diklaim"/pool). Field ini saya taruh
+                sebagai OPTIONAL, sesuai desain yang tidak menonjolkannya — tapi
+                WAJIB DITES: kalau backend ternyata benar-benar menolak tanpa
+                ob_id, field ini perlu dijadikan wajib & lebih ditonjolkan di UI.
+              */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Tugaskan ke OB <span className="text-gray-400 font-normal">(opsional — kosongkan untuk masuk pool)</span>
+                </label>
+                <select
+                  value={obId}
+                  onChange={(e) => setObId(e.target.value)}
+                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Belum ditugaskan</option>
+                  {obOptions.map((ob) => (
+                    <option key={ob.id} value={ob.id}>{ob.nama}</option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Catatan Khusus</label>
                 <textarea
-                  value={form.catatan}
-                  onChange={(e) => handleFormChange("catatan", e.target.value)}
+                  value={catatan}
+                  onChange={(e) => setCatatan(e.target.value)}
                   placeholder="Jelaskan instruksi khusus di sini..."
                   rows={3}
-                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"
+                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"
                 />
               </div>
             </div>
@@ -195,13 +211,14 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 Batal
               </button>
               <button
-                onClick={handleSimpan}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0F4C81] hover:bg-[#0a355c] text-white font-semibold text-sm cursor-pointer"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0F4C81] hover:bg-[#0a355c] disabled:opacity-60 text-white font-semibold text-sm cursor-pointer"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>{mode === "edit" ? "Simpan Perubahan" : "Simpan Tugas"}</span>
+                {isSaving ? "Menyimpan..." : mode === "edit" ? "Simpan Perubahan" : "Simpan Tugas"}
               </button>
             </div>
           </motion.div>
@@ -209,6 +226,4 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       )}
     </AnimatePresence>
   );
-};
-
-export default TaskFormModal;
+}

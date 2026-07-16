@@ -43,11 +43,13 @@ function decodeJwtPayload(token: string): Record<string, any> | null {
 }
 
 function normalizeRole(role: unknown): UserRole {
-  const value = String(role || "Admin").toLowerCase();
+  const value = String(role || "").toLowerCase();
+  if (value.includes("admin")) return "Admin";
   if (value.includes("hr") || value.includes("human resource")) return "HR";
   if (value === "ob" || value.includes("office boy")) return "OB";
   if (value.includes("karyawan")) return "Karyawan";
-  return "Admin";
+  // Default ke Karyawan jika role tidak dikenal
+  return "Karyawan";
 }
 
 function userFromToken(token: string, identifierFallback = "user"): AuthUser {
@@ -120,6 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  // NOTE: ini hanya gate UI (UX). Otorisasi final WAJIB divalidasi di backend
+  // per-endpoint — hacker bisa panggil API langsung lewat token tanpa peduli
+  // pada logika client-side ini.
   const hasPermission = (permission: string): boolean => {
     if (!user) return false;
     if (user.role === "Admin") return true;

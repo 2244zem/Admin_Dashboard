@@ -41,12 +41,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
 
-  // Filter navigation items based on user role
-  const visibleNavItems = navItems.filter(item => 
-    user?.role && item.roles.includes(user.role)
-  );
+  // Tampilkan semua menu sidebar (filter role ditangani oleh ProtectedRoute di level halaman)
+  const visibleNavItems = navItems;
 
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);

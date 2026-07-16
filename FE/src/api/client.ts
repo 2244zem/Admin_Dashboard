@@ -1,4 +1,5 @@
 import { tokenStorage } from "../lib/tokenStorage";
+import { API_BASE_URL } from "../lib/apiBaseUrl";
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -16,8 +17,8 @@ export interface ApiErrorPayload {
 
 export type QueryParams = Record<string, string | number | boolean | null | undefined>;
 
-// Base URL configuration - use environment variable or fallback
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+// Base URL: single-sourced dari lib/apiBaseUrl (tidak ada fallback localhost).
+const BASE_URL = API_BASE_URL || "";
 
 /**
  * Build URL with query parameters
@@ -179,5 +180,5 @@ export const apiClient = {
     request<T>(path, { ...options, method: "DELETE" }),
 };
 
-// Re-export for compatibility
-export { BASE_URL as API_BASE_URL };
+// Re-export untuk kompatibilitas (sumber tunggal ada di lib/apiBaseUrl)
+export { API_BASE_URL };

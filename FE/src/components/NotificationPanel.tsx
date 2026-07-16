@@ -65,6 +65,9 @@ export default function NotificationPanel({
                   {n.title}
                 </p>
                 <p className="text-sm text-gray-600 mt-0.5">{n.message}</p>
+                {n.senderName && (
+                  <p className="text-xs text-gray-400 mt-0.5">Dari: {n.senderName}</p>
+                )}
                 {n.highPriority && (
                   <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600">
                     HIGH PRIORITY

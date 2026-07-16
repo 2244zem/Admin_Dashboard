@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/WGSLogoNoBG.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- SECURITY: Hardening header (meta-based).
+         CATATAN: directive 'frame-ancestors' TIDAK didukung via <meta> (hanya
+         via HTTP response header) — oleh karena itu tidak disertakan di sini;
+         set 'frame-ancestors none' dari server/CDN untuk cegah clickjacking.
+         - default-src 'self'        -> blokir aset eksternal tak dikenal
+         - script-src 'self'         -> cegah XSS via script inline/eksternal
+         - connect-src izinkan API (https) & WebSocket (wss/ws)
+         - style-src 'unsafe-inline' -> dibutuhkan oleh inline style (framer-motion)
+         X-Content-Type-Options, HSTS, Permissions-Policy sebaiknya juga
+         di-set di level server/CDN. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:; connect-src 'self' https: wss: ws:; base-uri 'self'; object-src 'none'; form-action 'self'"
+    />
+    <meta http-equiv="Referrer-Policy" content="no-referrer" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <title>ADMIN DASHBOARD | Lapor OB</title>
   </head>
   <body>

@@ -1,6 +1,11 @@
 const TOKEN_KEY = "token";
 const USER_KEY = "wgs_auth_user";
 
+// SECURITY: token JWT disimpan di localStorage/sessionStorage (bukan HttpOnly
+// cookie) agar bisa dibaca di client. Ini rentan dicuri kalau terjadi XSS.
+// Rekomendasi jangka panjang: pindah ke cookie HttpOnly; Secure; SameSite
+// (penanganan token diambil alih oleh backend, client tidak pegang JWT).
+
 export const tokenStorage = {
   getToken: (): string | null => {
     return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
