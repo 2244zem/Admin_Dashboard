@@ -12,7 +12,6 @@ interface TaskFormModalProps {
     tugas_id: string;
     lokasi_id: string;
     lantai_id: string;
-    ob_id: string;
     catatan: string;
   }) => void | Promise<void>;
   mode: "create" | "edit";
@@ -20,7 +19,6 @@ interface TaskFormModalProps {
   gedungOptions: Option[];
   lantaiOptions: Option[];
   kategoriOptions: Option[];
-  obOptions: Option[];
 }
 
 export default function TaskFormModal({
@@ -32,7 +30,6 @@ export default function TaskFormModal({
   gedungOptions,
   lantaiOptions,
   kategoriOptions,
-  obOptions,
 }: TaskFormModalProps) {
   const { tugasList, fetchTugas } = useTugasOptions();
 
@@ -40,7 +37,6 @@ export default function TaskFormModal({
   const [tugasId, setTugasId] = useState("");
   const [lokasiId, setLokasiId] = useState("");
   const [lantaiId, setLantaiId] = useState("");
-  const [obId, setObId] = useState("");
   const [catatan, setCatatan] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -51,14 +47,12 @@ export default function TaskFormModal({
       setTugasId(""); // tugas_id lama tidak dikirim balik dari mapper, biarkan user pilih ulang
       setLokasiId(initialData.lokasi_id || "");
       setLantaiId(initialData.lantai_id || "");
-      setObId(initialData.ob_id || "");
       setCatatan(initialData.catatan || "");
     } else {
       setKategoriId("");
       setTugasId("");
       setLokasiId("");
       setLantaiId("");
-      setObId("");
       setCatatan("");
     }
   }, [isOpen, initialData]);
@@ -71,7 +65,7 @@ export default function TaskFormModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onSave({ kategori_id: kategoriId, tugas_id: tugasId, lokasi_id: lokasiId, lantai_id: lantaiId, ob_id: obId, catatan });
+      await onSave({ kategori_id: kategoriId, tugas_id: tugasId, lokasi_id: lokasiId, lantai_id: lantaiId, catatan });
     } finally {
       setIsSaving(false);
     }
@@ -164,34 +158,6 @@ export default function TaskFormModal({
                     ))}
                   </select>
                 </div>
-              </div>
-
-              {/*
-                NOTE: Desain (gambar 2) TIDAK menampilkan dropdown OB di modal ini.
-                Tapi API POST /api/checklist-harian secara skema mewajibkan ob_id.
-                Dari bug sesi sebelumnya, mengirim tanpa ob_id memicu 404
-                "Related data not found". toChecklistPayload() di checklist.ts
-                sudah menangani ini dengan aman (ob_id hanya dikirim kalau terisi),
-                artinya backend KEMUNGKINAN membolehkan create tanpa ob_id
-                (task masuk status "Belum Diklaim"/pool). Field ini saya taruh
-                sebagai OPTIONAL, sesuai desain yang tidak menonjolkannya — tapi
-                WAJIB DITES: kalau backend ternyata benar-benar menolak tanpa
-                ob_id, field ini perlu dijadikan wajib & lebih ditonjolkan di UI.
-              */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tugaskan ke OB <span className="text-gray-400 font-normal">(opsional — kosongkan untuk masuk pool)</span>
-                </label>
-                <select
-                  value={obId}
-                  onChange={(e) => setObId(e.target.value)}
-                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                >
-                  <option value="">Belum ditugaskan</option>
-                  {obOptions.map((ob) => (
-                    <option key={ob.id} value={ob.id}>{ob.nama}</option>
-                  ))}
-                </select>
               </div>
 
               <div>

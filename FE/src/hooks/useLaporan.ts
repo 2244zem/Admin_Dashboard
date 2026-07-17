@@ -240,7 +240,8 @@ async function fetchLaporanQuery(params: any): Promise<Laporan[]> {
     page: params.page || 1,
     limit: params.limit || 50,
     search: params.search,
-    status: params.status === "Semua Status" ? undefined : params.status,
+    // status already converted to backend enum in component, pass as-is
+    status: params.status,
     prioritas: params.prioritas,
     lokasi_id: params.lokasi_id,
     lantai_id: params.lantai_id,

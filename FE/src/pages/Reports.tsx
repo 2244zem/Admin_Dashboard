@@ -15,7 +15,16 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
 };
 
-const STATUS_OPTIONS = ["Semua Status", "Menunggu", "Ditugaskan", "Selesai", "Ditolak"];
+// Mapping UI label -> Backend API value
+const STATUS_MAP: Record<string, string | undefined> = {
+  "Semua Status": undefined,
+  "Menunggu": "BELUM_DIKERJAKAN",
+  "Ditugaskan": "PENDING",
+  "Selesai": "SELESAI",
+  "Ditolak": "DIBATALKAN",
+};
+
+const STATUS_OPTIONS = Object.keys(STATUS_MAP);
 const LOKASI_OPTIONS = ["Semua Area", "Toilet", "Lobi", "Area Kantor", "Parkir"];
 const LEVEL_OPTIONS = ["Semua Level", "URGENT", "STANDARD"];
 
@@ -29,14 +38,28 @@ const Reports = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const apiFilters = useMemo(() => ({
-    status: filterStatus,
-    area: filterLokasi,
+    // Convert UI status label to backend enum
+    status: STATUS_MAP[filterStatus],
+    // API only accepts lokasi_id (UUID) for location filter, not area name
+    // We'll do client-side filtering for area display names
     level: filterLevel === "Semua Level" ? undefined : filterLevel,
     page: currentPage,
     limit: ITEMS_PER_PAGE,
   }), [filterStatus, filterLokasi, filterLevel, currentPage]);
 
   const { laporanList, isLoading, error, fetchLaporan, getLaporanDetail, deleteLaporan, updateLaporan } = useLaporan(apiFilters);
+
+  // Client-side filter for area (lokasi) since API only accepts UUID
+  const filteredByArea = useMemo(() => {
+    if (filterLokasi === "Semua Area") return laporanList;
+    return laporanList.filter((row) => row.area === filterLokasi);
+  }, [laporanList, filterLokasi]);
+
+  // Client-side filter for level/prioritas
+  const filteredByLevel = useMemo(() => {
+    if (filterLevel === "Semua Level") return filteredByArea;
+    return filteredByArea.filter((row) => row.level === filterLevel);
+  }, [filteredByArea, filterLevel]);
 
   // Foto bukti dan deskripsi ditampilkan melalui modal detail laporan.
   const [previewFoto, setPreviewFoto] = useState<{ url: string; desc: string } | null>(null);
@@ -57,20 +80,20 @@ const Reports = () => {
   const handleAssignTask = () => undefined;
 
   const totalLaporanAktif = useMemo(() => {
-    return laporanList.filter(
+    return filteredByLevel.filter(
       (row) => row.status !== "Selesai" && row.status !== "Ditolak"
     ).length;
-  }, [laporanList]);
+  }, [filteredByLevel]);
 
   const lokasiStats = useMemo(() => {
     const counts: Record<string, number> = { Toilet: 0, Lobi: 0, "Area Kantor": 0, Parkir: 0 };
-    laporanList.forEach((data) => {
+    filteredByLevel.forEach((data) => {
       if (counts[data.area] !== undefined) {
         counts[data.area] += 1;
       }
     });
     return counts;
-  }, [laporanList]);
+  }, [filteredByLevel]);
 
   // --- Modal Detail Laporan ---
   const [detailTarget, setDetailTarget] = useState<Laporan | null>(null);
@@ -133,9 +156,9 @@ const Reports = () => {
   };
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(laporanList.length / ITEMS_PER_PAGE));
-  const startIndex = laporanList.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
-  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, laporanList.length);
+  const totalPages = Math.max(1, Math.ceil(filteredByLevel.length / ITEMS_PER_PAGE));
+  const startIndex = filteredByLevel.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, filteredByLevel.length);
 
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages) return;
@@ -148,7 +171,7 @@ const Reports = () => {
         <PageHeader title="Laporan Pengguna" />
 
         <main className="flex-1 overflow-auto bg-white p-8">
-          {isLoading && laporanList.length === 0 ? (
+          {isLoading && filteredByLevel.length === 0 ? (
             <div>
               <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
                 <Skeleton className="h-24 flex-1 rounded-xl" />
@@ -313,14 +336,14 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white text-gray-700">
-                  {laporanList.length === 0 ? (
+                  {filteredByLevel.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-10 text-center text-gray-500">
                         Belum ada laporan yang sesuai dengan filter saat ini.
                       </td>
                     </tr>
                   ) : (
-                    laporanList.map((data) => (
+                    filteredByLevel.map((data) => (
                       <motion.tr
                         key={data.id}
                         whileHover={{ backgroundColor: "rgba(15, 76, 129, 0.03)" }}
@@ -430,9 +453,9 @@ const Reports = () => {
             {/* Pagination */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500">
               <span>
-                {laporanList.length === 0
+                {filteredByLevel.length === 0
                   ? "Tidak ada laporan"
-                  : `Menampilkan ${startIndex} sampai ${endIndex} dari ${laporanList.length} laporan`}
+                  : `Menampilkan ${startIndex} sampai ${endIndex} dari ${filteredByLevel.length} laporan`}
               </span>
               <div className="flex items-center gap-1">
                 <motion.button

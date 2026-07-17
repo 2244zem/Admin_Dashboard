@@ -39,11 +39,12 @@ function getAvatarColor(name: string) {
 }
 
 // ---------- UI status (mengikuti StatusTask apa adanya, tanpa mengarang bucket baru) ----------
+// Alur: Admin buat task → status "Menunggu OB" → OB ambil dari app → status "Dikerjakan"
 const UI_STATUS_STYLE: Record<StatusTask, { dot: string; text: string; label: string }> = {
-  Belum: { dot: "bg-gray-400", text: "text-gray-500", label: "Unassigned" },
-  Proses: { dot: "bg-amber-500", text: "text-amber-600", label: "In Progress" },
-  Selesai: { dot: "bg-green-500", text: "text-green-600", label: "Completed" },
-  Delayed: { dot: "bg-red-500", text: "text-red-600", label: "Delayed" },
+  Belum: { dot: "bg-gray-400", text: "text-gray-500", label: "Menunggu OB" },
+  Proses: { dot: "bg-amber-500", text: "text-amber-600", label: "Dikerjakan" },
+  Selesai: { dot: "bg-green-500", text: "text-green-600", label: "Selesai" },
+  Delayed: { dot: "bg-red-500", text: "text-red-600", label: "Terlewat" },
 };
 
 // ---------- Urgency ----------
@@ -96,24 +97,19 @@ const ITEMS_PER_PAGE = 10;
 const Tasks = () => {
   const { push } = useToast();
   const { gedungList, fetchGedung } = useLokasi();
-  const { fetchUsers, fetchOB } = useUsers();
+  const { fetchUsers } = useUsers();
   const { kategoriList, fetchKategori } = useKategori();
   const { fetchTugas } = useTugasOptions();
-  const [obList, setObList] = useState<Array<{ id: string; nama: string }>>([]);
 
   useEffect(() => {
     fetchGedung();
     fetchUsers();
     fetchKategori();
     fetchTugas();
-    fetchOB().then(setObList).catch(() => {
-      // Silent fail for fetchOB
-    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const gedungOptions = useMemo(() => gedungList.map((g) => ({ id: g.id, nama: g.nama })), [gedungList]);
-  const obOptions = useMemo(() => obList.filter((u) => u.id), [obList]);
   const kategoriOptions = useMemo(() => kategoriList, [kategoriList]);
 
   // --- Filter Gedung ---
@@ -226,7 +222,6 @@ const Tasks = () => {
   };
 
   const openEditModal = (task: Task) => {
-    const selectedOb = obOptions.find((ob) => ob.nama === task.petugas.nama);
     const selectedKategori = kategoriOptions.find((k) => k.nama === task.kategori);
     const selectedGedungOpt = gedungOptions.find((g) => g.nama === task.gedung);
     const selectedLantai = lantaiOptions.find((l) => l.nama === task.lantai);
@@ -238,7 +233,6 @@ const Tasks = () => {
       namaTugas: task.namaTugas,
       lokasi_id: selectedGedungOpt?.id || "",
       lantai_id: selectedLantai?.id || "",
-      ob_id: selectedOb?.id || "",
       catatan: task.catatan || "",
     });
     setIsModalOpen(true);
@@ -254,7 +248,6 @@ const Tasks = () => {
       tugas_id: form.tugas_id,
       lokasi_id: form.lokasi_id,
       lantai_id: form.lantai_id,
-      ob_id: form.ob_id || undefined, // lihat catatan di TaskFormModal soal field OB
       catatan: form.catatan || "",
     };
     try {
@@ -613,7 +606,6 @@ const Tasks = () => {
         gedungOptions={gedungOptions}
         lantaiOptions={lantaiOptions}
         kategoriOptions={kategoriOptions}
-        obOptions={obOptions}
       />
 
       <TaskDetailModal
