@@ -54,8 +54,20 @@ export async function getUnreadNotificationCount(): Promise<number> {
     const raw = await apiClient.get<any>("/api/notifikasi/unread-count");
 
     // unwrapData: { success, message, data: 0 } -> 0
-    const data = unwrapData<number>(raw);
+    let data = unwrapData<number>(raw);
+
+    // Handle direct number response
     if (typeof data === "number") return data;
+
+    // Handle wrapped response { data: 5 } or { unread_count: 5 }
+    if (data && typeof data === "object") {
+      const obj = data as Record<string, unknown>;
+      if (typeof obj.data === "number") return obj.data;
+      if (typeof obj.unread_count === "number") return obj.unread_count;
+      if (typeof obj.unreadCount === "number") return obj.unreadCount;
+      if (typeof obj.count === "number") return obj.count;
+    }
+
     return 0;
   } catch {
     return 0;

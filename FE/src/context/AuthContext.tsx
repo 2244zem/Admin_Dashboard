@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: !!tokenStorage.getToken() && !!user,
+        isAuthenticated: !!tokenStorage.getToken(),
         isLoading,
         login,
         logout,

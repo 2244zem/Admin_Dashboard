@@ -65,7 +65,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     try {
       const grouped = await getNotifikasi();
-      const unreadPayload: unknown = await getUnreadNotificationCount();
+      const unreadCountFromApi = await getUnreadNotificationCount();
 
       const merged = [
         ...(grouped?.hari_ini || []),
@@ -76,13 +76,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       setNotifications(merged);
 
-      // Parse unread count - handle different response formats
-      let count = 0;
-      if (typeof unreadPayload === "number") {
-        count = unreadPayload;
-      } else if (unreadPayload && typeof unreadPayload === "object") {
-        const obj = unreadPayload as { unread_count?: number; unreadCount?: number; count?: number };
-        count = obj.unread_count ?? obj.unreadCount ?? obj.count ?? 0;
+      // Calculate unread count - use API value, fallback to counting from notifications list
+      let count = unreadCountFromApi;
+      if (count === 0 && merged.length > 0) {
+        // Fallback: count from notifications array (filter unread ones)
+        count = merged.filter(n => !n.read).length;
       }
 
       setUnreadCount(Number.isFinite(count) ? count : 0);
