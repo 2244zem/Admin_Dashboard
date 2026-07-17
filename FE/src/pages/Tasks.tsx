@@ -5,7 +5,6 @@ import useTasks, { type TaskFilters } from "../hooks/useTasks";
 import useLokasi from "../hooks/useLokasi";
 import useUsers from "../hooks/useUsers";
 import useKategori from "../hooks/useKategori";
-import useTugasOptions from "../hooks/useTugasOptions";
 import Can from "../components/auth/Can";
 import { StatCardsSkeleton, CardListSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
@@ -98,13 +97,11 @@ const Tasks = () => {
   const { gedungList, fetchGedung } = useLokasi();
   const { fetchUsers } = useUsers();
   const { kategoriList, fetchKategori } = useKategori();
-  const { fetchTugas } = useTugasOptions();
 
   useEffect(() => {
     fetchGedung();
     fetchUsers();
     fetchKategori();
-    fetchTugas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -238,13 +235,13 @@ const Tasks = () => {
   };
 
   const handleSimpanTugas = async (form: any) => {
-    if (!form.kategori_id || !form.tugas_id || !form.lokasi_id || !form.lantai_id) {
+    if (!form.kategori_id || !form.nama_tugas || !form.lokasi_id || !form.lantai_id) {
       push("error", "Tugas Gagal Disimpan: Mohon lengkapi Kategori, Nama Tugas, Lokasi Gedung, dan Lokasi Lantai.");
       return;
     }
     const payload = {
       kategori_id: form.kategori_id,
-      tugas_id: form.tugas_id,
+      nama_tugas: form.nama_tugas,
       lokasi_id: form.lokasi_id,
       lantai_id: form.lantai_id,
       catatan: form.catatan || "",

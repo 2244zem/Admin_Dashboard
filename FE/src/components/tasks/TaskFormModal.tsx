@@ -1,6 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
-import useTugasOptions from "../../hooks/useTugasOptions";
 
 interface Option { id: string; nama: string }
 
@@ -9,7 +8,7 @@ interface TaskFormModalProps {
   onClose: () => void;
   onSave: (form: {
     kategori_id: string;
-    tugas_id: string;
+    nama_tugas: string;
     lokasi_id: string;
     lantai_id: string;
     catatan: string;
@@ -31,10 +30,8 @@ export default function TaskFormModal({
   lantaiOptions,
   kategoriOptions,
 }: TaskFormModalProps) {
-  const { tugasList, fetchTugas } = useTugasOptions();
-
   const [kategoriId, setKategoriId] = useState("");
-  const [tugasId, setTugasId] = useState("");
+  const [namaTugas, setNamaTugas] = useState("");
   const [lokasiId, setLokasiId] = useState("");
   const [lantaiId, setLantaiId] = useState("");
   const [catatan, setCatatan] = useState("");
@@ -44,28 +41,23 @@ export default function TaskFormModal({
     if (!isOpen) return;
     if (initialData) {
       setKategoriId(initialData.kategori_id || "");
-      setTugasId(""); // tugas_id lama tidak dikirim balik dari mapper, biarkan user pilih ulang
+      setNamaTugas(initialData.namaTugas || "");
       setLokasiId(initialData.lokasi_id || "");
       setLantaiId(initialData.lantai_id || "");
       setCatatan(initialData.catatan || "");
     } else {
       setKategoriId("");
-      setTugasId("");
+      setNamaTugas("");
       setLokasiId("");
       setLantaiId("");
       setCatatan("");
     }
   }, [isOpen, initialData]);
 
-  // Nama Tugas bergantung pada Kategori dipilih dulu
-  useEffect(() => {
-    if (kategoriId) fetchTugas(kategoriId);
-  }, [kategoriId, fetchTugas]);
-
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onSave({ kategori_id: kategoriId, tugas_id: tugasId, lokasi_id: lokasiId, lantai_id: lantaiId, catatan });
+      await onSave({ kategori_id: kategoriId, nama_tugas: namaTugas, lokasi_id: lokasiId, lantai_id: lantaiId, catatan });
     } finally {
       setIsSaving(false);
     }
@@ -106,7 +98,7 @@ export default function TaskFormModal({
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Kategori</label>
                   <select
                     value={kategoriId}
-                    onChange={(e) => { setKategoriId(e.target.value); setTugasId(""); }}
+                    onChange={(e) => setKategoriId(e.target.value)}
                     className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">Pilih Kategori</option>
@@ -117,17 +109,13 @@ export default function TaskFormModal({
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Tugas</label>
-                  <select
-                    value={tugasId}
-                    onChange={(e) => setTugasId(e.target.value)}
-                    disabled={!kategoriId}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 disabled:bg-gray-50 disabled:text-gray-400"
-                  >
-                    <option value="">{kategoriId ? "Pilih Tugas" : "Pilih Kategori dulu"}</option>
-                    {tugasList.map((t) => (
-                      <option key={t.id} value={t.id}>{t.nama}</option>
-                    ))}
-                  </select>
+                  <input
+                    type="text"
+                    value={namaTugas}
+                    onChange={(e) => setNamaTugas(e.target.value)}
+                    placeholder="Masukkan nama tugas..."
+                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                  />
                 </div>
               </div>
 

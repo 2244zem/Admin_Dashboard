@@ -71,7 +71,7 @@ src/config/       # Endpoint URLs
 - `useLokasi()` - Location hierarchy (gedung → lantai → ruangan)
 - `useUsers()` - User management
 - `useKategori()` - Task categories
-- `useTugasOptions()` - Task name options
+- `useTugasOptions()` - Task name options (deprecated for checklist creation - now uses text field `nama_tugas`)
 - `useLaporan()` - Reports (talks to `/api/admin/laporan`, page-based pagination — see note in API Reference)
 
 ### Location Data Model
@@ -524,16 +524,21 @@ Query: `page`, `limit`, `search` (by nama tugas), `lokasi_id`, `lantai_id`, `sta
 **POST `/api/checklist-harian`** (Admin)
 Request:
 ```json
-{ "tugas_id": "uuid", "kategori_id": "uuid", "lokasi_id": "uuid", "lantai_id": "uuid", "ob_id": "uuid" }
+{ "nama_tugas": "string", "kategori_id": "uuid", "lokasi_id": "uuid", "lantai_id": "uuid", "ob_id": "uuid" }
 ```
+- `nama_tugas` adalah **text field** (bukan dropdown `tugas_id`)
+- `kategori_id` tetap dropdown (UUID)
+- `lokasi_id`, `lantai_id` tetap dropdown (UUID)
+- `ob_id` opsional
 - `201` Checklist berhasil dibuat
 - **WebSocket**: sends `PENUGASAN_CHECKLIST` to all OB.
 
 **PATCH `/api/checklist-harian/{checklist_harian_id}`** (Admin)
 Request (all fields optional/partial presumed):
 ```json
-{ "tugas_id": "uuid", "kategori_id": "uuid", "lokasi_id": "uuid", "lantai_id": "uuid", "ob_id": "uuid", "status": "string", "catatan": "string" }
+{ "nama_tugas": "string", "kategori_id": "uuid", "lokasi_id": "uuid", "lantai_id": "uuid", "ob_id": "uuid", "status": "string", "catatan": "string" }
 ```
+- `nama_tugas` adalah **text field**
 - `200` Checklist berhasil diupdate
 
 Note: `status` here is a free `"string"` in the spec (not a strict enum in the schema), but the actual valid values are the four listed in the GET filter above (`BELUM_DIKERJAKAN`/`SEDANG_DIKERJAKAN`/`SELESAI`/`TERLEWAT`) — same caution as the Laporan endpoint applies: send the raw enum, not the UI label (`Belum`/`Proses`/`Selesai`/`Delayed`), and refetch after a successful update rather than trusting local state.
@@ -611,3 +616,4 @@ Since the unread-count and notification-list REST endpoints exist alongside the 
 - **Activation token has two touchpoints** (`GET check-token` then `POST activate-account`) — trace both before assuming the token itself is broken; the bug may be in how long the FE waits between the two calls, or a route guard re-validating the token a second time.
 - **`DELETE /api/admin/laporan/{id}` is a permanent, cascading hard-delete** — not a status change like `DIBATALKAN`. Always confirm before calling it, and refetch/invalidate any OB-side queries (dashboard, gabung list) touching that laporan afterward, since an OB with it open will otherwise silently hit `404`s.
 - **Concurrent-session / stale-state pattern also applies to `ob_id` ownership.** Both "ambil laporan" (409 if already taken) and "batalkan"/"kolaborasi keluarkan" (403 if not the owner) are guarding against the same class of race condition as concurrent logins — the fix pattern (server is source of truth, always refetch after a state-changing action, surface conflict errors instead of swallowing them) is the same one to apply across all of these.
+- **Checklist Harian uses `nama_tugas` text field, not `tugas_id` dropdown.** The API now accepts `nama_tugas` as a free-text string. The `useTugasOptions` hook is deprecated for checklist creation — `TaskFormModal` uses a text input instead.

@@ -147,9 +147,8 @@ function stripIdPrefix(id: string): string {
 function toChecklistPayload(payload: any) {
   const result: any = {};
 
-  // Strip prefix dari UUID, tapi tetap kirim field meskipun kosong
-  // PENTING: Jangan strip field kosong — backend butuh tau field mana yang kosong vs tidak ada
-  if (payload.tugas_id) result.tugas_id = stripIdPrefix(payload.tugas_id);
+  // Nama tugas sebagai text field (bukan dropdown tugas_id)
+  if (payload.nama_tugas) result.nama_tugas = payload.nama_tugas;
   if (payload.kategori_id) result.kategori_id = stripIdPrefix(payload.kategori_id);
   if (payload.lokasi_id) result.lokasi_id = stripIdPrefix(payload.lokasi_id);
   if (payload.lantai_id) result.lantai_id = stripIdPrefix(payload.lantai_id);
