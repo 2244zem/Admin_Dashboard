@@ -15,6 +15,8 @@ import User from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
 import PrivacyTerms from "./pages/PrivacyTerms";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import NotificationBell from "./components/NotificationBell";
+import { useAuth } from "./context/AuthContext";
 
 function UnauthorizedPage() {
   const navigate = useNavigate();
@@ -36,6 +38,39 @@ function UnauthorizedPage() {
         >
           Kembali ke Dashboard
         </button>
+      </div>
+    </div>
+  );
+}
+
+function PageHeader() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  return (
+    <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100">
+      <div>
+        {/* Page content header can be added here */}
+      </div>
+      <div className="flex items-center gap-4">
+        {/* Notification Bell */}
+        <NotificationBell />
+
+        {/* User Info */}
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-sm font-semibold text-gray-800">{user?.name || "User"}</p>
+            <p className="text-xs text-gray-500">{user?.role || "Admin"}</p>
+          </div>
+          <div className="h-9 w-9 rounded-full bg-[#0F4C81] flex items-center justify-center text-white font-bold text-sm">
+            {(user?.name || "U").charAt(0).toUpperCase()}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -63,6 +98,7 @@ function AnimatedRoutes() {
             path="/dashboard"
             element={
               <ProtectedRoute>
+                <PageHeader />
                 <Dashboard />
               </ProtectedRoute>
             }
@@ -71,6 +107,7 @@ function AnimatedRoutes() {
             path="/users/:id"
             element={
               <ProtectedRoute>
+                <PageHeader />
                 <UserDetail />
               </ProtectedRoute>
             }
@@ -79,6 +116,7 @@ function AnimatedRoutes() {
             path="/tasks"
             element={
               <ProtectedRoute>
+                <PageHeader />
                 <Tasks />
               </ProtectedRoute>
             }
@@ -87,6 +125,7 @@ function AnimatedRoutes() {
             path="/reports"
             element={
               <ProtectedRoute>
+                <PageHeader />
                 <LaporanUser />
               </ProtectedRoute>
             }
@@ -95,6 +134,7 @@ function AnimatedRoutes() {
             path="/datalokasi"
             element={
               <ProtectedRoute>
+                <PageHeader />
                 <DataLokasi />
               </ProtectedRoute>
             }
@@ -103,18 +143,20 @@ function AnimatedRoutes() {
             path="/users"
             element={
               <ProtectedRoute>
+                <PageHeader />
                 <User />
               </ProtectedRoute>
             }
           />
           <Route
-  path="/privasisyarat"
-  element={
-    <ProtectedRoute>
-      <PrivacyTerms />
-    </ProtectedRoute>
-  }
-/>
+            path="/privasisyarat"
+            element={
+              <ProtectedRoute>
+                <PageHeader />
+                <PrivacyTerms />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </motion.div>

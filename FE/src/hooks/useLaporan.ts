@@ -357,11 +357,18 @@ export function useLaporan(filters?: any) {
     // getAdminLaporanDetail already calls unwrapData, so payload is the raw data object
     const payload = await getAdminLaporanDetail(laporanId);
     const mapped = mapApiLaporanToLaporan(payload);
+
+    // Preserve original fields from list data - don't let mapped overwrite critical fields
+    // The detail API might have different field names (e.g., waktu_laporan vs created_at)
     return {
-      ...laporan,
       ...mapped,
-      fotoProfil: mapped.fotoProfil || laporan.fotoProfil,
+      // Keep original values from list row (these are already correct)
+      id: laporan.id,
       backendId: laporanId,
+      id_laporan: laporan.id_laporan,
+      createdAt: laporan.createdAt, // Preserve original created time
+      name: laporan.name,
+      fotoProfil: mapped.fotoProfil || laporan.fotoProfil,
     };
   };
 

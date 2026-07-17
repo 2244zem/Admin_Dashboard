@@ -120,9 +120,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         try {
           const notification = mapApiNotificationToAppNotification(payload as ApiNotification);
 
+          // Composite key untuk deduplication yang lebih robust
+          const getNotifKey = (n: AppNotification) =>
+            `${n.title}|${n.message}|${n.createdAt}`;
+
           // Check if notification already exists (avoid duplicates)
           setNotifications((prev) => {
-            const exists = prev.some((n) => n.id === notification.id);
+            const exists =
+              prev.some((n) => n.id === notification.id) ||
+              prev.some((n) => getNotifKey(n) === getNotifKey(notification));
             if (exists) {
               return prev;
             }
