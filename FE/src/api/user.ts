@@ -47,12 +47,22 @@ export async function deleteUser(id: string) {
   return response;
 }
 
-export async function activateUserToken(id: string) {
-  const response = await apiClient.post(`/api/admin/user/${id}/activate`, {});
+/**
+ * Renew activation token via admin
+ * POST /api/auth/activate-account - regenerate token for user
+ */
+export async function renewUserToken(id: string, hours: number = 24) {
+  // For admin renew token, send user_id and hours in body
+  const response = await apiClient.post<any>(`/api/auth/activate-account`, {
+    user_id: id,
+    hours,
+  });
   return response;
 }
 
-export async function renewUserToken(id: string, hours: number) {
-  const response = await apiClient.post(`/api/admin/user/${id}/renew-token`, { hours });
-  return response;
+/**
+ * @deprecated Use renewUserToken instead - same endpoint
+ */
+export async function activateUserToken(id: string) {
+  return renewUserToken(id);
 }

@@ -2,14 +2,14 @@ import { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { AuthUser, LoginRequest, UserRole } from "../types/auth";
 import { tokenStorage } from "../lib/tokenStorage";
-import { login as loginRequest } from "../api/auth";
+import { login as loginRequest, logout as logoutRequest } from "../api/auth";
 
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginRequest, remember: boolean) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   hasRole: (...roles: UserRole[]) => boolean;
 }
@@ -116,9 +116,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(activeUser);
   };
 
-  const logout = () => {
-    tokenStorage.clear();
-    setUser(null);
+  const logout = async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      // Continue with local logout even if API fails
+    } finally {
+      tokenStorage.clear();
+      setUser(null);
+    }
   };
 
   // NOTE: ini hanya gate UI (UX). Otorisasi final WAJIB divalidasi di backend

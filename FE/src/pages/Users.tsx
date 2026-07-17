@@ -7,7 +7,6 @@ import AddUserModal from "../components/AddUserModal";
 import EditUserModal from "../components/EditUserModal";
 import { ROLE_OPTIONS, STATUS_USER_COLOR } from "../types/user";
 import type { AppUser, UserRole } from "../types/user";
-import PageHeader from "../components/ui/PageHeader";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import EmptyState from "../components/ui/EmptyState";
@@ -153,8 +152,6 @@ const Users = () => {
   return (
     <div className="flex h-screen bg-white font-sans text-gray-800">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <PageHeader title="Manajemen Pengguna " />
-
         <main className="flex-1 overflow-auto bg-white p-8">
           {isLoading && userList.length === 0 ? (
             <div>

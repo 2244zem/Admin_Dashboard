@@ -7,7 +7,6 @@ import useUsers from "../hooks/useUsers";
 import useKategori from "../hooks/useKategori";
 import useTugasOptions from "../hooks/useTugasOptions";
 import Can from "../components/auth/Can";
-import PageHeader from "../components/ui/PageHeader";
 import { StatCardsSkeleton, CardListSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import EmptyState from "../components/ui/EmptyState";
@@ -321,8 +320,6 @@ const Tasks = () => {
   return (
     <div className="flex h-screen bg-white font-sans">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <PageHeader title="Manajemen Tugas" />
-
         <main className="flex-1 overflow-auto bg-white p-8 font-sans">
           {isTasksLoading && tasks.length === 0 ? (
             <div>

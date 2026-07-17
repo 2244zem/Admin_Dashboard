@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import useLokasi from "../hooks/useLokasi";
 import type { Gedung, Lantai, Ruangan } from "../hooks/useLokasi";
 import Can from "../components/auth/Can";
-import PageHeader from "../components/ui/PageHeader";
 import { Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
@@ -216,8 +215,6 @@ const DataLokasi = () => {
   return (
     <div className="flex h-screen bg-white font-sans text-gray-800">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <PageHeader title="Data Lokasi" />
-
         {/* BODY: 2 KOLOM */}
         <main className="flex-1 overflow-hidden flex flex-col md:flex-row gap-6 p-8 bg-white">
           {isLoading && gedungList.length === 0 ? (

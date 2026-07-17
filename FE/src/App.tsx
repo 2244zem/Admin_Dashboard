@@ -43,20 +43,24 @@ function UnauthorizedPage() {
   );
 }
 
-function PageHeader() {
+interface PageHeaderProps {
+  title?: string;
+}
+
+function PageHeader({ title }: PageHeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 
   return (
-    <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100">
-      <div>
-        {/* Page content header can be added here */}
-      </div>
+    <header className="flex items-center justify-between px-8 py-6 bg-white border-b border-gray-200">
+      <h1 className="text-[2rem] font-bold text-[#0F4C81] tracking-tight">
+        {title || "Dashboard"}
+      </h1>
       <div className="flex items-center gap-4">
         {/* Notification Bell */}
         <NotificationBell />
@@ -72,7 +76,7 @@ function PageHeader() {
           </div>
         </div>
       </div>
-    </div>
+    </header>
   );
 }
 
@@ -98,7 +102,7 @@ function AnimatedRoutes() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <PageHeader />
+                <PageHeader title="Dashboard" />
                 <Dashboard />
               </ProtectedRoute>
             }
@@ -107,7 +111,7 @@ function AnimatedRoutes() {
             path="/users/:id"
             element={
               <ProtectedRoute>
-                <PageHeader />
+                <PageHeader title="Detail Pengguna" />
                 <UserDetail />
               </ProtectedRoute>
             }
@@ -116,7 +120,7 @@ function AnimatedRoutes() {
             path="/tasks"
             element={
               <ProtectedRoute>
-                <PageHeader />
+                <PageHeader title="Manajemen Tugas" />
                 <Tasks />
               </ProtectedRoute>
             }
@@ -125,7 +129,7 @@ function AnimatedRoutes() {
             path="/reports"
             element={
               <ProtectedRoute>
-                <PageHeader />
+                <PageHeader title="Laporan Pengguna" />
                 <LaporanUser />
               </ProtectedRoute>
             }
@@ -134,7 +138,7 @@ function AnimatedRoutes() {
             path="/datalokasi"
             element={
               <ProtectedRoute>
-                <PageHeader />
+                <PageHeader title="Data Lokasi" />
                 <DataLokasi />
               </ProtectedRoute>
             }
@@ -143,7 +147,7 @@ function AnimatedRoutes() {
             path="/users"
             element={
               <ProtectedRoute>
-                <PageHeader />
+                <PageHeader title="Manajemen Pengguna" />
                 <User />
               </ProtectedRoute>
             }
@@ -152,7 +156,7 @@ function AnimatedRoutes() {
             path="/privasisyarat"
             element={
               <ProtectedRoute>
-                <PageHeader />
+                <PageHeader title="Privasi &amp; Syarat Ketentuan" />
                 <PrivacyTerms />
               </ProtectedRoute>
             }

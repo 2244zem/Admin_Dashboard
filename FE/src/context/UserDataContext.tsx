@@ -114,10 +114,11 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
 
   const renewToken: UserDataContextType["renewToken"] = async (id, hours) => {
     try {
-      // TODO: Implement token renewal endpoint when backend is ready
-      // For now, this will be a placeholder
-      await apiClient.post(`/admin/user/${id}/renew-token`, { hours });
-      
+      await apiClient.post(`/api/auth/activate-account`, {
+        user_id: id,
+        hours,
+      });
+
       // Refresh user list after token renewal
       await fetchUsers();
     } catch (error) {

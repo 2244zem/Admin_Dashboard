@@ -52,3 +52,16 @@ export async function activateAccount(token: string, payload: ActivateAccountPay
   );
   return (response as any)?.data ?? response;
 }
+
+/**
+ * Logout & revoke current session
+ */
+export async function logout() {
+  try {
+    const response = await apiClient.post<any>("/api/auth/logout");
+    return (response as any)?.data ?? response;
+  } catch (err: any) {
+    // Even if API fails, clear local state
+    throw new Error(err?.response?.data?.message || "Logout gagal");
+  }
+}

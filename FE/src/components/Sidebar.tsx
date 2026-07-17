@@ -50,9 +50,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     setShowLogoutConfirm(true);
   };
 
-  const handleConfirmLogout = () => {
-    // Use auth context logout
-    logout();
+  const handleConfirmLogout = async () => {
+    // Use auth context logout (revokes session on backend)
+    await logout();
     setShowLogoutConfirm(false);
     setIsOpen(false);
     navigate("/login");

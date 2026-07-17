@@ -7,7 +7,6 @@ import EditUserModal from "../components/EditUserModal";
 import { STATUS_USER_COLOR, TOKEN_DURATION_OPTIONS } from "../types/user";
 import type { AppUser } from "../types/user";
 import { formatTanggal, formatTanggalWaktuWIB } from "../lib/utils";
-import PageHeader from "../components/ui/PageHeader";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import Can from "../components/auth/Can";
@@ -166,8 +165,6 @@ const UserDetail = () => {
   return (
     <div className="flex h-screen bg-white font-sans text-gray-800">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <PageHeader title="Detail Pengguna" />
-
         <main className="flex-1 overflow-auto bg-white p-8">
           {/* Breadcrumb */}
           <div className="flex items-center gap-3 mb-6">

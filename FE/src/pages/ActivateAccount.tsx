@@ -81,7 +81,9 @@ export default function ActivateAccount() {
           <img src="/src/assets/WGSLogoNoBG.png" alt="Logo WGS" className="h-16 w-auto -ml-3 mb-3" />
           <h1 className="text-xl font-bold text-gray-900">Aktivasi Akun</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Buat password pertama Anda untuk mulai menggunakan Lapor-OB.
+            {isValidToken
+              ? "Buat password baru Anda untuk mengaktifkan akun."
+              : "Aktivasi atau reset password akun Anda."}
           </p>
         </div>
 

@@ -263,7 +263,9 @@ export function useUsers() {
 
   const updateUser = async (backendId: string, payload: any) => {
     try {
-      // Backend expects application/json for PATCH /api/admin/user/{user_id}
+      // Backend PATCH /api/admin/user/{user_id} supports:
+      // username, email, password, nama_lengkap, role_id, profile_picture
+      // Note: is_active/status support tergantung implementasi backend
       const body: Record<string, unknown> = {};
       if (payload.username) body.username = payload.username;
       if (payload.email) body.email = payload.email;
@@ -276,15 +278,19 @@ export function useUsers() {
       // Only send password if provided (avoid resetting to empty)
       if (payload.password) body.password = payload.password;
 
-      // Send both is_active (boolean) and status (string) for account state
+      // is_active - kirim tapi backend mungkin tidak support
       if (payload.status) {
         body.is_active = payload.status === "Aktif";
-        body.status = STATUS_TO_BACKEND[payload.status as UserStatus] ?? payload.status;
       }
 
       const endpoint = `/api/admin/user/${encodeURIComponent(backendId)}`;
 
       const responseData = await apiClient.patch<any>(endpoint, body);
+
+      // Check if backend returned success
+      if (responseData && responseData.success === false) {
+        throw new Error(responseData.message || "Gagal memperbarui pengguna");
+      }
 
       return responseData;
     } catch (err: any) {
@@ -308,13 +314,8 @@ export function useUsers() {
 
   const renewToken = async (backendId: string, hours: number = 24) => {
     try {
-      // Use documented endpoints: prefer renew-token, fall back to activate.
-      try {
-        await renewUserToken(backendId, hours);
-      } catch {
-        await activateUserToken(backendId);
-      }
-
+      await renewUserToken(backendId, hours);
+      return;
     } catch (err: any) {
       const msg = getErrorMessage(err);
       throw new Error(msg);

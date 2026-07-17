@@ -7,7 +7,6 @@ import DailyChecklistModal, { type OBChecklistDetail } from "../components/Daily
 import * as XLSX from "xlsx";
 import useLaporan from "../hooks/useLaporan";
 import useTasks from "../hooks/useTasks";
-import PageHeader from "../components/ui/PageHeader";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 
@@ -224,8 +223,6 @@ const Dashboard = () => {
   return (
     <div className="flex h-screen bg-white font-sans">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <PageHeader title="Dashboard" />
-
         <main className="flex-1 overflow-auto bg-white p-8">
           {hasLoadingState ? (
             <div>
