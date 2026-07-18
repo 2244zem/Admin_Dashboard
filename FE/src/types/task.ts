@@ -2,6 +2,7 @@ export type StatusTask = "Belum" | "Proses" | "Selesai" | "Delayed";
 
 export interface Petugas {
   nama: string;
+  fotoProfil?: string;
 }
 
 export interface Task {

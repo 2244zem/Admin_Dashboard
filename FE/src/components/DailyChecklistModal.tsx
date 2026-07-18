@@ -1,8 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 import type { Task } from "../types/task";
+import Avatar from "../components/ui/Avatar";
 
 export interface OBChecklistDetail {
   nama: string;
+  fotoProfil?: string;
   gedung: string;
   lokasi: string;
   tanggal: string;
@@ -51,11 +53,14 @@ export default function DailyChecklistModal({
             className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden"
           >
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div>
-                <h2 className="text-base font-bold text-gray-900">Detail Daily Checklist - {detail.nama}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {detail.gedung} • {detail.lokasi} • {formatTanggalPanjang(detail.tanggal)}
-                </p>
+              <div className="flex items-center gap-3">
+                <Avatar name={detail.nama} src={detail.fotoProfil} size="md" />
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Detail Daily Checklist</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {detail.nama} • {detail.gedung} • {detail.lokasi}
+                  </p>
+                </div>
               </div>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

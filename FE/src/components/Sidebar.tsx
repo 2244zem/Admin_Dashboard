@@ -113,24 +113,22 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       </nav>
 
       {/* Privasi & Syarat Ketentuan */}
-<div className="pt-2">
-  <motion.div whileHover={{ x: 4 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
-    <Link
-      to="/privasisyarat"
-      onClick={() => setIsOpen(false)}
-      className={`w-full flex items-center gap-4 py-1 px-3 rounded-md text-sm transition-all duration-200 cursor-pointer ${
-        location.pathname === "/privasisyarat"
-          ? "text-black"
-          : "text-slate-600 hover:text-slate-800 hover:bg-slate-200/50"
-      }`}
-    >
-      <ShieldCheck className="w-[18px] h-[18px]" />
-      <span>Privasi &amp; syarat ketentuan</span>
-    </Link>
-  </motion.div>
-</div>
-
-{/* Logout Button */}
+      <div className="pt-2">
+        <motion.div whileHover={{ x: 4 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
+          <Link
+            to="/privasisyarat"
+            onClick={() => setIsOpen(false)}
+            className={`w-full flex items-center gap-4 py-1 px-3 rounded-md text-sm transition-all duration-200 cursor-pointer ${
+              location.pathname === "/privasisyarat"
+                ? "text-black"
+                : "text-slate-600 hover:text-slate-800 hover:bg-slate-200/50"
+            }`}
+          >
+            <ShieldCheck className="w-[18px] h-[18px]" />
+            <span>Privasi &amp; Syarat Ketentuan</span>
+          </Link>
+        </motion.div>
+      </div>
 
       {/* Logout Button */}
       <div className="pt-4 mt-auto border-t border-transparent">

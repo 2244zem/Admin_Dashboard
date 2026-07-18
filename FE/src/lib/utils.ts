@@ -56,6 +56,30 @@ export function generateToken(prefix: string = "LPR"): string {
   return `${prefix}-${seg()}-${seg()}-${String(Math.floor(Math.random() * 9999)).padStart(4, "0")}`;
 }
 
+export const AVATAR_COLORS = [
+  "bg-blue-100 text-blue-600",
+  "bg-green-100 text-green-600",
+  "bg-orange-100 text-orange-600",
+  "bg-purple-100 text-purple-600",
+  "bg-pink-100 text-pink-600",
+  "bg-teal-100 text-teal-600",
+];
+
+/** Returns 2-letter initials (first letter of first word + first letter of second word). */
+export function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+/** Deterministic avatar color from a name string. */
+export function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 export function getErrorMessage(error: any): string {
   if (typeof error === "string") return error;
   // Response body bisa berupa HTML (mis. proxy/backend mati mengembalikan

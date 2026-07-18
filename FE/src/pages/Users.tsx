@@ -12,20 +12,9 @@ import ErrorState from "../components/ui/ErrorState";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import Can from "../components/auth/Can";
+import Avatar from "../components/ui/Avatar";
 
 const ITEMS_PER_PAGE = 3;
-
-const AVATAR_COLORS = [
-  "bg-blue-100 text-blue-600",
-  "bg-green-100 text-green-600",
-  "bg-orange-100 text-orange-600",
-  "bg-purple-100 text-purple-600",
-  "bg-pink-100 text-pink-600",
-  "bg-teal-100 text-teal-600",
-];
-function avatarColor(id: number) {
-  return AVATAR_COLORS[id % AVATAR_COLORS.length];
-}
 
 function getPaginationRange(current: number, total: number): (number | "...")[] {
   const delta = 1;
@@ -316,22 +305,14 @@ const Users = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
-                    {paginatedUsers.map((u) => {
-                      const color = avatarColor(u.id);
-                      return (
+                    {paginatedUsers.map((u) => (
                         <motion.tr
                           key={u.id}
                           whileHover={{ backgroundColor: "rgba(15, 76, 129, 0.02)" }}
                           className="transition-colors hover:bg-gray-50"
                         >
                           <td className="px-6 py-4 flex items-center gap-3">
-                            {u.avatar ? (
-                              <img src={u.avatar} alt={u.namaLengkap} className="h-8 w-8 rounded-full object-cover" />
-                            ) : (
-                              <span className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${color}`}>
-                                {u.namaLengkap.slice(0, 2).toUpperCase()}
-                              </span>
-                            )}
+                            <Avatar name={u.namaLengkap} src={u.avatar} size="md" />
                             <div>
                               <p className="font-semibold text-gray-800">{u.namaLengkap}</p>
                               <p className="text-xs text-gray-400">{u.email}</p>
@@ -380,8 +361,7 @@ const Users = () => {
                             </div>
                           </td>
                         </motion.tr>
-                      );
-                    })}
+                    ))}
                   </tbody>
                 </table>
               </div>

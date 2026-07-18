@@ -1,21 +1,14 @@
 import apiClient from "../services/apiClient";
 
-export type DashboardPeriod = "weekly" | "monthly" | "yearly";
+// Backend accepts: harian | mingguan | bulanan | tahunan (default: mingguan)
+export type DashboardPeriod = "harian" | "mingguan" | "bulanan" | "tahunan";
 
-export async function getAdminDashboard(period: DashboardPeriod = "weekly") {
-  try {
-    const response = await apiClient.get<any>("/api/admin/dashboard", { params: { period } });
-    return (response as any)?.data ?? response;
-  } catch (err) {
-    throw err;
-  }
+export async function getAdminDashboard(period: DashboardPeriod = "mingguan") {
+  const data = await apiClient.get<any>("/api/admin/dashboard", { params: { period } });
+  return data?.data ?? data;
 }
 
 export async function getUserStats() {
-  try {
-    const response = await apiClient.get<any>("/api/admin/user-stats");
-    return (response as any)?.data ?? response;
-  } catch (err) {
-    throw err;
-  }
+  const data = await apiClient.get<any>("/api/admin/user-stats");
+  return data?.data ?? data;
 }

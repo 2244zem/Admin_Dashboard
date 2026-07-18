@@ -3,7 +3,6 @@ import { useToast } from "../components/Toast";
 import type { Task, StatusTask } from "../types/task";
 import useTasks, { type TaskFilters } from "../hooks/useTasks";
 import useLokasi from "../hooks/useLokasi";
-import useUsers from "../hooks/useUsers";
 import useKategori from "../hooks/useKategori";
 import Can from "../components/auth/Can";
 import { StatCardsSkeleton, CardListSkeleton, Skeleton } from "../components/ui/Skeleton";
@@ -12,29 +11,9 @@ import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import TaskFormModal from "../components/tasks/TaskFormModal";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
+import Avatar from "../components/ui/Avatar";
 
 type Periode = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
-
-const AVATAR_COLORS = [
-  "bg-blue-100 text-blue-600",
-  "bg-purple-100 text-purple-600",
-  "bg-amber-100 text-amber-700",
-  "bg-red-100 text-red-600",
-  "bg-green-100 text-green-600",
-];
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-}
-
-function getAvatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 // ---------- UI status (mengikuti StatusTask apa adanya, tanpa mengarang bucket baru) ----------
 // Alur: Admin buat task → status "Menunggu OB" → OB ambil dari app → status "Dikerjakan"
@@ -94,16 +73,8 @@ const ITEMS_PER_PAGE = 10;
 
 const Tasks = () => {
   const { push } = useToast();
-  const { gedungList, fetchGedung } = useLokasi();
-  const { fetchUsers } = useUsers();
-  const { kategoriList, fetchKategori } = useKategori();
-
-  useEffect(() => {
-    fetchGedung();
-    fetchUsers();
-    fetchKategori();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { gedungList } = useLokasi();
+  const { kategoriList } = useKategori();
 
   const gedungOptions = useMemo(() => gedungList.map((g) => ({ id: g.id, nama: g.nama })), [gedungList]);
   const kategoriOptions = useMemo(() => kategoriList, [kategoriList]);
@@ -495,7 +466,6 @@ const Tasks = () => {
                       const style = UI_STATUS_STYLE[task.status];
                       const urgency = getUrgency(task);
                       const hasOb = Boolean(task.petugas?.nama) && task.petugas.nama !== "Belum ditugaskan";
-                      const avatarColor = hasOb ? getAvatarColor(task.petugas.nama) : "bg-gray-100 text-gray-400";
 
                       return (
                         <tr key={task.id} className="hover:bg-gray-50/50 transition-colors">
@@ -518,9 +488,7 @@ const Tasks = () => {
                           <td className="px-6 py-4">
                             {hasOb ? (
                               <div className="flex items-center gap-2">
-                                <span className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${avatarColor}`}>
-                                  {getInitials(task.petugas.nama)}
-                                </span>
+                                <Avatar name={task.petugas.nama} src={task.petugas.fotoProfil} size="sm" />
                                 <span className="font-medium text-gray-700 whitespace-nowrap">{task.petugas.nama}</span>
                               </div>
                             ) : (

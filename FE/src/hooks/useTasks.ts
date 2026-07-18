@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Task, StatusTask } from "../types/task";
 import {
@@ -12,292 +12,105 @@ import {
 import { getErrorMessage } from "../lib/utils";
 import { taskSchema, validateList } from "../schemas";
 
-// Recursively flatten nested items arrays
-function flattenItems(arr: any[]): any[] {
-  const result: any[] = [];
-  for (const item of arr) {
-    // Jika item punya property 'items' yang juga array, rekursif flatten
-    if (Array.isArray(item.items) && item.items.length > 0) {
-      result.push(...flattenItems(item.items));
-    } else {
-      // Ini adalah task individual, propagate ob info dari parent jika ada
-      result.push({
-        ...item,
-        // Simpan info OB parent jika task tidak punya OB sendiri
-        _ob_id: item.ob_id ?? item._ob_id ?? null,
-        _ob: item.ob ?? item._ob ?? null,
-      });
-    }
-  }
-  return result;
-}
-
-function extractArray(payload: any): any[] {
-  // Kontrak backend checklist-harian:
-  // { success, data: { checklist: { items: [{ob_id, ob, items: [tasks...]}, ...] }, ... }, ... }
-  // Struktur nested: items array berisi OB groups, tiap group punya items array of tasks
-  if (Array.isArray(payload)) {
-    return flattenItems(payload);
-  }
-
-  // Check checklist.items (nested structure with OB groups)
-  if (Array.isArray(payload?.checklist?.items)) {
-    const items = payload.checklist.items;
-    // Jika items[0] punya property 'items' (OB group), flatten
-    if (items.length > 0 && Array.isArray(items[0]?.items)) {
-      return flattenItems(items);
-    }
-    return items;
-  }
-
-  // Check direct checklist array
-  if (Array.isArray(payload?.checklist)) {
-    return flattenItems(payload.checklist);
-  }
-
-  // Check data.checklist.items
-  if (Array.isArray(payload?.data?.checklist?.items)) {
-    const items = payload.data.checklist.items;
-    if (items.length > 0 && Array.isArray(items[0]?.items)) {
-      return flattenItems(items);
-    }
-    return items;
-  }
-
-  // Fallback to direct data
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.items)) return flattenItems([payload.items]);
-
-  return [];
-}
-
-function mapApiStatus(status: unknown): StatusTask {
-  const value = String(status || "").toUpperCase();
-  if (value === "SEDANG_DIKERJAKAN") return "Proses";
-  if (value === "SELESAI") return "Selesai";
-  if (value === "TERLEWAT") return "Delayed";
+// Status mappers
+const mapApiStatus = (s: unknown): StatusTask => {
+  const v = String(s || "").toUpperCase();
+  if (v === "SEDANG_DIKERJAKAN") return "Proses";
+  if (v === "SELESAI") return "Selesai";
+  if (v === "TERLEWAT") return "Delayed";
   return "Belum";
-}
+};
 
-function mapUiStatus(status: StatusTask): ChecklistStatus {
-  if (status === "Proses") return "SEDANG_DIKERJAKAN";
-  if (status === "Selesai") return "SELESAI";
-  if (status === "Delayed") return "TERLEWAT";
-  return "BELUM_DIKERJAKAN";
-}
+const mapUiStatus = (s: StatusTask): ChecklistStatus => ({
+  "Proses": "SEDANG_DIKERJAKAN", "Selesai": "SELESAI", "Delayed": "TERLEWAT",
+}[s] ?? "BELUM_DIKERJAKAN");
 
+// Map API row to Task
 export function mapApiChecklistToTask(row: any): Task {
-  const tanggal = row.tanggal || row.created_at || row.updated_at || row.waktu || new Date().toISOString();
-  const tugas = row.tugas || {};
-  const kategori = row.kategori || tugas.kategori || {};
-  const lokasi = row.lokasi || {};
-  const lantai = row.lantai || {};
-  const ob = row.ob || row.petugas || row.assignee || {};
-
-  // Nama OB (respons backend pakai field "ob": null / objek ob)
-  const namaOb = row.nama_ob || ob?.nama_lengkap || ob?.username || ob?.nama || ob?.name || "Belum ditugaskan";
-
-  // Gedung: backend tidak mengembalikan objek lokasi bersarang; hanya
-  // lantai.lokasi_id. Kita tampilkan ID lokasi sebagai fallback agar baris
-  // tidak kosong (nama gedung bisa di-resolve di UI via lokasiList jika perlu).
-  const namaGedung =
-    row.nama_lokasi ||
-    lokasi.nama_lokasi ||
-    lokasi.nama ||
-    lokasi.name ||
-    row.gedung ||
-    lantai.lokasi_id ||
-    "-";
-  const namaLantai =
-    row.nama_lantai ||
-    lantai.nama_lantai ||
-    lantai.nama ||
-    (lantai.nomor_lantai !== undefined ? `Lantai ${lantai.nomor_lantai}` : row.lantai || "-");
-
-  // Tugas & kategori
-  const namaTugas = row.nama_tugas || tugas.nama_tugas || row.tugas_nama || tugas.nama || row.nama || row.name || "-";
-  const namaKategori = row.nama_kategori || kategori.nama_kategori || row.kategori_nama || kategori.nama || row.kategori || "-";
+  const get = (v: any, ...keys: string[]) => keys.reduce((o, k) => o?.[k], v) ?? "";
+  const tanggal = row.tanggal || row.created_at || new Date().toISOString();
 
   return {
-    id: String(row.id || row.checklist_harian_id || row.checklist_id || row.task_id || ""),
-    kategori: namaKategori,
-    namaTugas: namaTugas,
-    gedung: namaGedung,
-    lantai: namaLantai,
-    // ID mentah untuk resolve nama gedung/lantai di UI via endpoint lokasi/lantai
-    lokasiId: lantai.lokasi_id || lokasi.id || row.lokasi_id || undefined,
-    lantaiId: lantai.id || row.lantai_id || undefined,
-    petugas: {
-      nama: namaOb,
-    },
-    waktu: String(tanggal).slice(11, 16) || row.waktu || "-",
-    tanggal: String(tanggal).slice(0, 10) || row.tanggal || new Date().toISOString().slice(0, 10),
-    catatan: row.catatan || row.notes || row.description,
+    id: String(row.id ?? ""),
+    kategori: get(row, "kategori", "nama_kategori") || get(row, "tugas", "kategori", "nama_kategori") || "-",
+    namaTugas: get(row, "nama_tugas") || get(row, "tugas", "nama_tugas") || "-",
+    gedung: get(row, "nama_lokasi") || get(row, "lokasi", "nama") || "-",
+    lantai: get(row, "nama_lantai") || (row.lantai?.nomor_lantai ? `Lantai ${row.lantai.nomor_lantai}` : "-"),
+    petugas: { nama: get(row, "ob", "nama_lengkap") || get(row, "nama_ob") || "Belum ditugaskan" },
+    waktu: String(tanggal).slice(11, 16) || "-",
+    tanggal: String(tanggal).slice(0, 10),
+    catatan: row.catatan,
     status: mapApiStatus(row.status),
   };
 }
 
-// Strip prefix dari ID (gd-, lt-, dll) — tapi JANGAN hapus field kosong secara diam-diam
-function stripIdPrefix(id: string): string {
-  if (!id) return id;
-  const match = String(id).match(/^([a-z]+-)?(.+)$/);
-  return match ? match[2] : id;
-}
-
-function toChecklistPayload(payload: any) {
-  const result: any = {};
-
-  // Nama tugas sebagai text field (bukan dropdown tugas_id)
-  if (payload.nama_tugas) result.nama_tugas = payload.nama_tugas;
-  if (payload.kategori_id) result.kategori_id = stripIdPrefix(payload.kategori_id);
-  if (payload.lokasi_id) result.lokasi_id = stripIdPrefix(payload.lokasi_id);
-  if (payload.lantai_id) result.lantai_id = stripIdPrefix(payload.lantai_id);
-  if (payload.ob_id !== undefined && payload.ob_id !== null && payload.ob_id !== "") {
-    result.ob_id = stripIdPrefix(payload.ob_id);
-  }
-  if (payload.status) result.status = mapUiStatus(payload.status);
-  if (payload.catatan) result.catatan = payload.catatan;
-
-  return result;
-}
-
 export interface TaskFilters {
-  lokasi_id?: string;
-  lantai_id?: string;
-  status?: ChecklistStatus;
-  search?: string;
+  lokasi_id?: string; lantai_id?: string; status?: ChecklistStatus; search?: string;
 }
+
+// Strip prefix (gd-, lt-, etc)
+const stripPrefix = (id: string) => id?.replace(/^[a-z]+-/, "");
+
+// Build payload for checklist API
+const toPayload = (p: any) => ({
+  ...(p.nama_tugas && { nama_tugas: p.nama_tugas }),
+  ...(p.kategori_id && { kategori_id: stripPrefix(p.kategori_id) }),
+  ...(p.lokasi_id && { lokasi_id: stripPrefix(p.lokasi_id) }),
+  ...(p.lantai_id && { lantai_id: stripPrefix(p.lantai_id) }),
+  ...(p.ob_id != null && p.ob_id !== "" && { ob_id: stripPrefix(p.ob_id) }),
+  ...(p.status && { status: mapUiStatus(p.status) }),
+  ...(p.catatan && { catatan: p.catatan }),
+});
 
 const TASKS_KEY = ["tasks"] as const;
 
-// Polling interval: 30 detik (lebih manusiawi, tidak DDoS-like)
-// Bisa di-adjust berdasarkan kebutuhan
-const TASKS_REFETCH_INTERVAL = 30_000;
-
-async function fetchTasksQuery(filters?: TaskFilters): Promise<Task[]> {
-  try {
-    const payload = await getChecklistHarian(filters);
-    const extracted = extractArray(payload);
-    const mapped = extracted.map(mapApiChecklistToTask);
-    return validateList<Task>(taskSchema, mapped, "task");
-  } catch (err) {
-    throw err;
-  }
+async function fetchTasks(filters?: TaskFilters): Promise<Task[]> {
+  const payload = await getChecklistHarian(filters);
+  const items = Array.isArray(payload) ? payload : payload?.items ?? [];
+  return validateList(taskSchema, items.map(mapApiChecklistToTask), "task");
 }
 
-export function useTasks(filters?: TaskFilters) {
-  const queryClient = useQueryClient();
-  const [isMutating, setIsMutating] = useState(false);
-  const [mutationError, setMutationError] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, []);
-
-  // Build dynamic query key with filters
-  const queryKey = filters ? [...TASKS_KEY, filters] : TASKS_KEY;
+export { useTasks };
+export default useTasks;
+function useTasks(filters?: TaskFilters) {
+  const qc = useQueryClient();
+  const [isMutating, setMutating] = useState(false);
+  const [mutationError, setError] = useState<string | null>(null);
 
   const query = useQuery({
-    queryKey,
-    queryFn: () => fetchTasksQuery(filters),
-    // Polling lebih lambat (30 detik) untuk mencegah DDoS
-    refetchInterval: TASKS_REFETCH_INTERVAL,
-    // Jangan refetch saat tab tidak aktif (hemat resources)
+    queryKey: filters ? [...TASKS_KEY, filters] : TASKS_KEY,
+    queryFn: () => fetchTasks(filters),
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
-    // Retry dengan backoff exponential
     retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retryDelay: (i) => Math.min(1000 * 2 ** i, 30_000),
   });
 
-  const tasks = query.data ?? [];
-  const isLoading = query.isPending || isMutating;
-  const error = mutationError ?? (query.error ? getErrorMessage(query.error) : null);
+  const runMutation = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
+    setMutating(true); setError(null);
+    try { return await fn(); }
+    catch (e: any) {
+      setError(getErrorMessage(e)); throw e;
+    } finally { setMutating(false); }
+  }, []);
 
-  const fetchTasks = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: TASKS_KEY });
-  }, [queryClient]);
-
-  const runMutation = useCallback(
-    async <T,>(fn: () => Promise<T>): Promise<T> => {
-      setIsMutating(true);
-      setMutationError(null);
-      try {
-      const result = await fn();
-      // invalidateQueries ignores staleTime and forces the active query to
-      // refetch, so newly created/updated tasks always appear in the UI.
-      await queryClient.invalidateQueries({ queryKey: TASKS_KEY });
-      return result;
-      } catch (err: any) {
-        const msg = getErrorMessage(err);
-        setMutationError(msg);
-        throw new Error(msg);
-      } finally {
-        setIsMutating(false);
-      }
-    },
-    [queryClient]
-  );
-
-  const createTask = (payload: any) =>
-    runMutation(async () => {
-      // Validasi field wajib sudah dilakukan di level UI (Tasks.tsx).
-      // Tidak perlu verifikasi UUID via 4x GET ke backend — boros dan rentan
-      // gagal kalau salah satu endpoint 404. Biarkan backend yang memvalidasi
-      // kepemilikan/eksistensi ID saat POST.
-      return createChecklistHarian(toChecklistPayload(payload));
-    });
-
-  const updateTask = (id: string, payload: any) =>
-    runMutation(() => updateChecklistHarian(id, toChecklistPayload(payload)));
-
-  const deleteTask = (id: string) =>
-    runMutation(() => deleteChecklistHarian(id));
-
-  const updateTaskStatus = async (id: string, status: StatusTask) => {
-    const previous = queryClient.getQueryData<Task[]>(TASKS_KEY);
-    queryClient.setQueryData<Task[]>(TASKS_KEY, (old) =>
-      (old ?? []).map((task) => (task.id === id ? { ...task, status } : task))
-    );
-    try {
-      await updateChecklistHarian(id, { status: mapUiStatus(status) });
-    } catch (err: any) {
-      queryClient.setQueryData(TASKS_KEY, previous);
-      const msg = getErrorMessage(err);
-      setMutationError(msg);
-      throw new Error(msg);
-    }
-  };
-
-  // Fetch fresh task detail from API
   const fetchTaskDetail = async (id: string): Promise<Task | null> => {
-    try {
-      const data = await getChecklistHarianDetail(id);
-      // Handle wrapped response
-      const detail = data?.data ?? data;
-      if (!detail || typeof detail !== 'object') {
-        return null;
-      }
-      return mapApiChecklistToTask(detail);
-    } catch {
-      return null;
-    }
+    try { return mapApiChecklistToTask(await getChecklistHarianDetail(id)); }
+    catch { return null; }
   };
 
   return {
-    tasks,
-    isLoading,
-    error,
-    fetchTasks,
+    tasks: query.data ?? [],
+    isLoading: query.isPending || isMutating,
+    error: mutationError ?? (query.error ? getErrorMessage(query.error) : null),
+    fetchTasks: () => qc.invalidateQueries({ queryKey: TASKS_KEY }),
     fetchTaskDetail,
-    createTask,
-    updateTask,
-    deleteTask,
-    updateTaskStatus,
+    createTask: (p: any) => runMutation(() => createChecklistHarian(toPayload(p))),
+    updateTask: (id: string, p: any) => runMutation(() => updateChecklistHarian(id, toPayload(p))),
+    deleteTask: (id: string) => runMutation(() => deleteChecklistHarian(id)),
+    updateTaskStatus: async (id: string, status: StatusTask) => {
+      await updateChecklistHarian(id, { status: mapUiStatus(status) });
+      await qc.invalidateQueries({ queryKey: TASKS_KEY });
+    },
   };
 }
-
-export default useTasks;

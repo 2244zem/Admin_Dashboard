@@ -1,68 +1,43 @@
 import apiClient from "../services/apiClient";
 
-export interface AdminUsersParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  role_id?: string;
-}
+// Role UUID mapping
+export const ROLE_UUID_MAP: Record<string, string> = {
+  Admin: "dda2c23a-732c-41c5-80ee-b0818345fa25",
+  HR: "eb89b4f9-635f-4e1e-8916-3a96af4e0c72",
+  OB: "62c0a9d8-afd7-45f5-9cb3-6dc6e8a9b8da",
+  Karyawan: "d25542e0-93ad-4513-87ca-c567319f6187",
+};
 
-export interface CreateUserPayload {
-  username: string;
-  email: string;
-  nama_lengkap: string;
-  role_id: string;
-}
-
-export type ApiUser = Record<string, any>;
-export type ApiOB = Record<string, any>;
-
-export async function getAdminUsers(params?: AdminUsersParams) {
-  const response = await apiClient.get<any>("/api/admin/user", { params });
-  return (response as any)?.data ?? response;
+export async function getAdminUsers(params?: { page?: number; limit?: number; search?: string; role_id?: string }) {
+  const data = await apiClient.get<any>("/api/admin/user", { params });
+  return (data as any)?.data ?? data;
 }
 
 export async function getAllOB() {
-  const response = await apiClient.get<any>("/api/admin/user/all-ob");
-  return (response as any)?.data ?? response;
+  const data = await apiClient.get<any>("/api/admin/user/all-ob");
+  return (data as any)?.data ?? data;
 }
 
-export async function createUser(payload: CreateUserPayload) {
-  const response = await apiClient.post<any>("/api/admin/user", payload);
-  return (response as any)?.data ?? response;
+export async function createUser(payload: { username: string; email: string; nama_lengkap: string; role_id: string }) {
+  return apiClient.post("/api/admin/user", payload);
 }
 
 export async function getUserDetail(id: string) {
-  const response = await apiClient.get<any>(`/api/admin/user/${id}`);
-  return (response as any)?.data ?? response;
+  const data = await apiClient.get<any>(`/api/admin/user/${id}`);
+  return (data as any)?.data ?? data;
 }
 
-export async function updateUser(id: string, payload: FormData) {
-  const response = await apiClient.patch<any>(`/api/admin/user/${id}`, payload);
-  return (response as any)?.data ?? response;
+export async function updateUser(id: string, payload: FormData | Record<string, any>) {
+  return apiClient.patch(`/api/admin/user/${id}`, payload);
 }
 
 export async function deleteUser(id: string) {
-  const response = await apiClient.delete(`/api/admin/user/${id}`);
-  return response;
+  return apiClient.delete(`/api/admin/user/${id}`);
 }
 
-/**
- * Renew activation token via admin
- * POST /api/auth/activate-account - regenerate token for user
- */
+// Renew activation token
 export async function renewUserToken(id: string, hours: number = 24) {
-  // For admin renew token, send user_id and hours in body
-  const response = await apiClient.post<any>(`/api/auth/activate-account`, {
-    user_id: id,
-    hours,
-  });
-  return response;
+  return apiClient.post("/api/auth/activate-account", { user_id: id, hours });
 }
 
-/**
- * @deprecated Use renewUserToken instead - same endpoint
- */
-export async function activateUserToken(id: string) {
-  return renewUserToken(id);
-}
+export const activateUserToken = renewUserToken;

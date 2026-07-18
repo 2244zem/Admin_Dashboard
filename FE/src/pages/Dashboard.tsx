@@ -5,13 +5,14 @@ import type { Laporan } from "../types/laporan";
 import ReportDetailModal from "../components/ReportDetailModal";
 import DailyChecklistModal, { type OBChecklistDetail } from "../components/DailyChecklistModal";
 import * as XLSX from "xlsx";
-import useLaporan from "../hooks/useLaporan";
-import useTasks from "../hooks/useTasks";
+import { useLaporan } from "../hooks/useLaporan";
+import { useTasks } from "../hooks/useTasks";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
+import Avatar from "../components/ui/Avatar";
 
 type Tab = "Mingguan" | "Bulanan" | "Tahunan";
-//commit
+
 // ---------- Helper: agregasi grafik "Laporan Masuk" ----------
 function getMingguanData(list: Laporan[]) {
   const labels = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
@@ -193,6 +194,7 @@ const Dashboard = () => {
     const result = Array.from(map.entries()).map(([nama, items]) => {
       const selesai = items.filter((t) => t.status === "Selesai").length;
       const gedungLantai = Array.from(new Set(items.map((t) => `${t.gedung}: Lantai ${t.lantai.replace("Lantai", "").trim()}`)));
+      const fotoProfil = items.find((t) => t.petugas?.fotoProfil)?.petugas?.fotoProfil;
       return {
         nama,
         area: gedungLantai.join(" & "),
@@ -201,15 +203,17 @@ const Dashboard = () => {
         selesai,
         total: items.length,
         items,
+        fotoProfil,
       };
     });
 
     return result;
-  }, [taskList, checklistDetail]);
+  }, [taskList]);
 
   const openChecklistDetail = (ob: (typeof checklistOB)[number]) => {
     setChecklistDetail({
       nama: ob.nama,
+      fotoProfil: ob.fotoProfil,
       gedung: ob.gedung,
       lokasi: ob.lokasi,
       tanggal: new Date().toISOString().slice(0, 10),
@@ -429,20 +433,7 @@ const Dashboard = () => {
                               </td>
                               <td className="py-1.5 text-center">
                                 <div className="flex items-center justify-center gap-1 mx-auto">
-                                  {l.fotoProfil ? (
-                                    <img
-                                      src={l.fotoProfil}
-                                      alt={l.name}
-                                      className="h-5 w-5 rounded-full object-cover shrink-0 border border-gray-200"
-                                      onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                                      }}
-                                    />
-                                  ) : null}
-                                  <span className={`h-5 w-5 rounded-full bg-blue-100 text-[#0F4C81] flex items-center justify-center font-bold text-[9px] shrink-0 ${l.fotoProfil ? 'hidden' : ''}`}>
-                                    {l.initial}
-                                  </span>
+                                  <Avatar name={l.name} src={l.fotoProfil} size="sm" className="!h-5 !w-5 !text-[9px]" />
                                   <span className="font-medium text-gray-700 truncate max-w-[60px]">{l.name}</span>
                                 </div>
                               </td>
@@ -524,6 +515,7 @@ const Dashboard = () => {
                           const textColor = pctProgress >= 70 ? "text-green-600" : "text-red-500";
                           return (
                             <div key={ob.nama} className="flex items-center gap-3">
+                              <Avatar name={ob.nama} src={ob.fotoProfil} size="sm" />
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-gray-800 truncate">{ob.nama}</p>
                                 <p className="text-xs text-gray-400 truncate">{ob.area}</p>

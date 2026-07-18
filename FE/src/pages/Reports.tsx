@@ -1,13 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { STATUS_COLOR } from "../types/laporan";
 import type { Laporan } from "../types/laporan";
-// import { formatWaktu } from "../lib/utils";
 import ReportDetailModal from "../components/ReportDetailModal";
 import useLaporan from "../hooks/useLaporan";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
-// import EmptyState from "../components/ui/EmptyState";
+import Avatar from "../components/ui/Avatar";
 
 const fadeUp = {
   initial: { opacity: 0, y: 10 },
@@ -63,20 +62,6 @@ const Reports = () => {
   // Foto bukti dan deskripsi ditampilkan melalui modal detail laporan.
   const [previewFoto, setPreviewFoto] = useState<{ url: string; desc: string } | null>(null);
   const [assignTarget, setAssignTarget] = useState<Laporan | null>(null);
-  const [assignForm, setAssignForm] = useState({
-    kategori_id: "",
-    ob_id: "",
-    lokasi_id: "",
-    lantai_id: "",
-    waktu: "",
-    catatan: "",
-  });
-  const kategoriOptions: Array<{ id: string; nama: string }> = [];
-  const obList: Array<{ id: string; nama: string }> = [];
-  const gedungOptions: Array<{ id: string; nama: string }> = [];
-  const lantaiOptions: Array<{ id: string; nama: string }> = [];
-  const closeAssignModal = () => setAssignTarget(null);
-  const handleAssignTask = () => undefined;
 
   const totalLaporanAktif = useMemo(() => {
     return filteredByLevel.filter(
@@ -356,20 +341,7 @@ const Reports = () => {
                         {/* NAMA KARYAWAN */}
                         <td className="px-6 py-3 text-center">
                           <div className="flex items-center justify-center gap-2">
-                            {data.fotoProfil ? (
-                              <img
-                                src={data.fotoProfil}
-                                alt={data.name}
-                                onError={(event) => {
-                                  event.currentTarget.style.display = 'none';
-                                  event.currentTarget.nextElementSibling?.classList.remove('hidden');
-                                }}
-                                className="h-8 w-8 rounded-full object-cover shrink-0 border border-gray-200"
-                              />
-                            ) : null}
-                            <div className={`h-8 w-8 rounded-full bg-blue-100 text-[#0F4C81] flex items-center justify-center font-bold text-xs shrink-0 ${data.fotoProfil ? 'hidden' : ''}`}>
-                              {data.initial}
-                            </div>
+                            <Avatar name={data.name} src={data.fotoProfil} size="md" />
                             <div>
                               <div className="font-medium text-gray-800">{data.name}</div>
                             </div>
@@ -547,136 +519,6 @@ const Reports = () => {
       {/* MODAL KONFIRMASI HAPUS LAPORAN */}
       <DeleteLaporanModal laporan={deleteTarget} onClose={closeDeleteConfirm} onConfirm={handleConfirmDelete} />
 
-      {/* MODAL TUGASKAN LAPORAN */}
-      <AnimatePresence>
-        {assignTarget && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={closeAssignModal}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
-            >
-              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Tugaskan Laporan</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Laporan #{assignTarget.id} - {assignTarget.name}</p>
-                </div>
-                <button
-                  onClick={closeAssignModal}
-                  className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="px-6 py-5 space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kategori Tugas</label>
-                  <select
-                    value={assignForm.kategori_id}
-                    onChange={(e) => setAssignForm({ ...assignForm, kategori_id: e.target.value })}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                  >
-                    {kategoriOptions.map((k) => (
-                      <option key={k.id} value={k.id}>{k.nama}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih OB</label>
-                  <select
-                    value={assignForm.ob_id}
-                    onChange={(e) => setAssignForm({ ...assignForm, ob_id: e.target.value })}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Pilih OB</option>
-                    {obList.map((ob) => (
-                      <option key={ob.id} value={ob.id}>{ob.nama}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Gedung</label>
-                    <select
-                      value={assignForm.lokasi_id}
-                      onChange={(e) => setAssignForm({ ...assignForm, lokasi_id: e.target.value })}
-                      className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                    >
-                      <option value="">Pilih Gedung</option>
-                      {gedungOptions.map((g) => (
-                        <option key={g.id} value={g.id}>{g.nama}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Lantai</label>
-                    <select
-                      value={assignForm.lantai_id}
-                      onChange={(e) => setAssignForm({ ...assignForm, lantai_id: e.target.value })}
-                      className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                    >
-                      <option value="">Pilih Lantai</option>
-                      {lantaiOptions.map((l) => (
-                        <option key={l.id} value={l.id}>{l.nama}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Waktu (Opsional)</label>
-                  <input
-                    type="time"
-                    value={assignForm.waktu}
-                    onChange={(e) => setAssignForm({ ...assignForm, waktu: e.target.value })}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Catatan</label>
-                  <textarea
-                    value={assignForm.catatan}
-                    onChange={(e) => setAssignForm({ ...assignForm, catatan: e.target.value })}
-                    rows={3}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"
-                    placeholder="Catatan tambahan..."
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-                <button
-                  onClick={closeAssignModal}
-                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleAssignTask}
-                  className="px-5 py-2.5 rounded-xl bg-[#0F4C81] hover:bg-[#0a355c] text-white font-semibold text-sm transition-colors cursor-pointer"
-                >
-                  Tugaskan
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -705,8 +547,7 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
   } | null>(null);
 
   // Sinkronkan form setiap kali laporan target berubah (modal dibuka untuk laporan baru).
-  const laporanId = laporan?.id;
-  useMemo(() => {
+  useEffect(() => {
     if (laporan) {
       setForm({
         name: laporan.name,
@@ -719,7 +560,7 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [laporanId]);
+  }, [laporan?.id]);
 
   if (!laporan || !form) return null;
 

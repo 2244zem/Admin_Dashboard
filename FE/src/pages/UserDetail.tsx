@@ -9,6 +9,7 @@ import type { AppUser } from "../types/user";
 import { formatTanggal, formatTanggalWaktuWIB } from "../lib/utils";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
+import Avatar from "../components/ui/Avatar";
 import Can from "../components/auth/Can";
 
 // Type untuk tab performa
@@ -190,13 +191,7 @@ const UserDetail = () => {
               {/* Profil */}
               <div className="border border-gray-200 rounded-xl p-6 bg-white">
                 <div className="flex items-start gap-4 mb-6">
-                  {user.avatar ? (
-                    <img src={user.avatar} alt={user.namaLengkap} className="h-16 w-16 rounded-xl object-cover" />
-                  ) : (
-                    <div className="h-16 w-16 rounded-xl bg-blue-100 text-[#0F4C81] flex items-center justify-center font-bold text-2xl">
-                      {user.namaLengkap.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <Avatar name={user.namaLengkap} src={user.avatar} size="lg" />
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <h2 className="text-lg font-bold text-gray-900">{user.namaLengkap}</h2>

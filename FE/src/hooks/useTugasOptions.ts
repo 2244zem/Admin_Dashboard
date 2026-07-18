@@ -1,50 +1,25 @@
-import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAllTugas, type Tugas } from "../api/tugas";
+import { getAllTugas } from "../api/tugas";
+import { extractArray } from "../lib/response";
 import { getErrorMessage } from "../lib/utils";
 import { optionSchema, validateList } from "../schemas";
 
-type TugasItem = { id: string; nama_tugas?: string; kategori_id?: string };
-type TugasListResponse =
-  | Array<TugasItem>
-  | { data?: Array<TugasItem>; tugas?: Array<TugasItem> };
-
-async function fetchTugasQuery(kategori_id?: string): Promise<Array<{ id: string; nama: string; kategori_id?: string }>> {
-  const params = kategori_id ? { kategori_id } : undefined;
-  const data = (await getAllTugas(params)) as TugasListResponse;
-  const list = Array.isArray(data) ? data : data?.data ?? data?.tugas ?? [];
-  const mapped = (list as Tugas[]).map((t) => ({
-    id: String(t.id),
-    nama: t.nama_tugas || "-",
-    kategori_id: t.kategori_id,
-  }));
-  return validateList(optionSchema, mapped, "tugas");
+async function fetchTugas(kategori_id?: string) {
+  const data = await getAllTugas({ kategori_id });
+  const list = extractArray(data, "tugas");
+  return validateList(optionSchema, list.map((t: any) => ({ id: String(t.id), nama: t.nama_tugas || "-" })), "tugas");
 }
 
-export function useTugasOptions() {
-  const queryClient = useQueryClient();
-  const [kategoriId, setKategoriId] = useState<string | undefined>(undefined);
-
-  const query = useQuery({
-    queryKey: ["tugas", kategoriId],
-    queryFn: () => fetchTugasQuery(kategoriId),
-  });
-
-  const tugasList = query.data ?? [];
-  const isLoading = query.isPending;
-  const error = query.error ? getErrorMessage(query.error) : null;
-
-  const fetchTugas = useCallback(async (id?: string) => {
-    setKategoriId(id);
-    await queryClient.invalidateQueries({ queryKey: ["tugas", id] });
-  }, [queryClient]);
+export { useTugasOptions };
+export default useTugasOptions;
+function useTugasOptions(kategoriId?: string) {
+  const qc = useQueryClient();
+  const query = useQuery({ queryKey: ["tugas", kategoriId], queryFn: () => fetchTugas(kategoriId) });
 
   return {
-    tugasList,
-    isLoading,
-    error,
-    fetchTugas,
+    tugasList: query.data ?? [],
+    isLoading: query.isPending,
+    error: query.error ? getErrorMessage(query.error) : null,
+    refetch: (id?: string) => qc.invalidateQueries({ queryKey: ["tugas", id] }),
   };
 }
-
-export default useTugasOptions;

@@ -1,79 +1,41 @@
 import apiClient from "../services/apiClient";
-import { ENDPOINTS } from "../config/endpoints";
+import { unwrapData, flattenChecklistItems } from "../lib/response";
 
 export type ChecklistStatus = "BELUM_DIKERJAKAN" | "SEDANG_DIKERJAKAN" | "SELESAI" | "TERLEWAT";
-export type ApiChecklist = Record<string, any>;
 
 export interface ChecklistParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  lokasi_id?: string;
-  lantai_id?: string;
-  status?: ChecklistStatus;
+  page?: number; limit?: number; search?: string;
+  lokasi_id?: string; lantai_id?: string; status?: ChecklistStatus;
 }
 
 export interface ChecklistPayload {
-  tugas_id?: string;
-  kategori_id?: string;
-  lokasi_id?: string;
-  lantai_id?: string;
-  ob_id?: string;
-  status?: ChecklistStatus;
-  catatan?: string;
+  nama_tugas?: string; kategori_id?: string; lokasi_id?: string;
+  lantai_id?: string; ob_id?: string; status?: ChecklistStatus; catatan?: string;
 }
 
-// Unwrap data from API response wrapper
-function unwrapData<T>(response: any): T {
-  if (response && typeof response === "object") {
-    // Handle { success: true, data: { data: [...] }, message: "..." }
-    if (Array.isArray(response.data?.data)) {
-      return response.data.data as T;
-    }
-    // Handle { success: true, data: { checklist: [...] }, message: "..." }
-    if (Array.isArray(response.data?.checklist)) {
-      return response.data.checklist as T;
-    }
-    // Handle { success: true, data: [...], message: "..." }
-    if (Array.isArray(response.data)) {
-      return response.data as T;
-    }
-    // Handle raw array
-    if (Array.isArray(response)) {
-      return response as T;
-    }
-  }
-
-  return response as T;
-}
+const ENDPOINT = "/api/checklist-harian";
 
 export async function getChecklistHarian(params?: ChecklistParams) {
-  const response = await apiClient.get<any>(ENDPOINTS.TASKS_LIST, { params });
-  return unwrapData(response);
+  const data = await apiClient.get<any>(ENDPOINT, { params });
+  const items = flattenChecklistItems(
+    data?.checklist?.items ?? data?.items ?? data?.checklist ?? data ?? []
+  );
+  return { ...data, items };
 }
 
 export async function createChecklistHarian(payload: ChecklistPayload) {
-  try {
-    const response = await apiClient.post<any>(ENDPOINTS.TASKS_CREATE, payload);
-    return unwrapData(response);
-  } catch (error: any) {
-    throw error;
-  }
+  return apiClient.post<any>(ENDPOINT, payload);
 }
 
 export async function getChecklistHarianDetail(id: string) {
-  const response = await apiClient.get<any>(ENDPOINTS.TASKS_UPDATE(id));
-  // For detail, return full response (not just the array)
-  const data = response?.data ?? response;
-  return data;
+  const data = await apiClient.get<any>(`${ENDPOINT}/${id}`);
+  return unwrapData(data);
 }
 
 export async function updateChecklistHarian(id: string, payload: ChecklistPayload) {
-  const response = await apiClient.patch<any>(ENDPOINTS.TASKS_UPDATE(id), payload);
-  return unwrapData(response);
+  return apiClient.patch<any>(`${ENDPOINT}/${id}`, payload);
 }
 
 export async function deleteChecklistHarian(id: string) {
-  const response = await apiClient.delete<any>(ENDPOINTS.TASKS_DELETE(id));
-  return unwrapData(response);
+  return apiClient.delete(`${ENDPOINT}/${id}`);
 }

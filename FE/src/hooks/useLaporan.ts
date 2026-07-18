@@ -1,388 +1,147 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Laporan, StatusLaporan, AreaLaporan, LevelLaporan } from "../types/laporan";
+import type { Laporan, StatusLaporan } from "../types/laporan";
 import { getAdminLaporan, getAdminLaporanDetail, updateAdminLaporan, deleteAdminLaporan } from "../api/laporan";
 import { getAdminUsers } from "../api/user";
-import { API_BASE_URL } from "../lib/apiBaseUrl";
-import { getErrorMessage } from "../lib/utils";
+import { extractArray } from "../lib/response";
+import { getErrorMessage, getInitials } from "../lib/utils";
 import { laporanSchema, validateList } from "../schemas";
 
-function normalizeName(name: unknown): string {
-  return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
-}
+// Cached user photo maps (5 min TTL)
+let _photoMaps: Map<string, string> | null = null;
+let _photoMapsTime = 0;
+const PHOTO_TTL = 5 * 60_1000;
 
-interface UserPhotoMaps {
-  byId: Map<string, string>;
-  byName: Map<string, string>;
-}
+const getPhotoMaps = async (): Promise<Map<string, string>> => {
+  const now = Date.now();
+  if (_photoMaps && now - _photoMapsTime < PHOTO_TTL) return _photoMaps;
 
-async function buildUserPhotoMaps(): Promise<UserPhotoMaps> {
-  const byId = new Map<string, string>();
-  const byName = new Map<string, string>();
+  const map = new Map<string, string>();
   try {
-    const payload: any = await getAdminUsers({ page: 1, limit: 200 });
-    const rows: any[] = extractArray(payload);
+    const rows = extractUsers(await getAdminUsers({ page: 1, limit: 200 }));
     for (const u of rows) {
-      const photo = resolveImageUrl(u.profile_picture || u.foto_profil || u.avatar);
-      if (!photo) continue;
-      const id = String(u.id ?? u.user_id ?? "");
-      const name = normalizeName(u.nama_lengkap || u.namaLengkap || u.name || u.username);
-      if (id) byId.set(id, photo);
-      if (name) byName.set(name, photo);
+      const photo = u.profile_picture || u.foto_profil;
+      if (photo) {
+        map.set(String(u.id ?? ""), photo);
+        map.set(String(u.nama_lengkap ?? "").toLowerCase().trim(), photo);
+      }
     }
-  } catch {
-    // Silently ignore photo map build failures
-  }
-  return { byId, byName };
-}
+  } catch { /* graceful */ }
+  _photoMaps = map; _photoMapsTime = now;
+  return map;
+};
 
-function extractArray(payload: any): any[] {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
+const extractUsers = (p: any): any[] => {
+  if (Array.isArray(p)) return p;
+  return p?.data?.items ?? p?.data?.users ?? p?.data ?? [];
+};
 
-  if (!payload || typeof payload !== "object") {
-    return [];
-  }
-
-  // Check common wrapper properties - priority order matters!
-  const arrayFields = [
-    'laporan', 'items', 'data', 'results', 'reports',
-    'laporans', 'all_laporan', 'laporan_list', 'riwayat_laporan',
-    'data_laporan', 'list', 'all', 'rows'
-  ];
-
-  for (const field of arrayFields) {
-    // Direct array at field
-    if (Array.isArray(payload[field])) {
-      return payload[field];
-    }
-
-    // Handle nested { laporan: { items: [...] } } structure
-    if (payload[field]?.items && Array.isArray(payload[field].items)) {
-      return payload[field].items;
-    }
-
-    // Handle nested { data: { items: [...] } } structure
-    if (payload[field]?.data && Array.isArray(payload[field].data)) {
-      return payload[field].data;
-    }
-  }
-
-  // Check if unwrapData was already called and payload has data property
-  if (payload.data !== undefined) {
-    if (Array.isArray(payload.data)) {
-      return payload.data;
-    }
-    // Handle { data: { laporan: { items: [...] } } } - nested structure
-    if (payload.data?.laporan?.items && Array.isArray(payload.data.laporan.items)) {
-      return payload.data.laporan.items;
-    }
-    // Handle { data: { items: [...] } }
-    if (Array.isArray(payload.data?.items)) return payload.data.items;
-    if (Array.isArray(payload.data?.data)) return payload.data.data;
-  }
-
-  // Handle { laporan: { items: [...] } } directly without data wrapper
-  if (payload.laporan?.items && Array.isArray(payload.laporan.items)) {
-    return payload.laporan.items;
-  }
-
-  return [];
-}
-
-function mapStatus(status: unknown): StatusLaporan {
-  const value = String(status || "").toUpperCase().replace(/-/g, "_").replace(/ /g, "_");
-  // Handle backend enum values (both old format and new format)
-  if (["BELUM_DIKERJAKAN", "BELUM", "TODO", "TO_DO", "TO-DO"].includes(value)) return "Menunggu";
-  if (["DITUGASKAN", "ASSIGNED", "PROSES", "DIPROSES", "PENDING", "IN_PROGRESS", "INPROGRESS"].includes(value)) return "Ditugaskan";
-  if (["SELESAI", "DONE", "COMPLETED"].includes(value)) return "Selesai";
-  if (["DITOLAK", "DIBATALKAN", "REJECTED", "CANCELLED", "CANCELED"].includes(value)) return "Ditolak";
+// Status mappers
+const mapStatus = (s: unknown): StatusLaporan => {
+  const v = String(s || "").toUpperCase().replace(/-/g, "_").replace(/ /g, "_");
+  if (["BELUM_DIKERJAKAN", "BELUM", "TODO"].includes(v)) return "Menunggu";
+  if (["DITUGASKAN", "PENDING", "PROSES", "ASSIGNED", "IN_PROGRESS"].includes(v)) return "Ditugaskan";
+  if (["SELESAI", "DONE", "COMPLETED"].includes(v)) return "Selesai";
+  if (["DITOLAK", "DIBATALKAN", "REJECTED", "CANCELLED"].includes(v)) return "Ditolak";
   return "Menunggu";
-}
+};
 
-// Convert frontend status to backend API format (UPPERCASE)
-// Backend only accepts: BELUM_DIKERJAKAN | PENDING | SELESAI | DIBATALKAN
-export function statusToBackend(frontendStatus: StatusLaporan): string {
-  switch (frontendStatus) {
-    case "Menunggu": return "BELUM_DIKERJAKAN";
-    case "Ditugaskan": return "PENDING";
-    case "Selesai": return "SELESAI";
-    case "Ditolak": return "DIBATALKAN"; // Backend uses DIBATALKAN, not DITOLAK
-    default: return "BELUM_DIKERJAKAN";
-  }
-}
+export const statusToBackend = (s: StatusLaporan): string =>
+  ({ Menunggu: "BELUM_DIKERJAKAN", Ditugaskan: "PENDING", Selesai: "SELESAI", Ditolak: "DIBATALKAN" }[s] ?? "BELUM_DIKERJAKAN");
 
-function mapArea(row: any): AreaLaporan {
-  const value = String(row.nama_kategori || row.kategori || row.area || row.ruangan?.nama || "").toLowerCase();
-  if (value.includes("toilet")) return "Toilet";
-  if (value.includes("lobi") || value.includes("lobby")) return "Lobi";
-  if (value.includes("parkir")) return "Parkir";
-  return "Area Kantor";
-}
-
-function mapLevel(prioritas: unknown): LevelLaporan {
-  const value = String(prioritas || "").toUpperCase();
-  return ["URGENT", "TINGGI", "HIGH", "DARURAT"].includes(value) ? "URGENT" : "STANDARD";
-}
-
-function getInitial(name: string) {
-  return (name || "?").trim().charAt(0).toUpperCase() || "?";
-}
-
-function resolveImageUrl(value: unknown): string | undefined {
-  if (typeof value !== "string" || !value.trim() || value === "null") return undefined;
-  if (/^(https?:|data:)/i.test(value)) return value;
-  return API_BASE_URL ? `${API_BASE_URL}${value.startsWith("/") ? value : `/${value}`}` : value;
-}
-
-export function mapApiLaporanToLaporan(row: any): Laporan {
-  const name =
-    row.nama_karyawan ||
-    row.karyawan?.nama_lengkap ||
-    row.user?.nama_lengkap ||
-    row.pelapor?.nama_lengkap ||
-    row.nama_lengkap ||
-    row.nama ||
-    row.name ||
-    row.username ||
-    "Pengguna";
-
-  // Build lokasi - use row.lokasi directly as it's already formatted
-  const lokasi = row.lokasi || "-";
-
-  // Handle bukti_foto from various possible structures
-  let fotoUrl: string | undefined;
-  if (row.bukti_foto) {
-    if (typeof row.bukti_foto === "object" && !Array.isArray(row.bukti_foto)) {
-      if (Array.isArray(row.bukti_foto.urls) && row.bukti_foto.urls.length > 0) {
-        fotoUrl = resolveImageUrl(row.bukti_foto.urls[0]);
-      } else if (row.bukti_foto.url || row.bukti_foto.foto_url) {
-        fotoUrl = resolveImageUrl(row.bukti_foto.url || row.bukti_foto.foto_url);
-      }
-    } else if (typeof row.bukti_foto === "string") {
-      fotoUrl = resolveImageUrl(row.bukti_foto);
-    }
-  }
-
-  // Additional foto sources
-  if (!fotoUrl) {
-    const fotoSources = [
-      row.foto, row.foto_url, row.foto_bukti, row.foto_bukti_url,
-      row.foto_laporan, row.foto_laporan_url, row.bukti, row.bukti_url,
-      row.bukti_url?.url, row.bukti?.url, row.bukti?.foto_url,
-      row.lampiran, row.lampiran?.url, row.lampiran?.file_url,
-      row.image_url, row.image, row.photo_url, row.gambar,
-    ];
-    for (const src of fotoSources) {
-      if (src) {
-        fotoUrl = resolveImageUrl(src);
-        if (fotoUrl) break;
-      }
-    }
-  }
-
-  // Foto profil - try to get from various possible API field names
-  let fotoProfil: string | undefined;
-  const fotoProfilSources = [
-    row.foto_profil,
-    row.profile_picture,
-    row.profilePicture,
-    row.foto_profil_karyawan,
-    row.karyawan?.foto_profil,
-    row.karyawan?.profile_picture,
-    row.user?.foto_profil,
-    row.user?.profile_picture,
-    row.pelapor?.foto_profil,
-    row.pelapor?.profile_picture,
-  ];
-  for (const src of fotoProfilSources) {
-    if (src && typeof src === "string" && src.trim() && src !== "null") {
-      fotoProfil = resolveImageUrl(src);
-      if (fotoProfil) break;
-    }
-  }
+// Map API row to Laporan
+export const mapApiLaporanToLaporan = (row: any): Laporan => {
+  const get = (v: any, ...keys: string[]) => keys.reduce((o, k) => o?.[k], v) ?? "";
+  const resolvePhoto = (v: string | undefined) => {
+    if (!v || v === "null" || !/^(https?:|data:)/i.test(v)) return v;
+    return v;
+  };
 
   return {
-    id: Number(row.id_numeric || row.no || row.laporan_no) || Number.parseInt(String(row.id || row.laporan_id || "0").replace(/\D/g, ""), 10) || 0,
-    backendId: String(row.id || row.laporan_id || row.id_laporan || ""),
-    id_laporan: row.id_laporan,
-    name,
-    initial: getInitial(name),
-    karyawanId: String(
-      row.karyawan_id ||
-        row.user_id ||
-        row.pelapor_id ||
-        row.id_karyawan ||
-        row.karyawan?.id ||
-        row.user?.id ||
-        row.pelapor?.id ||
-        ""
-    ) || undefined,
-    loc: lokasi,
-    area: mapArea(row),
-    lokasi_id: row.lokasi_id || row.kategori || row.area || "Area Kantor",
-    lantai_id: row.lantai_id || row.lantai?.id,
-    desc: row.deskripsi_kendala || row.deskripsi || row.deskripsi_laporan || row.keterangan || row.desc || row.catatan || row.nama_tugas || "-",
-    createdAt: row.created_at || row.createdAt || row.tanggal || new Date().toISOString(),
+    id: Number.parseInt(String(row.id ?? "").replace(/\D/g, ""), 10) || 0,
+    backendId: String(row.id ?? row.laporan_id ?? ""),
+    name: get(row, "nama_karyawan") || get(row, "karyawan", "nama_lengkap") || get(row, "user", "nama_lengkap") || "Pengguna",
+    initial: getInitials(get(row, "nama_karyawan") || "P"),
+    karyawanId: String(row.karyawan_id || row.user_id || get(row, "karyawan", "id") || ""),
+    loc: row.lokasi || "-",
+    area: (() => {
+      const v = String(get(row, "nama_kategori") || "").toLowerCase();
+      if (v.includes("toilet")) return "Toilet";
+      if (v.includes("lobi") || v.includes("lobby")) return "Lobi";
+      if (v.includes("parkir")) return "Parkir";
+      return "Area Kantor";
+    })(),
+    desc: row.deskripsi_kendala || row.deskripsi || row.desc || "-",
+    createdAt: row.created_at || new Date().toISOString(),
     status: mapStatus(row.status),
-    level: mapLevel(row.prioritas || row.level),
-    prioritas: row.prioritas || row.level || "STANDARD",
-    foto: fotoUrl || "https://placehold.co/160x120?text=Bukti",
-    fotoProfil,
-    assignedTo: row.nama_ob || row.ob_ditugaskan || row.assigned_to || row.ob?.nama_lengkap || row.petugas?.nama_lengkap || row.ob?.nama,
-    taskId: row.task_id || row.tugas_id || row.checklist_harian_id,
+    level: ["URGENT", "TINGGI", "HIGH", "DARURAT"].includes(String(row.prioritas ?? "").toUpperCase()) ? "URGENT" : "STANDARD",
+    prioritas: row.prioritas || "STANDARD",
+    foto: resolvePhoto(row.foto_url || row.bukti_foto?.urls?.[0]) || "https://placehold.co/160x120?text=Bukti",
+    fotoProfil: resolvePhoto(row.profile_picture || row.karyawan?.profile_picture),
+    assignedTo: get(row, "nama_ob") || get(row, "ob", "nama_lengkap") || undefined,
+    taskId: row.task_id,
   };
-}
+};
 
-async function fetchLaporanQuery(params: any): Promise<Laporan[]> {
+async function fetchLaporan(params: any): Promise<Laporan[]> {
   const payload = await getAdminLaporan({
-    page: params.page || 1,
-    limit: params.limit || 50,
-    search: params.search,
-    // status already converted to backend enum in component, pass as-is
-    status: params.status,
-    prioritas: params.prioritas,
-    lokasi_id: params.lokasi_id,
-    lantai_id: params.lantai_id,
-    start_date: params.start_date,
-    end_date: params.end_date,
-    sort_by: params.sort_by,
-    sort_order: params.sort_order,
+    page: params.page || 1, limit: params.limit || 50,
+    search: params.search, status: params.status, prioritas: params.prioritas,
+    lokasi_id: params.lokasi_id, lantai_id: params.lantai_id,
+    start_date: params.start_date, end_date: params.end_date,
+    sort_by: params.sort_by, sort_order: params.sort_order,
   });
 
-  const extracted = extractArray(payload);
-  const mapped = extracted.map(mapApiLaporanToLaporan);
+  const rows = extractArray(payload, "laporan");
+  const photoMaps = await getPhotoMaps();
+  const mapped = rows.map(mapApiLaporanToLaporan);
 
-  // Enrich foto profil dari tabel user (endpoint laporan tidak selalu mengembalikan foto profil)
-  const photoMaps = await buildUserPhotoMaps();
-  const enriched = mapped.map((l) => {
+  // Enrich with cached profile photos
+  return mapped.map((l) => {
     if (l.fotoProfil) return l;
-    const fotoProfil =
-      (l.karyawanId && photoMaps.byId.get(l.karyawanId)) ||
-      photoMaps.byName.get(normalizeName(l.name)) ||
-      undefined;
-    return fotoProfil ? { ...l, fotoProfil } : l;
+    const photo = photoMaps.get(l.karyawanId) || photoMaps.get(l.name.toLowerCase().trim());
+    return photo ? { ...l, fotoProfil: photo } : l;
   });
-
-  return validateList<Laporan>(laporanSchema, enriched, "laporan");
 }
 
-// Polling interval: 30 detik (lebih manusiawi, tidak DDoS-like)
-const LAPORAN_REFETCH_INTERVAL = 30_000;
-
-export function useLaporan(filters?: any) {
-  const queryClient = useQueryClient();
-  const laporanFilters = filters || {};
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, []);
+export { useLaporan };
+export default useLaporan;
+function useLaporan(filters?: any) {
+  const qc = useQueryClient();
 
   const query = useQuery({
-    queryKey: ["laporan", laporanFilters],
-    queryFn: () => fetchLaporanQuery(laporanFilters),
-    // Polling lebih lambat (30 detik) untuk mencegah DDoS
-    refetchInterval: LAPORAN_REFETCH_INTERVAL,
-    // Jangan refetch saat tab tidak aktif (hemat resources)
+    queryKey: ["laporan", filters],
+    queryFn: () => fetchLaporan(filters),
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
-    // Retry dengan backoff exponential
     retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retryDelay: (i) => Math.min(1000 * 2 ** i, 30_000),
   });
 
-  const laporanList = query.data ?? [];
-  const isLoading = query.isPending;
-  const error = query.error ? getErrorMessage(query.error) : null;
-
-  const fetchLaporan = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["laporan"] });
-  }, [queryClient]);
-
-  const updateLaporanStatus = async (_id: number, _status: StatusLaporan) => {
-    throw new Error("Endpoint update status laporan belum tersedia di dokumentasi API.");
-  };
-
-  const assignLaporan = async (_id: number, _details: any) => {
-    throw new Error("Endpoint assign laporan ke OB belum tersedia di dokumentasi API.");
-  };
-
-  const deleteLaporan = async (id: string) => {
-    try {
-      await deleteAdminLaporan(id);
-      await fetchLaporan();
-    } catch (err) {
-      throw err;
-    }
-  };
-
-  const updateLaporan = async (id: string, payload: any) => {
-    try {
-      // Backend API supports: status, admin_catatan, prioritas, ob_id
-      // See CLAUDE.md API Reference for full spec
-      const backendPayload: Record<string, unknown> = {};
-
-      if (payload.status !== undefined) {
-        backendPayload.status = statusToBackend(payload.status);
-      }
-      if (payload.admin_catatan !== undefined) {
-        backendPayload.admin_catatan = payload.admin_catatan;
-      }
-      if (payload.prioritas !== undefined) {
-        backendPayload.prioritas = payload.prioritas;
-      }
-      if (payload.ob_id !== undefined) {
-        backendPayload.ob_id = payload.ob_id;
-      }
-
-      // Check if there's at least one field to update
-      if (Object.keys(backendPayload).length === 0) {
-        return;
-      }
-
-      const result = await updateAdminLaporan(id, backendPayload);
-      await fetchLaporan();
-      return result;
-    } catch (err) {
-      throw err;
-    }
-  };
-
-  const getLaporanDetail = async (laporan: Laporan): Promise<Laporan> => {
-    const laporanId = laporan.backendId || laporan.id_laporan || String(laporan.id);
-    // getAdminLaporanDetail already calls unwrapData, so payload is the raw data object
-    const payload = await getAdminLaporanDetail(laporanId);
-    const mapped = mapApiLaporanToLaporan(payload);
-
-    // Preserve original fields from list data - don't let mapped overwrite critical fields
-    // The detail API might have different field names (e.g., waktu_laporan vs created_at)
-    return {
-      ...mapped,
-      // Keep original values from list row (these are already correct)
-      id: laporan.id,
-      backendId: laporanId,
-      id_laporan: laporan.id_laporan,
-      createdAt: laporan.createdAt, // Preserve original created time
-      name: laporan.name,
-      fotoProfil: mapped.fotoProfil || laporan.fotoProfil,
-    };
-  };
+  const refetch = () => qc.invalidateQueries({ queryKey: ["laporan"] });
 
   return {
-    laporanList,
-    isLoading,
-    error,
-    fetchLaporan,
-    updateLaporanStatus,
-    assignLaporan,
-    getLaporanDetail,
-    deleteLaporan,
-    updateLaporan,
+    laporanList: query.data ?? [],
+    isLoading: query.isPending,
+    error: query.error ? getErrorMessage(query.error) : null,
+    fetchLaporan: refetch,
+    updateLaporanStatus: async (_id: number, _status: StatusLaporan) => { throw new Error("Not implemented"); },
+    assignLaporan: async (_id: number, _details: any) => { throw new Error("Not implemented"); },
+    deleteLaporan: async (id: string) => { await deleteAdminLaporan(id); await refetch(); },
+    updateLaporan: async (id: string, payload: any) => {
+      const body: Record<string, any> = {};
+      if (payload.status !== undefined) body.status = statusToBackend(payload.status);
+      if (payload.admin_catatan !== undefined) body.admin_catatan = payload.admin_catatan;
+      if (payload.prioritas !== undefined) body.prioritas = payload.prioritas;
+      if (payload.ob_id !== undefined) body.ob_id = payload.ob_id;
+      if (Object.keys(body).length === 0) return;
+      await updateAdminLaporan(id, body);
+      await refetch();
+    },
+    getLaporanDetail: async (laporan: Laporan) => {
+      const id = laporan.backendId || String(laporan.id);
+      const mapped = mapApiLaporanToLaporan(await getAdminLaporanDetail(id));
+      return { ...mapped, id: laporan.id, createdAt: laporan.createdAt, name: laporan.name };
+    },
   };
 }
-
-export default useLaporan;

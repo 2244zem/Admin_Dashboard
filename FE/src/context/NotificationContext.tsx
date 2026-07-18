@@ -91,17 +91,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-
     fetchNotifications();
-
-    // Poll setiap 30 detik (backup jika WebSocket gagal)
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchNotifications();
-      }
-    }, 30_000);
-
-    return () => window.clearInterval(interval);
+    // Polling redundant dengan WebSocket — WebSocket sudah increment/decrement
+    // unread count secara real-time. Hapus interval untuk efisiensi.
   }, [isAuthenticated, fetchNotifications]);
 
   useEffect(() => {

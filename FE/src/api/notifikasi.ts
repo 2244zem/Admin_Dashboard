@@ -1,75 +1,33 @@
 import apiClient from "../services/apiClient";
-
-export type ApiNotification = Record<string, any>;
+import { unwrapData } from "../lib/response";
 
 export interface NotifikasiGrouped {
-  hari_ini: ApiNotification[];
-  kemarin: ApiNotification[];
-}
-
-function unwrapData<T>(response: any): T {
-  return response?.data ?? response;
-}
-
-function toArray(value: unknown): ApiNotification[] {
-  return Array.isArray(value) ? (value as ApiNotification[]) : [];
-}
-
-/**
- * Ekstrak notifikasi grouped dari response.
- * Kontrak resmi: { success, message, data: { hari_ini: [...], kemarin: [...] } }
- */
-function extractNotifications(payload: any): { hari_ini: ApiNotification[]; kemarin: ApiNotification[] } {
-  const data = payload?.data ?? payload;
-  return {
-    hari_ini: toArray(data?.hari_ini),
-    kemarin: toArray(data?.kemarin),
-  };
+  hari_ini: any[];
+  kemarin: any[];
 }
 
 export async function getNotifikasi(): Promise<NotifikasiGrouped | null> {
   try {
     const raw = await apiClient.get<any>("/api/notifikasi");
-
-    // unwrapData: { success, message, data: {...} } -> { hari_ini, kemarin }
-    const payload = unwrapData<NotifikasiGrouped>(raw);
-    const grouped = extractNotifications(payload);
-
-    return grouped;
-  } catch {
-    return null;
-  }
+    const data = unwrapData<any>(raw);
+    return {
+      hari_ini: data?.hari_ini ?? [],
+      kemarin: data?.kemarin ?? [],
+    };
+  } catch { return null; }
 }
 
-export async function markOneRead(id: string): Promise<void> {
-  await apiClient.patch(`/api/notifikasi/${id}/read`);
+export async function markOneRead(id: string) {
+  return apiClient.patch(`/api/notifikasi/${id}/read`);
 }
 
-export async function markAllNotificationsRead(): Promise<void> {
-  await apiClient.patch("/api/notifikasi/read-all");
+export async function markAllNotificationsRead() {
+  return apiClient.patch("/api/notifikasi/read-all");
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {
   try {
-    const raw = await apiClient.get<any>("/api/notifikasi/unread-count");
-
-    // unwrapData: { success, message, data: 0 } -> 0
-    let data = unwrapData<number>(raw);
-
-    // Handle direct number response
-    if (typeof data === "number") return data;
-
-    // Handle wrapped response { data: 5 } or { unread_count: 5 }
-    if (data && typeof data === "object") {
-      const obj = data as Record<string, unknown>;
-      if (typeof obj.data === "number") return obj.data;
-      if (typeof obj.unread_count === "number") return obj.unread_count;
-      if (typeof obj.unreadCount === "number") return obj.unreadCount;
-      if (typeof obj.count === "number") return obj.count;
-    }
-
-    return 0;
-  } catch {
-    return 0;
-  }
+    const data = await apiClient.get<{ data: number }>("/api/notifikasi/unread-count");
+    return typeof data?.data === "number" ? data.data : 0;
+  } catch { return 0; }
 }

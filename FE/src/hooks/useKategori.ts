@@ -1,46 +1,26 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAllKategori, type Kategori } from "../api/kategori";
+import { getAllKategori } from "../api/kategori";
+import { unwrapData, extractArray } from "../lib/response";
 import { getErrorMessage } from "../lib/utils";
 import { optionSchema, validateList } from "../schemas";
 
-type KategoriItem = { id: string; nama_kategori?: string };
-type KategoriListResponse =
-  | Array<KategoriItem>
-  | { data?: Array<KategoriItem>; kategori?: Array<KategoriItem> };
-
-async function fetchKategoriQuery(): Promise<Array<{ id: string; nama: string }>> {
-  const data = (await getAllKategori()) as KategoriListResponse;
-  const list = Array.isArray(data) ? data : data?.data ?? data?.kategori ?? [];
-  const mapped = (list as Kategori[]).map((k) => ({
-    id: String(k.id),
-    nama: k.nama_kategori || "-",
-  }));
-  return validateList(optionSchema, mapped, "kategori");
+async function fetchKategori() {
+  const data = await getAllKategori();
+  const list = extractArray(data, "kategori");
+  return validateList(optionSchema, list.map((k: any) => ({ id: String(k.id), nama: k.nama_kategori || "-" })), "kategori");
 }
 
-export function useKategori() {
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
-    queryKey: ["kategori"],
-    queryFn: fetchKategoriQuery,
-  });
-
-  const kategoriList = query.data ?? [];
-  const isLoading = query.isPending;
-  const error = query.error ? getErrorMessage(query.error) : null;
-
-  const fetchKategori = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["kategori"] });
-  }, [queryClient]);
+export { useKategori };
+export default useKategori;
+function useKategori() {
+  const qc = useQueryClient();
+  const query = useQuery({ queryKey: ["kategori"], queryFn: fetchKategori });
 
   return {
-    kategoriList,
-    isLoading,
-    error,
-    fetchKategori,
+    kategoriList: query.data ?? [],
+    isLoading: query.isPending,
+    error: query.error ? getErrorMessage(query.error) : null,
+    fetchKategori: () => qc.invalidateQueries({ queryKey: ["kategori"] }),
   };
 }
-
-export default useKategori;
