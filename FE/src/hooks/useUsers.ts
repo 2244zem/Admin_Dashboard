@@ -2,28 +2,31 @@ import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppUser } from "../types/user";
 import apiClient from "../services/apiClient";
-import { getAdminUsers, getUserDetail as getUserDetailApi, renewUserToken, ROLE_UUID_MAP } from "../api/user";
+import { getAdminUsers, getUserDetail as getUserDetailApi, renewUserToken, ROLE_UUID_MAP, ROLE_NAME_MAP } from "../api/user";
 import { getErrorMessage } from "../lib/utils";
 import { appUserSchema, validateList } from "../schemas";
 
-// Extract users from response
-const extractUsers = (payload: any): any[] => {
-  if (Array.isArray(payload)) return payload;
-  const data = payload?.data ?? payload;
-  return data?.items ?? data?.users ?? data?.user ?? data?.data ?? [];
-};
-
-// Normalize role from backend response
+// Normalize role from backend response - aligned with spec
 const normalizeRole = (roleData: any): AppUser["role"] => {
-  const fromUUID = (id: string) => ROLE_UUID_MAP[id];
-  const fromName = (v: string) => {
-    v = v.toLowerCase();
-    if (v.includes("admin")) return "Admin";
-    if (v.includes("hr")) return "HR";
-    if (v.includes("ob") || v.includes("office")) return "OB";
-    return "Karyawan";
-  };
-  return fromUUID(roleData?.role_id ?? roleData?.id) ?? fromName(roleData?.nama_role ?? roleData ?? "");
+  // Check for UUID in role_id
+  if (roleData?.role_id && ROLE_NAME_MAP[roleData.role_id]) {
+    return ROLE_NAME_MAP[roleData.role_id] as AppUser["role"];
+  }
+  // Check for UUID directly
+  if (typeof roleData === "string" && ROLE_NAME_MAP[roleData]) {
+    return ROLE_NAME_MAP[roleData] as AppUser["role"];
+  }
+  // Check nested role object
+  const nestedId = roleData?.role?.id;
+  if (nestedId && ROLE_NAME_MAP[nestedId]) {
+    return ROLE_NAME_MAP[nestedId] as AppUser["role"];
+  }
+  // Fallback to name-based matching
+  const value = String(roleData?.nama_role ?? roleData?.name ?? roleData ?? "").toLowerCase();
+  if (value.includes("admin")) return "Admin";
+  if (value.includes("hr") || value.includes("human resource")) return "HR";
+  if (value.includes("ob") || value.includes("office")) return "OB";
+  return "Karyawan";
 };
 
 // Map API row to AppUser
@@ -34,7 +37,7 @@ const mapApiUser = (row: any): AppUser => ({
   username: row.username || "-",
   email: row.email || "",
   noTelepon: row.no_telepon || row.phone || "-",
-  role: normalizeRole(row.role_id || row.role),
+  role: normalizeRole(row.role_id ? { role_id: row.role_id } : row.role),
   departemen: row.departemen || "-",
   status: row.is_active === false ? "Non-Aktif" : row.status || "Aktif",
   avatar: row.profile_picture,
@@ -54,13 +57,14 @@ const USERS_KEY = ["users"] as const;
 const OB_KEY = ["ob"] as const;
 
 async function fetchUsers(): Promise<AppUser[]> {
-  const data = await getAdminUsers({ page: 1, limit: 100 });
-  return validateList(appUserSchema, extractUsers(data).map(mapApiUser), "user");
+  // getAdminUsers already returns items array directly
+  const rows = await getAdminUsers({ page: 1, limit: 100 });
+  return validateList(appUserSchema, (rows as any[]).map(mapApiUser), "user");
 }
 
 async function fetchOB(): Promise<Array<{ id: string; nama: string }>> {
-  const data = await getAdminUsers({ page: 1, limit: 200 });
-  return extractUsers(data).map((u: any) => ({
+  const rows = await getAdminUsers({ page: 1, limit: 200 });
+  return (rows as any[]).map((u: any) => ({
     id: String(u.id ?? ""),
     nama: u.nama_lengkap || u.username || "Pengguna",
   }));
@@ -99,7 +103,10 @@ function useUsers() {
     if (p.username) body.username = p.username;
     if (p.email) body.email = p.email;
     if (p.namaLengkap) body.nama_lengkap = p.namaLengkap;
-    if (p.role) body.role_id = Object.entries(ROLE_UUID_MAP).find(([, v]) => v === p.role)?.[0];
+    // Map role name to UUID if needed
+    if (p.role) {
+      body.role_id = ROLE_UUID_MAP[p.role] || p.role;
+    }
     if (p.password) body.password = p.password;
     if (p.status) body.is_active = p.status === "Aktif";
     return apiClient.patch(`/api/admin/user/${encodeURIComponent(id)}`, body);

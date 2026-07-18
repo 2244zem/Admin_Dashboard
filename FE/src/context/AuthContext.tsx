@@ -107,8 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: LoginRequest, remember: boolean) => {
-    const response = await loginRequest(credentials);
-    const token = response.data.jwt_token;
+    // loginRequest now returns the token string directly
+    const token = await loginRequest(credentials);
     const activeUser = userFromToken(token, credentials.identifier);
 
     tokenStorage.setToken(token, remember);

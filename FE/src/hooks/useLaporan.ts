@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Laporan, StatusLaporan } from "../types/laporan";
 import { getAdminLaporan, getAdminLaporanDetail, updateAdminLaporan, deleteAdminLaporan } from "../api/laporan";
 import { getAdminUsers } from "../api/user";
-import { extractArray } from "../lib/response";
 import { getErrorMessage, getInitials } from "../lib/utils";
 import { laporanSchema, validateList } from "../schemas";
 
@@ -18,7 +17,7 @@ const getPhotoMaps = async (): Promise<Map<string, string>> => {
 
   const map = new Map<string, string>();
   try {
-    const rows = extractUsers(await getAdminUsers({ page: 1, limit: 200 }));
+    const rows = await getAdminUsers({ page: 1, limit: 200 });
     for (const u of rows) {
       const photo = u.profile_picture || u.foto_profil;
       if (photo) {
@@ -31,12 +30,7 @@ const getPhotoMaps = async (): Promise<Map<string, string>> => {
   return map;
 };
 
-const extractUsers = (p: any): any[] => {
-  if (Array.isArray(p)) return p;
-  return p?.data?.items ?? p?.data?.users ?? p?.data ?? [];
-};
-
-// Status mappers
+// Status mappers - aligned with backend enum
 const mapStatus = (s: unknown): StatusLaporan => {
   const v = String(s || "").toUpperCase().replace(/-/g, "_").replace(/ /g, "_");
   if (["BELUM_DIKERJAKAN", "BELUM", "TODO"].includes(v)) return "Menunggu";
@@ -46,20 +40,29 @@ const mapStatus = (s: unknown): StatusLaporan => {
   return "Menunggu";
 };
 
+// Backend expects: BELUM_DIKERJAKAN | PENDING | SELESAI | DIBATALKAN
 export const statusToBackend = (s: StatusLaporan): string =>
   ({ Menunggu: "BELUM_DIKERJAKAN", Ditugaskan: "PENDING", Selesai: "SELESAI", Ditolak: "DIBATALKAN" }[s] ?? "BELUM_DIKERJAKAN");
 
-// Map API row to Laporan
+// Map API row to Laporan - aligned with spec fields
 export const mapApiLaporanToLaporan = (row: any): Laporan => {
   const get = (v: any, ...keys: string[]) => keys.reduce((o, k) => o?.[k], v) ?? "";
-  const resolvePhoto = (v: string | undefined) => {
-    if (!v || v === "null" || !/^(https?:|data:)/i.test(v)) return v;
-    return v;
-  };
+
+  // Handle bukti_foto from various possible structures per spec
+  let fotoUrl: string | undefined;
+  if (row.bukti_foto) {
+    if (Array.isArray(row.bukti_foto.urls) && row.bukti_foto.urls.length > 0) {
+      fotoUrl = row.bukti_foto.urls[0];
+    } else if (row.bukti_foto.url || row.bukti_foto.foto_url) {
+      fotoUrl = row.bukti_foto.url || row.bukti_foto.foto_url;
+    }
+  }
+  fotoUrl = fotoUrl || row.foto_url || row.foto || "https://placehold.co/160x120?text=Bukti";
 
   return {
     id: Number.parseInt(String(row.id ?? "").replace(/\D/g, ""), 10) || 0,
     backendId: String(row.id ?? row.laporan_id ?? ""),
+    id_laporan: row.id_laporan,
     name: get(row, "nama_karyawan") || get(row, "karyawan", "nama_lengkap") || get(row, "user", "nama_lengkap") || "Pengguna",
     initial: getInitials(get(row, "nama_karyawan") || "P"),
     karyawanId: String(row.karyawan_id || row.user_id || get(row, "karyawan", "id") || ""),
@@ -76,15 +79,16 @@ export const mapApiLaporanToLaporan = (row: any): Laporan => {
     status: mapStatus(row.status),
     level: ["URGENT", "TINGGI", "HIGH", "DARURAT"].includes(String(row.prioritas ?? "").toUpperCase()) ? "URGENT" : "STANDARD",
     prioritas: row.prioritas || "STANDARD",
-    foto: resolvePhoto(row.foto_url || row.bukti_foto?.urls?.[0]) || "https://placehold.co/160x120?text=Bukti",
-    fotoProfil: resolvePhoto(row.profile_picture || row.karyawan?.profile_picture),
+    foto: fotoUrl,
+    fotoProfil: row.profile_picture || row.karyawan?.profile_picture,
     assignedTo: get(row, "nama_ob") || get(row, "ob", "nama_lengkap") || undefined,
     taskId: row.task_id,
   };
 };
 
 async function fetchLaporan(params: any): Promise<Laporan[]> {
-  const payload = await getAdminLaporan({
+  // getAdminLaporan already returns items array directly
+  const rows = await getAdminLaporan({
     page: params.page || 1, limit: params.limit || 50,
     search: params.search, status: params.status, prioritas: params.prioritas,
     lokasi_id: params.lokasi_id, lantai_id: params.lantai_id,
@@ -92,9 +96,8 @@ async function fetchLaporan(params: any): Promise<Laporan[]> {
     sort_by: params.sort_by, sort_order: params.sort_order,
   });
 
-  const rows = extractArray(payload, "laporan");
   const photoMaps = await getPhotoMaps();
-  const mapped = rows.map(mapApiLaporanToLaporan);
+  const mapped = (rows as any[]).map(mapApiLaporanToLaporan);
 
   // Enrich with cached profile photos
   return mapped.map((l) => {

@@ -9,7 +9,6 @@ import {
   type ApiNotification,
 } from "../api/notifikasi";
 import { connectNotificationSocket } from "../api/websocket";
-import { useAuth } from "./AuthContext";
 
 interface NotificationContextType {
   notifications: AppNotification[];
@@ -30,8 +29,6 @@ function mapNotifType(type: unknown): NotifType {
 }
 
 export function mapApiNotificationToAppNotification(row: ApiNotification): AppNotification {
-  // Field sesuai kontrak backend:
-  // id, tipe, judul, pesan, is_read, created_at, pengirim.nama_lengkap
   const rawId = row.id ?? row.notification_id ?? row._id ?? row.uuid ?? "";
   const type = row.tipe ?? row.type ?? row.tipe_notif ?? "";
   const title = row.judul ?? row.title ?? "Notifikasi";
@@ -40,8 +37,7 @@ export function mapApiNotificationToAppNotification(row: ApiNotification): AppNo
   const isRead = row.is_read ?? row.read ?? false;
   const senderName = row.pengirim?.nama_lengkap ?? "";
 
-  // Fallback id agar React key & dedupe tetap unik bila backend tak mengembalikan id.
-  const id = String(rawId) || `notif-${String(createdAt)}-${String(title)}-${String(message)}`;
+  const id = String(rawId) || `notif-${createdAt}`;
 
   return {
     id: String(id),
@@ -58,109 +54,101 @@ export function mapApiNotificationToAppNotification(row: ApiNotification): AppNo
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const { isAuthenticated } = useAuth();
+  const [isConnected, setIsConnected] = useState(false);
 
+  // Fetch initial notifications
   const fetchNotifications = useCallback(async () => {
-    if (!isAuthenticated) return;
-
     try {
-      const grouped = await getNotifikasi();
-      const unreadCountFromApi = await getUnreadNotificationCount();
+      const [grouped, count] = await Promise.all([
+        getNotifikasi(),
+        getUnreadNotificationCount(),
+      ]);
 
-      const merged = [
-        ...(grouped?.hari_ini || []),
-        ...(grouped?.kemarin || []),
-      ].map(mapApiNotificationToAppNotification);
+      if (grouped) {
+        const merged: AppNotification[] = [
+          ...grouped.hari_ini.map(mapApiNotificationToAppNotification),
+          ...grouped.kemarin.map(mapApiNotificationToAppNotification),
+        ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      setNotifications(merged);
-
-      // Calculate unread count - use API value, fallback to counting from notifications list
-      let count = unreadCountFromApi;
-      if (count === 0 && merged.length > 0) {
-        // Fallback: count from notifications array (filter unread ones)
-        count = merged.filter(n => !n.read).length;
+        setNotifications(merged);
       }
 
-      setUnreadCount(Number.isFinite(count) ? count : 0);
+      // Use API count if available, otherwise count from list
+      setUnreadCount(count > 0 ? count : notifications.filter(n => !n.read).length);
     } catch {
-      // Silent fail for notifications
+      // Silent fail - keep existing state
     }
-  }, [isAuthenticated]);
+  }, []);
 
+  // Initial fetch + WebSocket connection
   useEffect(() => {
-    if (!isAuthenticated) return;
     fetchNotifications();
-    // Polling redundant dengan WebSocket — WebSocket sudah increment/decrement
-    // unread count secara real-time. Hapus interval untuk efisiensi.
-  }, [isAuthenticated, fetchNotifications]);
+  }, [fetchNotifications]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-
-    // Cleanup function untuk disconnect WebSocket
-    return connectNotificationSocket({
+    const cleanup = connectNotificationSocket({
       onNotification: (payload) => {
-        // Skip jika CONNECTED event (bukan notifikasi asli)
         if ((payload as any)?.type === "CONNECTED") {
+          setIsConnected(true);
           return;
         }
 
         try {
           const notification = mapApiNotificationToAppNotification(payload as ApiNotification);
 
-          // Composite key untuk deduplication yang lebih robust
-          const getNotifKey = (n: AppNotification) =>
-            `${n.title}|${n.message}|${n.createdAt}`;
-
-          // Check if notification already exists (avoid duplicates)
+          // Deduplicate by ID
           setNotifications((prev) => {
-            const exists =
-              prev.some((n) => n.id === notification.id) ||
-              prev.some((n) => getNotifKey(n) === getNotifKey(notification));
-            if (exists) {
-              return prev;
-            }
+            if (prev.some(n => n.id === notification.id)) return prev;
             return [notification, ...prev];
           });
 
-          // Increment unread count only for unread notifications
+          // Increment unread count only if not already read
           if (!notification.read) {
             setUnreadCount((prev) => prev + 1);
           }
         } catch {
-          // Silent fail for notification mapping
+          // Silent fail
         }
       },
-      onConnected: () => {
-        // Connected
-      },
-      onError: () => {
-        // Silent fail for WebSocket errors
-      },
+      onConnected: () => setIsConnected(true),
+      onError: () => setIsConnected(false),
     });
-  }, [isAuthenticated]);
 
-  const markAllRead = async () => {
+    return cleanup;
+  }, []);
+
+  const markRead = async (id: string) => {
+    // Optimistic update
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+
     try {
-      await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((notification) => ({ ...notification, read: true })));
-      setUnreadCount(0);
+      await markOneRead(id);
     } catch {
-      // Silent fail for mark all read
+      // Revert on error
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: false } : n))
+      );
+      setUnreadCount((prev) => prev + 1);
     }
   };
 
-  const markRead = async (id: string) => {
+  const markAllRead = async () => {
+    const prevNotifications = [...notifications];
+    const prevCount = unreadCount;
+
+    // Optimistic update
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+
     try {
-      await markOneRead(id);
-      setNotifications((prev) =>
-        prev.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      await markAllNotificationsRead();
     } catch {
-      // Silent fail for mark read
+      // Revert on error
+      setNotifications(prevNotifications);
+      setUnreadCount(prevCount);
     }
   };
 
