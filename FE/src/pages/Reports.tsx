@@ -2,14 +2,15 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { STATUS_COLOR } from "../types/laporan";
 import type { Laporan } from "../types/laporan";
-// import { formatWaktu } from "../lib/utils";
 import ReportDetailModal from "../components/ReportDetailModal";
 import useLaporan from "../hooks/useLaporan";
 import useUsers from "../hooks/useUsers";
+import useKategori from "../hooks/useKategori";
+import useLokasi from "../hooks/useLokasi";
 import { useToast } from "../components/Toast";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
-// import EmptyState from "../components/ui/EmptyState";
+import Avatar from "../components/ui/Avatar";
 
 const fadeUp = {
   initial: { opacity: 0, y: 10 },
@@ -17,8 +18,17 @@ const fadeUp = {
 };
 
 // Mapping UI label -> Backend API value
+// UI label -> Backend enum for API calls
 const STATUS_MAP: Record<string, string | undefined> = {
   "Semua Status": undefined,
+  "Menunggu": "BELUM_DIKERJAKAN",
+  "Ditugaskan": "PENDING",
+  "Selesai": "SELESAI",
+  "Ditolak": "DIBATALKAN",
+};
+
+// UI label -> Backend enum for PATCH payloads (reverse of STATUS_MAP)
+const UI_TO_BACKEND: Record<string, string> = {
   "Menunggu": "BELUM_DIKERJAKAN",
   "Ditugaskan": "PENDING",
   "Selesai": "SELESAI",
@@ -50,13 +60,17 @@ const Reports = () => {
 
   const { push } = useToast();
   const { fetchOB } = useUsers();
+  const { kategoriList, fetchKategori } = useKategori();
+  const { gedungList, fetchGedung } = useLokasi();
   const [obList, setObList] = useState<Array<{ id: string; nama: string }>>([]);
 
+  // Fetch initial data
   useEffect(() => {
-    fetchOB().then((list) => {
-      setObList(list || []);
-    });
-  }, [fetchOB]);
+    fetchOB().then((list) => setObList(list || []));
+    fetchKategori();
+    fetchGedung();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { laporanList, isLoading, error, fetchLaporan, getLaporanDetail, deleteLaporan, updateLaporan } = useLaporan(apiFilters);
 
@@ -71,23 +85,6 @@ const Reports = () => {
     if (filterLevel === "Semua Level") return filteredByArea;
     return filteredByArea.filter((row) => row.level === filterLevel);
   }, [filteredByArea, filterLevel]);
-
-  // Foto bukti dan deskripsi ditampilkan melalui modal detail laporan.
-  const [previewFoto, setPreviewFoto] = useState<{ url: string; desc: string } | null>(null);
-  const [assignTarget, setAssignTarget] = useState<Laporan | null>(null);
-  const [assignForm, setAssignForm] = useState({
-    kategori_id: "",
-    ob_id: "",
-    lokasi_id: "",
-    lantai_id: "",
-    waktu: "",
-    catatan: "",
-  });
-  const kategoriOptions: Array<{ id: string; nama: string }> = [];
-  const gedungOptions: Array<{ id: string; nama: string }> = [];
-  const lantaiOptions: Array<{ id: string; nama: string }> = [];
-  const closeAssignModal = () => setAssignTarget(null);
-  const handleAssignTask = () => undefined;
 
   const totalLaporanAktif = useMemo(() => {
     return filteredByLevel.filter(
@@ -127,10 +124,11 @@ const Reports = () => {
         push("error", "Status 'Ditugaskan' memerlukan OB yang ditugaskan. Harap gunakan menu Edit untuk menetapkan OB.");
         return;
       }
-      
-      const payload: any = {
-        status: newStatus,
-        admin_catatan: detailTarget.desc,
+
+      // Map UI label to backend enum
+      const backendStatus = UI_TO_BACKEND[newStatus] || newStatus;
+      const payload: Record<string, unknown> = {
+        status: backendStatus,
       };
       if (detailTarget.ob_id) {
         payload.ob_id = detailTarget.ob_id;
@@ -138,7 +136,7 @@ const Reports = () => {
 
       await updateLaporan(detailTarget.backendId || String(detailTarget.id), payload);
       push("success", "Status laporan berhasil diubah");
-      
+
       // Refresh detail data
       const refreshed = await getLaporanDetail({ ...detailTarget, status: newStatus });
       setDetailTarget(refreshed);
@@ -153,13 +151,15 @@ const Reports = () => {
   const closeEditModal = () => setEditTarget(null);
   const handleSaveEdit = async (_updated: Laporan) => {
     try {
-      const payload: any = {
-        status: _updated.status,
-        admin_catatan: _updated.desc,
+      // Map UI label to backend enum
+      const backendStatus = UI_TO_BACKEND[_updated.status] || _updated.status;
+      const payload: Record<string, unknown> = {
+        status: backendStatus,
       };
 
-      if (_updated.ob_id !== undefined) {
-        payload.ob_id = _updated.ob_id || null;
+      // Only include ob_id if it has a value
+      if (_updated.ob_id) {
+        payload.ob_id = _updated.ob_id;
       }
 
       if (_updated.status === "Ditugaskan" && !payload.ob_id) {
@@ -391,20 +391,7 @@ const Reports = () => {
                         {/* NAMA KARYAWAN */}
                         <td className="px-6 py-3 text-center">
                           <div className="flex items-center justify-center gap-2">
-                            {data.fotoProfil ? (
-                              <img
-                                src={data.fotoProfil}
-                                alt={data.name}
-                                onError={(event) => {
-                                  event.currentTarget.style.display = 'none';
-                                  event.currentTarget.nextElementSibling?.classList.remove('hidden');
-                                }}
-                                className="h-8 w-8 rounded-full object-cover shrink-0 border border-gray-200"
-                              />
-                            ) : null}
-                            <div className={`h-8 w-8 rounded-full bg-blue-100 text-[#0F4C81] flex items-center justify-center font-bold text-xs shrink-0 ${data.fotoProfil ? 'hidden' : ''}`}>
-                              {data.initial}
-                            </div>
+                            <Avatar name={data.name} src={data.fotoProfil} size="md" />
                             <div>
                               <div className="font-medium text-gray-800">{data.name}</div>
                             </div>
@@ -533,42 +520,6 @@ const Reports = () => {
         </main>
       </div>
 
-      {/* LIGHTBOX PREVIEW FOTO BUKTI */}
-      <AnimatePresence>
-        {previewFoto && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setPreviewFoto(null)}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl overflow-hidden shadow-xl max-w-md w-full"
-            >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h3 className="text-sm font-bold text-gray-800">Foto Bukti Laporan</h3>
-                <button
-                  onClick={() => setPreviewFoto(null)}
-                  className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <img src={previewFoto.url} alt={previewFoto.desc} className="w-full h-64 object-cover" />
-              <div className="px-5 py-4 text-sm text-gray-600">{previewFoto.desc}</div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* MODAL DETAIL LAPORAN (read-only) */}
       <ReportDetailModal
         laporan={detailTarget}
@@ -577,148 +528,22 @@ const Reports = () => {
       />
 
       {/* MODAL EDIT LAPORAN */}
-      <EditLaporanModal laporan={editTarget} onClose={closeEditModal} onSave={handleSaveEdit} obList={obList} />
+      <EditLaporanModal
+        laporan={editTarget}
+        onClose={closeEditModal}
+        onSave={handleSaveEdit}
+        obList={obList}
+        kategoriList={kategoriList}
+        gedungList={gedungList}
+      />
 
       {/* MODAL KONFIRMASI HAPUS LAPORAN */}
       <DeleteLaporanModal laporan={deleteTarget} onClose={closeDeleteConfirm} onConfirm={handleConfirmDelete} />
-
-      {/* MODAL TUGASKAN LAPORAN */}
-      <AnimatePresence>
-        {assignTarget && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={closeAssignModal}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
-            >
-              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Tugaskan Laporan</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Laporan #{assignTarget.id} - {assignTarget.name}</p>
-                </div>
-                <button
-                  onClick={closeAssignModal}
-                  className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="px-6 py-5 space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kategori Tugas</label>
-                  <select
-                    value={assignForm.kategori_id}
-                    onChange={(e) => setAssignForm({ ...assignForm, kategori_id: e.target.value })}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                  >
-                    {kategoriOptions.map((k) => (
-                      <option key={k.id} value={k.id}>{k.nama}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih OB</label>
-                  <select
-                    value={assignForm.ob_id}
-                    onChange={(e) => setAssignForm({ ...assignForm, ob_id: e.target.value })}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Pilih OB</option>
-                    {obList.map((ob) => (
-                      <option key={ob.id} value={ob.id}>{ob.nama}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Gedung</label>
-                    <select
-                      value={assignForm.lokasi_id}
-                      onChange={(e) => setAssignForm({ ...assignForm, lokasi_id: e.target.value })}
-                      className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                    >
-                      <option value="">Pilih Gedung</option>
-                      {gedungOptions.map((g) => (
-                        <option key={g.id} value={g.id}>{g.nama}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Lantai</label>
-                    <select
-                      value={assignForm.lantai_id}
-                      onChange={(e) => setAssignForm({ ...assignForm, lantai_id: e.target.value })}
-                      className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                    >
-                      <option value="">Pilih Lantai</option>
-                      {lantaiOptions.map((l) => (
-                        <option key={l.id} value={l.id}>{l.nama}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Waktu (Opsional)</label>
-                  <input
-                    type="time"
-                    value={assignForm.waktu}
-                    onChange={(e) => setAssignForm({ ...assignForm, waktu: e.target.value })}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Catatan</label>
-                  <textarea
-                    value={assignForm.catatan}
-                    onChange={(e) => setAssignForm({ ...assignForm, catatan: e.target.value })}
-                    rows={3}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 hover:border-gray-400 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"
-                    placeholder="Catatan tambahan..."
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-                <button
-                  onClick={closeAssignModal}
-                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleAssignTask}
-                  className="px-5 py-2.5 rounded-xl bg-[#0F4C81] hover:bg-[#0a355c] text-white font-semibold text-sm transition-colors cursor-pointer"
-                >
-                  Tugaskan
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
 
 // ---------- Modal Edit Laporan (lokal, hanya dipakai di halaman ini) ----------
-const EDIT_LOKASI_OPTIONS = ["Toilet Lantai 2", "Lobi Utama", "Lantai 4 - Ruang Rapat 4C", "Parkir Barat B2"];
-const EDIT_KATEGORI_OPTIONS = ["Kebersihan Fasilitas", "Kerusakan Fasilitas", "Ketersediaan Barang", "Lainnya"];
 const EDIT_STATUS_OPTIONS = ["Menunggu", "Ditugaskan", "Selesai", "Ditolak"];
 
 interface EditLaporanModalProps {
@@ -726,9 +551,11 @@ interface EditLaporanModalProps {
   onClose: () => void;
   onSave: (updated: Laporan) => void;
   obList: Array<{ id: string; nama: string }>;
+  kategoriList: Array<{ id: string; nama: string }>;
+  gedungList: Array<{ id: string; nama: string }>;
 }
 
-const EditLaporanModal = ({ laporan, onClose, onSave, obList }: EditLaporanModalProps) => {
+const EditLaporanModal = ({ laporan, onClose, onSave, obList, kategoriList, gedungList }: EditLaporanModalProps) => {
   const [form, setForm] = useState<{
     name: string;
     loc: string;
@@ -742,7 +569,7 @@ const EditLaporanModal = ({ laporan, onClose, onSave, obList }: EditLaporanModal
 
   // Sinkronkan form setiap kali laporan target berubah (modal dibuka untuk laporan baru).
   const laporanId = laporan?.id;
-  useMemo(() => {
+  useEffect(() => {
     if (laporan) {
       let resolvedObId = laporan.ob_id || "";
       if (!resolvedObId && laporan.assignedTo && obList.length > 0) {
@@ -757,7 +584,7 @@ const EditLaporanModal = ({ laporan, onClose, onSave, obList }: EditLaporanModal
       setForm({
         name: laporan.name,
         loc: laporan.loc,
-        area: laporan.area ?? EDIT_KATEGORI_OPTIONS[0],
+        area: laporan.area ?? "",
         status: laporan.status,
         ob_id: resolvedObId,
         assignedTo: laporan.assignedTo ?? "",
@@ -766,7 +593,7 @@ const EditLaporanModal = ({ laporan, onClose, onSave, obList }: EditLaporanModal
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [laporanId, obList]);
+  }, [laporanId, obList, laporan]);
 
   if (!laporan || !form) return null;
 
@@ -865,8 +692,9 @@ const EditLaporanModal = ({ laporan, onClose, onSave, obList }: EditLaporanModal
                     onChange={(e) => setForm({ ...form, loc: e.target.value })}
                     className="w-full text-sm font-medium text-blue-600 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
                   >
-                    {[form.loc, ...EDIT_LOKASI_OPTIONS.filter((l) => l !== form.loc)].map((l) => (
-                      <option key={l} value={l}>{l}</option>
+                    <option value="">Pilih Gedung</option>
+                    {gedungList.map((g) => (
+                      <option key={g.id} value={g.nama}>{g.nama}</option>
                     ))}
                   </select>
                 </div>
@@ -876,15 +704,16 @@ const EditLaporanModal = ({ laporan, onClose, onSave, obList }: EditLaporanModal
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    Area
+                    Kategori
                   </p>
                   <select
                     value={form.area}
                     onChange={(e) => setForm({ ...form, area: e.target.value })}
                     className="w-full text-sm font-medium text-gray-800 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
                   >
-                    {[form.area, ...EDIT_KATEGORI_OPTIONS.filter((k) => k !== form.area)].map((k) => (
-                      <option key={k} value={k}>{k}</option>
+                    <option value="">Pilih Kategori</option>
+                    {kategoriList.map((k) => (
+                      <option key={k.id} value={k.nama}>{k.nama}</option>
                     ))}
                   </select>
                 </div>

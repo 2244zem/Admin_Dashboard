@@ -18,51 +18,33 @@ export type ApiUser = Record<string, any>;
 export type ApiOB = Record<string, any>;
 
 export async function getAdminUsers(params?: AdminUsersParams) {
-  const response = await apiClient.get<any>("/api/admin/user", { params });
-  return (response as any)?.data ?? response;
+  return apiClient.get<unknown>("/api/admin/user", { params });
 }
 
 export async function getAllOB() {
-  const response = await apiClient.get<any>("/api/admin/user/all-ob");
-  return (response as any)?.data ?? response;
+  return apiClient.get<ApiOB[]>("/api/admin/user/all-ob");
 }
 
 export async function createUser(payload: CreateUserPayload) {
-  const response = await apiClient.post<any>("/api/admin/user", payload);
-  return (response as any)?.data ?? response;
+  return apiClient.post<ApiUser>("/api/admin/user", payload);
 }
 
 export async function getUserDetail(id: string) {
-  const response = await apiClient.get<any>(`/api/admin/user/${id}`);
-  return (response as any)?.data ?? response;
+  return apiClient.get<ApiUser>(`/api/admin/user/${id}`);
 }
 
 export async function updateUser(id: string, payload: FormData) {
-  const response = await apiClient.patch<any>(`/api/admin/user/${id}`, payload);
-  return (response as any)?.data ?? response;
+  return apiClient.patch<ApiUser>(`/api/admin/user/${id}`, payload);
 }
 
 export async function deleteUser(id: string) {
-  const response = await apiClient.delete(`/api/admin/user/${id}`);
-  return response;
+  return apiClient.delete(`/api/admin/user/${id}`);
 }
 
-/**
- * Renew activation token via admin
- * POST /api/auth/activate-account - regenerate token for user
- */
 export async function renewUserToken(id: string, hours: number = 24) {
-  // For admin renew token, send user_id and hours in body
-  const response = await apiClient.post<any>(`/api/auth/activate-account`, {
-    user_id: id,
-    hours,
-  });
-  return response;
+  return apiClient.post(`/api/auth/activate-account`, { user_id: id, hours });
 }
 
-/**
- * @deprecated Use renewUserToken instead - same endpoint
- */
 export async function activateUserToken(id: string) {
   return renewUserToken(id);
 }

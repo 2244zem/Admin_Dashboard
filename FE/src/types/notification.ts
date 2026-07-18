@@ -1,6 +1,5 @@
 export type NotifType = "laporan" | "tugas" | "user" | "pengingat";
 
-// TODO: sesuaikan dengan kontrak API asli dari backend
 export interface AppNotification {
   id: string;
   type: NotifType;

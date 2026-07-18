@@ -14,54 +14,19 @@ export interface ActivateAccountPayload {
   confirmPassword: string;
 }
 
-/**
- * Login user with credentials
- */
 export async function login(payload: LoginPayload) {
-  try {
-    const response = await apiClient.post<any>("/api/auth/login", payload);
-
-    // Try to extract data from wrapper
-    const data = response?.data ?? response;
-
-    if (!data?.jwt_token) {
-      throw new Error(response?.message || "Email/username atau password salah.");
-    }
-
-    return { success: true, data };
-  } catch (err: any) {
-    throw new Error(err?.message || err?.response?.data?.message || "Login gagal. Silakan coba lagi.");
-  }
+  const response = await apiClient.post<{ jwt_token: string }>("/api/auth/login", payload);
+  return { success: true, data: response };
 }
 
-/**
- * Check if activation token is valid
- */
 export async function checkActivationToken(token: string) {
-  const response = await apiClient.get<any>("/api/auth/check-token", { params: { token } });
-  return (response as any)?.data ?? response;
+  return apiClient.get("/api/auth/check-token", { params: { token } });
 }
 
-/**
- * Activate account with new password
- */
 export async function activateAccount(token: string, payload: ActivateAccountPayload) {
-  const response = await apiClient.post<any>(
-    `/api/auth/activate-account?token=${encodeURIComponent(token)}`,
-    payload,
-  );
-  return (response as any)?.data ?? response;
+  return apiClient.post<{ success: boolean; message: string }>(`/api/auth/activate-account?token=${encodeURIComponent(token)}`, payload);
 }
 
-/**
- * Logout & revoke current session
- */
 export async function logout() {
-  try {
-    const response = await apiClient.post<any>("/api/auth/logout");
-    return (response as any)?.data ?? response;
-  } catch (err: any) {
-    // Even if API fails, clear local state
-    throw new Error(err?.response?.data?.message || "Logout gagal");
-  }
+  return apiClient.post("/api/auth/logout");
 }

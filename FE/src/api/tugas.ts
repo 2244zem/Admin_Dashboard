@@ -17,31 +17,22 @@ export interface TugasParams {
   kategori_id?: string;
 }
 
-function unwrapData<T>(response: any): T {
-  return response?.data ?? response;
-}
-
 export async function getAllTugas(params?: TugasParams) {
-  const response = await apiClient.get<any>("/api/tugas", { params });
-  return unwrapData<Tugas[]>(response);
+  return apiClient.get<Tugas[]>("/api/tugas", { params });
 }
 
 export async function getTugasById(id: string) {
-  const response = await apiClient.get<any>(`/api/tugas/${id}`);
-  return unwrapData<Tugas>(response);
+  return apiClient.get<Tugas>(`/api/tugas/${id}`);
 }
 
 export async function createTugas(payload: { kategori_id: string; nama_tugas: string }) {
-  const response = await apiClient.post<any>("/api/tugas", payload);
-  return unwrapData<Tugas>(response);
+  return apiClient.post<Tugas>("/api/tugas", payload);
 }
 
 export async function updateTugas(id: string, payload: { kategori_id?: string; nama_tugas?: string; is_active?: boolean }) {
-  const response = await apiClient.patch<any>(`/api/tugas/${id}`, payload);
-  return unwrapData<Tugas>(response);
+  return apiClient.patch<Tugas>(`/api/tugas/${id}`, payload);
 }
 
 export async function deleteTugas(id: string) {
-  const response = await apiClient.delete<any>(`/api/tugas/${id}`);
-  return unwrapData(response);
+  return apiClient.delete(`/api/tugas/${id}`);
 }

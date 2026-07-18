@@ -23,16 +23,11 @@ class ApiClient {
   private setupRequestInterceptor() {
     this.axiosInstance.interceptors.request.use(
       (config) => {
-        // Get token from tokenStorage (handles both localStorage and sessionStorage)
         const token = tokenStorage.getToken();
 
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
-
-        // Note: ngrok-skip-browser-warning header should be set on server-side, not here.
-        // Setting it client-side triggers CORS preflight which ngrok rejects.
-
         return config;
       },
       (error) => {
@@ -40,10 +35,6 @@ class ApiClient {
       }
     );
   }
-
-  /**
-   * Response Interceptor: Handle global errors
-   */
   private setupResponseInterceptor() {
     this.axiosInstance.interceptors.response.use(
       (response) => {
@@ -62,10 +53,8 @@ class ApiClient {
         const statusCode = error.response.status;
         const errorData = error.response.data;
 
-        // Handle specific error codes
         switch (statusCode) {
           case 401:
-            // Unauthorized - clear tokens and redirect to login
             this.clearAuthData();
             if (window.location.pathname !== "/login") {
               window.location.href = "/login";
@@ -127,26 +116,15 @@ class ApiClient {
     );
   }
 
-  /**
-   * Clear authentication data from storage
-   */
   private clearAuthData() {
     tokenStorage.clear();
   }
 
-  /**
-   * GET request
-   */
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.axiosInstance.get<T>(url, config);
     return response.data;
   }
 
-  /**
-   * Ensure FormData bodies are sent as multipart (let the browser set the
-   * boundary) instead of being force-converted to JSON by the default
-   * application/json Content-Type header.
-   */
   private withFormDataConfig(data: any, config?: AxiosRequestConfig): AxiosRequestConfig | undefined {
     if (typeof FormData !== "undefined" && data instanceof FormData) {
       return {
@@ -157,33 +135,21 @@ class ApiClient {
     return config;
   }
 
-  /**
-   * POST request
-   */
   async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.axiosInstance.post<T>(url, data, this.withFormDataConfig(data, config));
     return response.data;
   }
 
-  /**
-   * PUT request
-   */
   async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.axiosInstance.put<T>(url, data, this.withFormDataConfig(data, config));
     return response.data;
   }
 
-  /**
-   * DELETE request
-   */
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.axiosInstance.delete<T>(url, config);
     return response.data;
   }
 
-  /**
-   * PATCH request
-   */
   async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.axiosInstance.patch<T>(url, data, this.withFormDataConfig(data, config));
     return response.data;

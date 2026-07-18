@@ -10,7 +10,6 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
   totalPages: number;
-  // TODO: sesuaikan dengan kontrak API asli dari backend
 }
 
 export interface ApiError {

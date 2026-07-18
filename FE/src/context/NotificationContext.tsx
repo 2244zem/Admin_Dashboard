@@ -23,7 +23,13 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 function mapNotifType(type: unknown): NotifType {
   const value = String(type || "").toUpperCase();
-  if (value.includes("TUGAS") || value.includes("CHECKLIST")) return "tugas";
+  // ADMIN_MENUGASKAN_OB, LAPORAN_BARU, LAPORAN_DIKERJAKAN, LAPORAN_DIBATALKAN
+  if (value.includes("LAPORAN") || value.includes("ADMIN_MENUGASKAN")) return "laporan";
+  // GABUNG_LAPORAN, GABUNG_DISETUJUI, GABUNG_DIBATALKAN, KELUAR_KOLABORASI,
+  // DIKELUARKAN_KOLABORASI, KOLABORASI_DIBUKA
+  if (value.includes("GABUNG") || value.includes("KOLABORASI") || value.includes("KELUAR") || value.includes("DIKELUARKAN")) return "laporan";
+  // PENUGASAN_CHECKLIST
+  if (value.includes("CHECKLIST") || value.includes("TUGAS")) return "tugas";
   if (value.includes("USER") || value.includes("AKUN")) return "user";
   if (value.includes("INGAT") || value.includes("REMINDER")) return "pengingat";
   return "laporan";
@@ -94,12 +100,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     fetchNotifications();
 
-    // Poll setiap 30 detik (backup jika WebSocket gagal)
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchNotifications();
-      }
-    }, 30_000);
+    // Polling 60dtk sebagai safety net jika WebSocket terputus/missed message.
+    const interval = window.setInterval(fetchNotifications, 60_000);
 
     return () => window.clearInterval(interval);
   }, [isAuthenticated, fetchNotifications]);
@@ -110,53 +112,37 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // Cleanup function untuk disconnect WebSocket
     return connectNotificationSocket({
       onNotification: (payload) => {
-        // Skip jika CONNECTED event (bukan notifikasi asli)
-        if ((payload as any)?.type === "CONNECTED") {
-          return;
-        }
+        if ((payload as any)?.type === "CONNECTED") return;
 
         try {
           const notification = mapApiNotificationToAppNotification(payload as ApiNotification);
 
-          // Composite key untuk deduplication yang lebih robust
-          const getNotifKey = (n: AppNotification) =>
-            `${n.title}|${n.message}|${n.createdAt}`;
-
-          // Check if notification already exists (avoid duplicates)
           setNotifications((prev) => {
-            const exists =
-              prev.some((n) => n.id === notification.id) ||
-              prev.some((n) => getNotifKey(n) === getNotifKey(notification));
-            if (exists) {
-              return prev;
-            }
+            // Deduplicate by id
+            if (prev.some((n) => n.id === notification.id)) return prev;
             return [notification, ...prev];
           });
 
-          // Increment unread count only for unread notifications
           if (!notification.read) {
             setUnreadCount((prev) => prev + 1);
           }
         } catch {
-          // Silent fail for notification mapping
+          // Silent fail
         }
       },
-      onConnected: () => {
-        // Connected
-      },
-      onError: () => {
-        // Silent fail for WebSocket errors
-      },
+      onConnected: () => {},
+      onError: () => {},
     });
   }, [isAuthenticated]);
 
   const markAllRead = async () => {
     try {
       await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((notification) => ({ ...notification, read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch {
-      // Silent fail for mark all read
+      // API fail — refetch agar count & list tetap sinkron
+      fetchNotifications();
     }
   };
 
@@ -164,11 +150,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try {
       await markOneRead(id);
       setNotifications((prev) =>
-        prev.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch {
-      // Silent fail for mark read
+      // API fail — refetch agar count & list tetap sinkron
+      fetchNotifications();
     }
   };
 

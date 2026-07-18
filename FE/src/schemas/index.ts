@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export function validateList<T>(schema: z.ZodTypeAny, items: T[], label: string): T[] {
+export function validateList<T>(schema: z.ZodTypeAny, items: T[], _label: string): T[] {
   const valid: T[] = [];
   for (const item of items) {
     const result = schema.safeParse(item);
@@ -30,7 +30,7 @@ export const taskSchema = z.object({
 });
 
 export const appUserSchema = z.object({
-  id: z.number(),
+  id: z.union([z.string(), z.number()]),
   backendId: z.string().optional(),
   namaLengkap: z.string(),
   username: z.string(),

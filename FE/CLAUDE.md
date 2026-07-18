@@ -586,6 +586,7 @@ Note: `status` here is a free `"string"` in the spec (not a strict enum in the s
 `GET /ws?token=xxx` — upgrades HTTP → WebSocket. `token` (required, query param) is the same JWT used for Bearer auth.
 
 On connect, server sends:
+
 ```json
 { "type": "CONNECTED" }
 ```
@@ -603,6 +604,20 @@ Every subsequent real-time push is a `Notifikasi` object:
 - `400` Token invalid/kosong
 
 Since the unread-count and notification-list REST endpoints exist alongside the socket, the standard pattern should be: **fetch `/api/notifikasi/unread-count` + `/api/notifikasi` on mount for initial state, then apply WebSocket pushes incrementally (increment unread count, prepend to `hari_ini`) rather than re-fetching on every socket message.** If notifications are duplicating or the badge count is drifting from the list, check whether both a fetch-on-mount AND a socket-triggered refetch are firing and double-counting.
+
+**Notification state** lives in `NotificationContext`. Pattern:
+1. On mount: fetch both endpoints → initial state
+2. WebSocket push: prepend to list (dedupe by `id`), increment count if `!read`
+3. Polling: 60dtk safety net (only when tab visible via WebSocket reconnect)
+4. On `markRead`/`markAllRead` API fail → refetch to resync count
+
+**`unread-count` response shape**: `apiClient` unwraps to `{ success, message, data: <number> }`, so the hook reads `response.data` directly as a number. Do NOT call `unwrapData` again in the hook or it returns `undefined`.
+
+**`NotifType` mapping** (in `mapNotifType`):
+- `"laporan"` ← `LAPORAN_*`, `ADMIN_MENUGASKAN_OB`, `GABUNG_*`, `KOLABORASI_*`, `KELUAR_*`, `DIKELUARKAN_*`
+- `"tugas"` ← `PENUGASAN_CHECKLIST`, `TUGAS*`
+- `"user"` ← `USER*`, `AKUN*`
+- `"pengingat"` ← `INGAT*`, `REMINDER*`
 
 ---
 

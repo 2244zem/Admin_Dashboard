@@ -23,36 +23,26 @@ export interface AdminLaporanParams {
 
 export type ApiLaporan = Record<string, unknown>;
 
-function unwrapData<T>(response: any): T {
-  return response?.data ?? response;
-}
-
 export async function getUserProfile(params?: UserProfileParams) {
-  const response = await apiClient.get<any>("/api/user/profile", { params });
-  return unwrapData<unknown>(response);
+  return apiClient.get<unknown>("/api/user/profile", { params });
 }
 
 export async function updateUserProfile(payload: FormData) {
-  const response = await apiClient.patch<any>("/api/user/profile", payload);
-  return unwrapData<unknown>(response);
+  return apiClient.patch<unknown>("/api/user/profile", payload);
 }
 
 export async function getAdminLaporan(params?: AdminLaporanParams) {
-  const response = await apiClient.get<any>("/api/admin/laporan", { params });
-  return unwrapData<unknown>(response);
+  return apiClient.get<unknown>("/api/admin/laporan", { params });
 }
 
 export async function getAdminLaporanDetail(id: string) {
-  const response = await apiClient.get<any>(`/api/admin/laporan/${id}`);
-  return unwrapData<ApiLaporan>(response);
+  return apiClient.get<ApiLaporan>(`/api/admin/laporan/${id}`);
 }
 
 export async function updateAdminLaporan(id: string, payload: Partial<ApiLaporan>) {
-  const response = await apiClient.patch<any>(`/api/admin/laporan/${id}`, payload);
-  return unwrapData<ApiLaporan>(response);
+  return apiClient.patch<ApiLaporan>(`/api/admin/laporan/${id}`, payload);
 }
 
 export async function deleteAdminLaporan(id: string) {
-  const response = await apiClient.delete<any>(`/api/admin/laporan/${id}`);
-  return unwrapData(response);
+  return apiClient.delete(`/api/admin/laporan/${id}`);
 }

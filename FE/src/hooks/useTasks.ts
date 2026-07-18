@@ -9,7 +9,8 @@ import {
   updateChecklistHarian,
   type ChecklistStatus,
 } from "../api/checklist";
-import { getErrorMessage } from "../lib/utils";
+import { getErrorMessage, stripIdPrefix } from "../lib/utils";
+import { API_BASE_URL } from "../lib/apiBaseUrl";
 import { taskSchema, validateList } from "../schemas";
 
 // Recursively flatten nested items arrays
@@ -86,6 +87,12 @@ function mapUiStatus(status: StatusTask): ChecklistStatus {
   return "BELUM_DIKERJAKAN";
 }
 
+function resolveImageUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim() || value === "null") return undefined;
+  if (/^(https?:|data:)/i.test(value)) return value;
+  return API_BASE_URL ? `${API_BASE_URL}${value.startsWith("/") ? value : `/${value}`}` : value;
+}
+
 export function mapApiChecklistToTask(row: any): Task {
   const tanggal = row.tanggal || row.created_at || row.updated_at || row.waktu || new Date().toISOString();
   const tugas = row.tugas || {};
@@ -129,19 +136,13 @@ export function mapApiChecklistToTask(row: any): Task {
     lantaiId: lantai.id || row.lantai_id || undefined,
     petugas: {
       nama: namaOb,
+      fotoProfil: resolveImageUrl(ob?.profile_picture || ob?.foto_profil || row.foto_profil),
     },
     waktu: String(tanggal).slice(11, 16) || row.waktu || "-",
     tanggal: String(tanggal).slice(0, 10) || row.tanggal || new Date().toISOString().slice(0, 10),
     catatan: row.catatan || row.notes || row.description,
     status: mapApiStatus(row.status),
   };
-}
-
-// Strip prefix dari ID (gd-, lt-, dll) — tapi JANGAN hapus field kosong secara diam-diam
-function stripIdPrefix(id: string): string {
-  if (!id) return id;
-  const match = String(id).match(/^([a-z]+-)?(.+)$/);
-  return match ? match[2] : id;
 }
 
 function toChecklistPayload(payload: any) {

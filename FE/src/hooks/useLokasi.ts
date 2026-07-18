@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import apiClient from "../services/apiClient";
 import { ENDPOINTS } from "../config/endpoints";
-import { getErrorMessage } from "../lib/utils";
+import { getErrorMessage, stripIdPrefix } from "../lib/utils";
 import { gedungSchema, validateList } from "../schemas";
 
 // Structures
@@ -23,13 +23,6 @@ export interface Gedung {
   nama: string;
   kapasitas: string;
   lantai: Lantai[];
-}
-
-// Strip prefix dari ID (backend expect UUID tanpa prefix gd-, lt-, dll)
-function stripPrefix(id: string): string {
-  if (!id) return id;
-  const match = id.match(/^([a-z]+-)?(.+)$/);
-  return match ? match[2] : id;
 }
 
 function unwrap(payload: any) {
@@ -166,7 +159,7 @@ export function useLokasi() {
 
   const updateGedung = async (id: string, payload: { nama: string; kapasitas: string }) => {
     try {
-      await apiClient.patch(ENDPOINTS.LOKASI_GEDUNG_UPDATE(stripPrefix(id)), {
+      await apiClient.patch(ENDPOINTS.LOKASI_GEDUNG_UPDATE(stripIdPrefix(id)), {
         nama_lokasi: payload.nama,
         jumlah_lantai: Number(payload.kapasitas) || 0,
       });
@@ -179,7 +172,7 @@ export function useLokasi() {
 
   const deleteGedung = async (id: string) => {
     try {
-      await apiClient.delete(ENDPOINTS.LOKASI_GEDUNG_DELETE(stripPrefix(id)));
+      await apiClient.delete(ENDPOINTS.LOKASI_GEDUNG_DELETE(stripIdPrefix(id)));
       await fetchGedung();
     } catch (err: any) {
       const msg = getErrorMessage(err);
@@ -191,7 +184,7 @@ export function useLokasi() {
   const createLantai = async (gedungId: string, payload: { nama: string }) => {
     try {
       const apiPayload = {
-        lokasi_id: stripPrefix(gedungId),
+        lokasi_id: stripIdPrefix(gedungId),
         nomor_lantai: Number.parseInt(payload.nama.replace(/\D/g, ""), 10) || 0,
       };
       await apiClient.post(ENDPOINTS.LOKASI_LANTAI_CREATE(gedungId), apiPayload);
@@ -204,7 +197,7 @@ export function useLokasi() {
 
   const updateLantai = async (id: string, payload: { nama: string }) => {
     try {
-      await apiClient.patch(ENDPOINTS.LOKASI_LANTAI_UPDATE(stripPrefix(id)), {
+      await apiClient.patch(ENDPOINTS.LOKASI_LANTAI_UPDATE(stripIdPrefix(id)), {
         nomor_lantai: Number.parseInt(payload.nama.replace(/\D/g, ""), 10) || 0,
       });
       await fetchGedung();
@@ -216,7 +209,7 @@ export function useLokasi() {
 
   const deleteLantai = async (id: string) => {
     try {
-      await apiClient.delete(ENDPOINTS.LOKASI_LANTAI_DELETE(stripPrefix(id)));
+      await apiClient.delete(ENDPOINTS.LOKASI_LANTAI_DELETE(stripIdPrefix(id)));
       await fetchGedung();
     } catch (err: any) {
       const msg = getErrorMessage(err);
@@ -228,7 +221,7 @@ export function useLokasi() {
   const createRuangan = async (lantaiId: string, payload: { nama: string }) => {
     try {
       const apiPayload = {
-        lantai_id: stripPrefix(lantaiId),
+        lantai_id: stripIdPrefix(lantaiId),
         nama: payload.nama,
       };
       await apiClient.post(ENDPOINTS.LOKASI_RUANGAN_CREATE(lantaiId), apiPayload);
@@ -241,7 +234,7 @@ export function useLokasi() {
 
   const updateRuangan = async (id: string, payload: { nama: string }) => {
     try {
-      await apiClient.patch(ENDPOINTS.LOKASI_RUANGAN_UPDATE(stripPrefix(id)), {
+      await apiClient.patch(ENDPOINTS.LOKASI_RUANGAN_UPDATE(stripIdPrefix(id)), {
         nama: payload.nama,
       });
       await fetchGedung();
@@ -253,7 +246,7 @@ export function useLokasi() {
 
   const deleteRuangan = async (id: string) => {
     try {
-      await apiClient.delete(ENDPOINTS.LOKASI_RUANGAN_DELETE(stripPrefix(id)));
+      await apiClient.delete(ENDPOINTS.LOKASI_RUANGAN_DELETE(stripIdPrefix(id)));
       await fetchGedung();
     } catch (err: any) {
       const msg = getErrorMessage(err);

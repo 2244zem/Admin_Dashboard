@@ -7,35 +7,16 @@ export interface NotifikasiGrouped {
   kemarin: ApiNotification[];
 }
 
-function unwrapData<T>(response: any): T {
-  return response?.data ?? response;
-}
-
-function toArray(value: unknown): ApiNotification[] {
-  return Array.isArray(value) ? (value as ApiNotification[]) : [];
-}
-
-/**
- * Ekstrak notifikasi grouped dari response.
- * Kontrak resmi: { success, message, data: { hari_ini: [...], kemarin: [...] } }
- */
-function extractNotifications(payload: any): { hari_ini: ApiNotification[]; kemarin: ApiNotification[] } {
-  const data = payload?.data ?? payload;
-  return {
-    hari_ini: toArray(data?.hari_ini),
-    kemarin: toArray(data?.kemarin),
-  };
-}
-
 export async function getNotifikasi(): Promise<NotifikasiGrouped | null> {
   try {
-    const raw = await apiClient.get<any>("/api/notifikasi");
-
-    // unwrapData: { success, message, data: {...} } -> { hari_ini, kemarin }
-    const payload = unwrapData<NotifikasiGrouped>(raw);
-    const grouped = extractNotifications(payload);
-
-    return grouped;
+    // axios interceptor unwraps to { success, message, data: {...} }
+    // data = { hari_ini: [...], kemarin: [...] }
+    const payload = await apiClient.get<NotifikasiGrouped>("/api/notifikasi");
+    const data = (payload as any)?.data ?? payload;
+    return {
+      hari_ini: Array.isArray(data?.hari_ini) ? data.hari_ini : [],
+      kemarin: Array.isArray(data?.kemarin) ? data.kemarin : [],
+    };
   } catch {
     return null;
   }
@@ -51,24 +32,9 @@ export async function markAllNotificationsRead(): Promise<void> {
 
 export async function getUnreadNotificationCount(): Promise<number> {
   try {
-    const raw = await apiClient.get<any>("/api/notifikasi/unread-count");
-
-    // unwrapData: { success, message, data: 0 } -> 0
-    let data = unwrapData<number>(raw);
-
-    // Handle direct number response
-    if (typeof data === "number") return data;
-
-    // Handle wrapped response { data: 5 } or { unread_count: 5 }
-    if (data && typeof data === "object") {
-      const obj = data as Record<string, unknown>;
-      if (typeof obj.data === "number") return obj.data;
-      if (typeof obj.unread_count === "number") return obj.unread_count;
-      if (typeof obj.unreadCount === "number") return obj.unreadCount;
-      if (typeof obj.count === "number") return obj.count;
-    }
-
-    return 0;
+    // apiClient sudah unwrap response.data, jadi langsung dapat angka.
+    const raw = await apiClient.get<number>("/api/notifikasi/unread-count");
+    return typeof raw === "number" ? raw : 0;
   } catch {
     return 0;
   }

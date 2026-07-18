@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokenStorage.setUser(activeUser, remember);
     setUser(activeUser);
     setIsLoading(false);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = async (credentials: LoginRequest, remember: boolean) => {
     const response = await loginRequest(credentials);

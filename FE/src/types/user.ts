@@ -18,7 +18,6 @@ export const STATUS_USER_COLOR: Record<UserStatus, string> = {
   "Aktivasi Kadaluwarsa": "bg-rose-100 text-rose-500",
 };
 
-// TODO: sesuaikan dengan kontrak API asli dari backend
 export interface ActivityLogItem {
   id: string;
   title: string;
@@ -27,7 +26,6 @@ export interface ActivityLogItem {
   colorDot: "blue" | "yellow" | "green" | "red";
 }
 
-// TODO: sesuaikan dengan kontrak API asli dari backend
 export interface AppUser {
   id: number;
   backendId?: string;

@@ -7,31 +7,22 @@ export interface Kategori {
   updated_at?: string;
 }
 
-function unwrapData<T>(response: any): T {
-  return response?.data ?? response;
-}
-
 export async function getAllKategori() {
-  const response = await apiClient.get<any>("/api/kategori");
-  return unwrapData<Kategori[]>(response);
+  return apiClient.get<Kategori[]>("/api/kategori");
 }
 
 export async function getKategoriById(id: string) {
-  const response = await apiClient.get<any>(`/api/kategori/${id}`);
-  return unwrapData<Kategori>(response);
+  return apiClient.get<Kategori>(`/api/kategori/${id}`);
 }
 
 export async function createKategori(payload: { nama_kategori: string }) {
-  const response = await apiClient.post<any>("/api/kategori", payload);
-  return unwrapData<Kategori>(response);
+  return apiClient.post<Kategori>("/api/kategori", payload);
 }
 
 export async function updateKategori(id: string, payload: { nama_kategori: string }) {
-  const response = await apiClient.put<any>(`/api/kategori/${id}`, payload);
-  return unwrapData<Kategori>(response);
+  return apiClient.put<Kategori>(`/api/kategori/${id}`, payload);
 }
 
 export async function deleteKategori(id: string) {
-  const response = await apiClient.delete<any>(`/api/kategori/${id}`);
-  return unwrapData(response);
+  return apiClient.delete(`/api/kategori/${id}`);
 }

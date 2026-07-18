@@ -12,29 +12,9 @@ import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import TaskFormModal from "../components/tasks/TaskFormModal";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
+import Avatar from "../components/ui/Avatar";
 
 type Periode = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
-
-const AVATAR_COLORS = [
-  "bg-blue-100 text-blue-600",
-  "bg-purple-100 text-purple-600",
-  "bg-amber-100 text-amber-700",
-  "bg-red-100 text-red-600",
-  "bg-green-100 text-green-600",
-];
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-}
-
-function getAvatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 // ---------- UI status (mengikuti StatusTask apa adanya, tanpa mengarang bucket baru) ----------
 // Alur: Admin buat task → status "Menunggu OB" → OB ambil dari app → status "Dikerjakan"
@@ -258,17 +238,6 @@ const Tasks = () => {
       push("error", err instanceof Error ? err.message : "Tugas Gagal Disimpan");
     }
   };
-
-  const handleChangeStatus = async (id: string, status: StatusTask) => {
-    try {
-      await updateTaskStatus(id, status);
-      push("success", "Status Tugas Diperbarui");
-    } catch (err) {
-      push("error", err instanceof Error ? err.message : "Gagal memperbarui status tugas");
-    }
-  };
-
-  void handleChangeStatus;
 
   // --- Delete ---
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
@@ -495,7 +464,6 @@ const Tasks = () => {
                       const style = UI_STATUS_STYLE[task.status];
                       const urgency = getUrgency(task);
                       const hasOb = Boolean(task.petugas?.nama) && task.petugas.nama !== "Belum ditugaskan";
-                      const avatarColor = hasOb ? getAvatarColor(task.petugas.nama) : "bg-gray-100 text-gray-400";
 
                       return (
                         <tr key={task.id} className="hover:bg-gray-50/50 transition-colors">
@@ -518,9 +486,7 @@ const Tasks = () => {
                           <td className="px-6 py-4">
                             {hasOb ? (
                               <div className="flex items-center gap-2">
-                                <span className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${avatarColor}`}>
-                                  {getInitials(task.petugas.nama)}
-                                </span>
+                                <Avatar name={task.petugas.nama} src={task.petugas.fotoProfil} size="sm" />
                                 <span className="font-medium text-gray-700 whitespace-nowrap">{task.petugas.nama}</span>
                               </div>
                             ) : (

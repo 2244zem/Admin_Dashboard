@@ -1,5 +1,4 @@
 import apiClient from "../services/apiClient";
-import { ENDPOINTS } from "../config/endpoints";
 
 export type ChecklistStatus = "BELUM_DIKERJAKAN" | "SEDANG_DIKERJAKAN" | "SELESAI" | "TERLEWAT";
 export type ApiChecklist = Record<string, any>;
@@ -14,7 +13,7 @@ export interface ChecklistParams {
 }
 
 export interface ChecklistPayload {
-  tugas_id?: string;
+  nama_tugas?: string;
   kategori_id?: string;
   lokasi_id?: string;
   lantai_id?: string;
@@ -23,57 +22,23 @@ export interface ChecklistPayload {
   catatan?: string;
 }
 
-// Unwrap data from API response wrapper
-function unwrapData<T>(response: any): T {
-  if (response && typeof response === "object") {
-    // Handle { success: true, data: { data: [...] }, message: "..." }
-    if (Array.isArray(response.data?.data)) {
-      return response.data.data as T;
-    }
-    // Handle { success: true, data: { checklist: [...] }, message: "..." }
-    if (Array.isArray(response.data?.checklist)) {
-      return response.data.checklist as T;
-    }
-    // Handle { success: true, data: [...], message: "..." }
-    if (Array.isArray(response.data)) {
-      return response.data as T;
-    }
-    // Handle raw array
-    if (Array.isArray(response)) {
-      return response as T;
-    }
-  }
-
-  return response as T;
-}
-
 export async function getChecklistHarian(params?: ChecklistParams) {
-  const response = await apiClient.get<any>(ENDPOINTS.TASKS_LIST, { params });
-  return unwrapData(response);
+  // axios interceptor sudah unwrap: response = raw payload
+  return apiClient.get<any>("/api/checklist-harian", { params });
 }
 
 export async function createChecklistHarian(payload: ChecklistPayload) {
-  try {
-    const response = await apiClient.post<any>(ENDPOINTS.TASKS_CREATE, payload);
-    return unwrapData(response);
-  } catch (error: any) {
-    throw error;
-  }
+  return apiClient.post<any>("/api/checklist-harian", payload);
 }
 
 export async function getChecklistHarianDetail(id: string) {
-  const response = await apiClient.get<any>(ENDPOINTS.TASKS_UPDATE(id));
-  // For detail, return full response (not just the array)
-  const data = response?.data ?? response;
-  return data;
+  return apiClient.get<any>(`/api/checklist-harian/${id}`);
 }
 
 export async function updateChecklistHarian(id: string, payload: ChecklistPayload) {
-  const response = await apiClient.patch<any>(ENDPOINTS.TASKS_UPDATE(id), payload);
-  return unwrapData(response);
+  return apiClient.patch<any>(`/api/checklist-harian/${id}`, payload);
 }
 
 export async function deleteChecklistHarian(id: string) {
-  const response = await apiClient.delete<any>(ENDPOINTS.TASKS_DELETE(id));
-  return unwrapData(response);
+  return apiClient.delete<any>(`/api/checklist-harian/${id}`);
 }
