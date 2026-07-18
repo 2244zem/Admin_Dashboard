@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import useUsers from "../hooks/useUsers";
 import { useToast } from "../components/Toast";
 import EditUserModal from "../components/EditUserModal";
-import { STATUS_USER_COLOR, TOKEN_DURATION_OPTIONS } from "../types/user";
+import { TOKEN_DURATION_OPTIONS } from "../types/user";
 import type { AppUser } from "../types/user";
 import { formatTanggal, formatTanggalWaktuWIB } from "../lib/utils";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
@@ -120,7 +120,6 @@ const UserDetail = () => {
 
   // === DERIVED STATE ===
   const isOB = user?.role === "OB" || user?.role === "HR";
-  const isKaryawan = user?.role === "Karyawan";
   const isTokenExpired = user?.tokenStatus === "Expired";
 
   const roleDisplayLabel = (() => {

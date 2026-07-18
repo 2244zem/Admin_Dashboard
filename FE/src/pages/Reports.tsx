@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { STATUS_COLOR } from "../types/laporan";
 import type { Laporan } from "../types/laporan";
 // import { formatWaktu } from "../lib/utils";
 import ReportDetailModal from "../components/ReportDetailModal";
 import useLaporan from "../hooks/useLaporan";
+import useUsers from "../hooks/useUsers";
+import { useToast } from "../components/Toast";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 // import EmptyState from "../components/ui/EmptyState";
@@ -46,6 +48,16 @@ const Reports = () => {
     limit: ITEMS_PER_PAGE,
   }), [filterStatus, filterLokasi, filterLevel, currentPage]);
 
+  const { push } = useToast();
+  const { fetchOB } = useUsers();
+  const [obList, setObList] = useState<Array<{ id: string; nama: string }>>([]);
+
+  useEffect(() => {
+    fetchOB().then((list) => {
+      setObList(list || []);
+    });
+  }, [fetchOB]);
+
   const { laporanList, isLoading, error, fetchLaporan, getLaporanDetail, deleteLaporan, updateLaporan } = useLaporan(apiFilters);
 
   // Client-side filter for area (lokasi) since API only accepts UUID
@@ -72,7 +84,6 @@ const Reports = () => {
     catatan: "",
   });
   const kategoriOptions: Array<{ id: string; nama: string }> = [];
-  const obList: Array<{ id: string; nama: string }> = [];
   const gedungOptions: Array<{ id: string; nama: string }> = [];
   const lantaiOptions: Array<{ id: string; nama: string }> = [];
   const closeAssignModal = () => setAssignTarget(null);
@@ -111,15 +122,28 @@ const Reports = () => {
   const handleDetailStatusChange = async (newStatus: "Menunggu" | "Ditugaskan" | "Selesai" | "Ditolak") => {
     if (!detailTarget) return;
     try {
-      await updateLaporan(detailTarget.backendId || String(detailTarget.id), {
-        ...detailTarget,
+      const isPendingStatus = newStatus === "Ditugaskan";
+      if (isPendingStatus && !detailTarget.ob_id) {
+        push("error", "Status 'Ditugaskan' memerlukan OB yang ditugaskan. Harap gunakan menu Edit untuk menetapkan OB.");
+        return;
+      }
+      
+      const payload: any = {
         status: newStatus,
-      });
+        admin_catatan: detailTarget.desc,
+      };
+      if (detailTarget.ob_id) {
+        payload.ob_id = detailTarget.ob_id;
+      }
+
+      await updateLaporan(detailTarget.backendId || String(detailTarget.id), payload);
+      push("success", "Status laporan berhasil diubah");
+      
       // Refresh detail data
       const refreshed = await getLaporanDetail({ ...detailTarget, status: newStatus });
       setDetailTarget(refreshed);
-    } catch {
-      // Error handled by hook
+    } catch (err) {
+      push("error", err instanceof Error ? err.message : "Gagal mengubah status laporan");
     }
   };
 
@@ -129,14 +153,25 @@ const Reports = () => {
   const closeEditModal = () => setEditTarget(null);
   const handleSaveEdit = async (_updated: Laporan) => {
     try {
-      // Only send fields supported by backend API: status, admin_catatan
-      await updateLaporan(_updated.backendId || String(_updated.id), {
+      const payload: any = {
         status: _updated.status,
         admin_catatan: _updated.desc,
-      });
+      };
+
+      if (_updated.ob_id !== undefined) {
+        payload.ob_id = _updated.ob_id || null;
+      }
+
+      if (_updated.status === "Ditugaskan" && !payload.ob_id) {
+        push("error", "Gagal menyimpan: Mengubah status menjadi 'Ditugaskan' memerlukan OB yang ditugaskan.");
+        return;
+      }
+
+      await updateLaporan(_updated.backendId || String(_updated.id), payload);
+      push("success", "Laporan berhasil diperbarui");
       closeEditModal();
-    } catch {
-      // Error handled by hook
+    } catch (err) {
+      push("error", err instanceof Error ? err.message : "Gagal memperbarui laporan");
     }
   };
 
@@ -542,7 +577,7 @@ const Reports = () => {
       />
 
       {/* MODAL EDIT LAPORAN */}
-      <EditLaporanModal laporan={editTarget} onClose={closeEditModal} onSave={handleSaveEdit} />
+      <EditLaporanModal laporan={editTarget} onClose={closeEditModal} onSave={handleSaveEdit} obList={obList} />
 
       {/* MODAL KONFIRMASI HAPUS LAPORAN */}
       <DeleteLaporanModal laporan={deleteTarget} onClose={closeDeleteConfirm} onConfirm={handleConfirmDelete} />
@@ -684,21 +719,22 @@ const Reports = () => {
 // ---------- Modal Edit Laporan (lokal, hanya dipakai di halaman ini) ----------
 const EDIT_LOKASI_OPTIONS = ["Toilet Lantai 2", "Lobi Utama", "Lantai 4 - Ruang Rapat 4C", "Parkir Barat B2"];
 const EDIT_KATEGORI_OPTIONS = ["Kebersihan Fasilitas", "Kerusakan Fasilitas", "Ketersediaan Barang", "Lainnya"];
-const EDIT_OB_OPTIONS = ["Rahman", "Slamet Rahardjo", "Samsul Bahri", "Ujang Komar", "Bambang S.", "Iwan Setiawan"];
 const EDIT_STATUS_OPTIONS = ["Menunggu", "Ditugaskan", "Selesai", "Ditolak"];
 
 interface EditLaporanModalProps {
   laporan: Laporan | null;
   onClose: () => void;
   onSave: (updated: Laporan) => void;
+  obList: Array<{ id: string; nama: string }>;
 }
 
-const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) => {
+const EditLaporanModal = ({ laporan, onClose, onSave, obList }: EditLaporanModalProps) => {
   const [form, setForm] = useState<{
     name: string;
     loc: string;
     area: string;
     status: string;
+    ob_id: string;
     assignedTo: string;
     desc: string;
     catatanOb: string;
@@ -708,18 +744,29 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
   const laporanId = laporan?.id;
   useMemo(() => {
     if (laporan) {
+      let resolvedObId = laporan.ob_id || "";
+      if (!resolvedObId && laporan.assignedTo && obList.length > 0) {
+        const found = obList.find(
+          (o) => o.nama.trim().toLowerCase() === laporan.assignedTo?.trim().toLowerCase()
+        );
+        if (found) {
+          resolvedObId = found.id;
+        }
+      }
+
       setForm({
         name: laporan.name,
         loc: laporan.loc,
         area: laporan.area ?? EDIT_KATEGORI_OPTIONS[0],
         status: laporan.status,
+        ob_id: resolvedObId,
         assignedTo: laporan.assignedTo ?? "",
         desc: laporan.desc,
         catatanOb: "",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [laporanId]);
+  }, [laporanId, obList]);
 
   if (!laporan || !form) return null;
 
@@ -734,6 +781,7 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
       area: form.area as Laporan["area"],
       status: form.status as Laporan["status"],
       desc: form.desc,
+      ob_id: form.ob_id,
       assignedTo: form.assignedTo,
     });
   };
@@ -845,16 +893,22 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
                     OB yang Mengerjakan
                   </p>
                   <select
-                    value={form.assignedTo}
-                    onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+                    value={form.ob_id}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      const ob = obList.find((o) => o.id === selectedId);
+                      setForm({
+                        ...form,
+                        ob_id: selectedId,
+                        assignedTo: ob ? ob.nama : "",
+                      });
+                    }}
                     className="w-full text-sm font-medium text-gray-800 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
                   >
                     <option value="">Belum ditugaskan</option>
-                    {[form.assignedTo, ...EDIT_OB_OPTIONS.filter((o) => o !== form.assignedTo)]
-                      .filter(Boolean)
-                      .map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
+                    {obList.map((ob) => (
+                      <option key={ob.id} value={ob.id}>{ob.nama}</option>
+                    ))}
                   </select>
                 </div>
               </div>

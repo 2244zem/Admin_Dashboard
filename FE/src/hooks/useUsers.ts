@@ -1,20 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AppUser, UserStatus } from "../types/user";
+import type { AppUser } from "../types/user";
 import apiClient from "../services/apiClient";
-import { activateUserToken, renewUserToken, getUserDetail as getUserDetailApi } from "../api/user";
+import { renewUserToken, getUserDetail as getUserDetailApi } from "../api/user";
 import { ENDPOINTS } from "../config/endpoints";
 import { getErrorMessage } from "../lib/utils";
 import { appUserSchema, validateList } from "../schemas";
-
-// Map UI status (Indonesian labels) -> backend status value.
-// TODO: sesuaikan nilai di kanan dengan enum status yang sebenarnya diterima backend.
-const STATUS_TO_BACKEND: Record<UserStatus, string> = {
-  Aktif: "Aktif",
-  "Non-Aktif": "Non-Aktif",
-  Menunggu: "Menunggu",
-  "Aktivasi Kadaluwarsa": "Aktivasi Kadaluwarsa",
-};
 
 function extractUsers(payload: any): any[] {
   // CRITICAL: Backend can return array directly OR wrapped in object

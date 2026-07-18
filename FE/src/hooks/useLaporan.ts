@@ -231,6 +231,7 @@ export function mapApiLaporanToLaporan(row: any): Laporan {
     foto: fotoUrl || "https://placehold.co/160x120?text=Bukti",
     fotoProfil,
     assignedTo: row.nama_ob || row.ob_ditugaskan || row.assigned_to || row.ob?.nama_lengkap || row.petugas?.nama_lengkap || row.ob?.nama,
+    ob_id: row.ob_id || row.ob?.id || row.petugas?.id || row.ob_ditugaskan_id || undefined,
     taskId: row.task_id || row.tugas_id || row.checklist_harian_id,
   };
 }
@@ -369,6 +370,7 @@ export function useLaporan(filters?: any) {
       createdAt: laporan.createdAt, // Preserve original created time
       name: laporan.name,
       fotoProfil: mapped.fotoProfil || laporan.fotoProfil,
+      ob_id: mapped.ob_id || laporan.ob_id,
     };
   };
 

@@ -22,6 +22,7 @@ export interface Laporan {
   foto: string;
   fotoProfil?: string;
   assignedTo?: string;
+  ob_id?: string;
   taskId?: string;
 }
 
