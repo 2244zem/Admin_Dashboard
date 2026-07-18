@@ -11,7 +11,7 @@ import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Ske
 import ErrorState from "../components/ui/ErrorState";
 
 type Tab = "Mingguan" | "Bulanan" | "Tahunan";
-
+//commit
 // ---------- Helper: agregasi grafik "Laporan Masuk" ----------
 function getMingguanData(list: Laporan[]) {
   const labels = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
