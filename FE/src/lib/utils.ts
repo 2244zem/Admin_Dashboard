@@ -80,22 +80,31 @@ export function getAvatarColor(name: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-export function getErrorMessage(error: any): string {
+interface ErrorWithResponse {
+  response?: { data?: unknown };
+  message?: string;
+}
+
+export function getErrorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   // Response body bisa berupa HTML (mis. proxy/backend mati mengembalikan
   // halaman error). Jangan stringify mentah — tampilkan pesan bersih.
-  const resp = error?.response;
+  const err = error as ErrorWithResponse;
+  const resp = err?.response;
   if (resp?.data) {
     const data = resp.data;
     if (typeof data === "string") {
       if (data.trim().startsWith("<")) return "Server tidak merespons (cek koneksi backend).";
       return data;
     }
-    if (data?.message) return data.message;
+    if (data && typeof data === "object" && "message" in data) {
+      const msg = (data as { message?: unknown }).message;
+      if (typeof msg === "string") return msg;
+    }
   }
   // Axios sering membungkus error jaringan (502/timeout) di .message
-  if (error?.message) {
-    const msg = String(error.message);
+  if (err?.message) {
+    const msg = String(err.message);
     if (/Network Error|502|Failed to fetch|timeout/i.test(msg)) {
       return "Gagal terhubung ke server. Pastikan backend sedang berjalan.";
     }

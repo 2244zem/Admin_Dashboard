@@ -16,7 +16,7 @@ import UserDetail from "./pages/UserDetail";
 import PrivacyTerms from "./pages/PrivacyTerms";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import NotificationBell from "./components/NotificationBell";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "./hooks/useAuth";
 
 function UnauthorizedPage() {
   const navigate = useNavigate();
@@ -48,13 +48,7 @@ interface PageHeaderProps {
 }
 
 function PageHeader({ title }: PageHeaderProps) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await logout();
-    navigate("/login");
-  };
+  const { user } = useAuth();
 
   return (
     <header className="flex items-center justify-between px-8 py-6 bg-white border-b border-gray-200">
@@ -68,11 +62,11 @@ function PageHeader({ title }: PageHeaderProps) {
         {/* User Info */}
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-sm font-semibold text-gray-800">{user?.name || "User"}</p>
+            <p className="text-sm font-semibold text-gray-800">{user?.namaLengkap || "User"}</p>
             <p className="text-xs text-gray-500">{user?.role || "Admin"}</p>
           </div>
           <div className="h-9 w-9 rounded-full bg-[#0F4C81] flex items-center justify-center text-white font-bold text-sm">
-            {(user?.name || "U").charAt(0).toUpperCase()}
+            {(user?.namaLengkap || "U").charAt(0).toUpperCase()}
           </div>
         </div>
       </div>

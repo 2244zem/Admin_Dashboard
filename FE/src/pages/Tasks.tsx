@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { useToast } from "../components/Toast";
+import { useState, useMemo } from "react";
+import { useToast } from "../hooks/useToast";
 import type { Task, StatusTask } from "../types/task";
 import useTasks, { type TaskFilters } from "../hooks/useTasks";
 import useLokasi from "../hooks/useLokasi";
@@ -14,6 +14,23 @@ import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import Avatar from "../components/ui/Avatar";
 
 type Periode = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
+
+interface TaskFormValues {
+  kategori_id: string;
+  nama_tugas: string;
+  lokasi_id: string;
+  lantai_id: string;
+  catatan: string;
+}
+
+interface TaskEditInitialData {
+  kategori_id: string;
+  namaTugas: string;
+  lokasi_id: string;
+  lantai_id: string;
+  catatan: string;
+  [key: string]: unknown;
+}
 
 // ---------- UI status (mengikuti StatusTask apa adanya, tanpa mengarang bucket baru) ----------
 // Alur: Admin buat task → status "Menunggu OB" → OB ambil dari app → status "Dikerjakan"
@@ -167,7 +184,6 @@ const Tasks = () => {
 
   // --- Pagination ---
   const [page, setPage] = useState(1);
-  useEffect(() => setPage(1), [selectedGedung, periode]);
   const sorted = useMemo(() => [...periodTasks].sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1)), [periodTasks]);
   const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
   const pageClamped = Math.min(page, totalPages);
@@ -179,7 +195,7 @@ const Tasks = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [taskToEditData, setTaskToEditData] = useState<any>(null);
+  const [taskToEditData, setTaskToEditData] = useState<TaskEditInitialData | null>(null);
 
   const openCreateModal = () => {
     setModalMode("create");
@@ -205,7 +221,7 @@ const Tasks = () => {
     setIsModalOpen(true);
   };
 
-  const handleSimpanTugas = async (form: any) => {
+  const handleSimpanTugas = async (form: TaskFormValues) => {
     if (!form.kategori_id || !form.nama_tugas || !form.lokasi_id || !form.lantai_id) {
       push("error", "Tugas Gagal Disimpan: Mohon lengkapi Kategori, Nama Tugas, Lokasi Gedung, dan Lokasi Lantai.");
       return;
@@ -225,21 +241,10 @@ const Tasks = () => {
       }
       push("success", "Tugas Berhasil Disimpan");
       setIsModalOpen(false);
-    } catch (err) {
+    } catch (err: unknown) {
       push("error", err instanceof Error ? err.message : "Tugas Gagal Disimpan");
     }
   };
-
-  const handleChangeStatus = async (id: string, status: StatusTask) => {
-    try {
-      await updateTaskStatus(id, status);
-      push("success", "Status Tugas Diperbarui");
-    } catch (err) {
-      push("error", err instanceof Error ? err.message : "Gagal memperbarui status tugas");
-    }
-  };
-
-  void handleChangeStatus;
 
   // --- Delete ---
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
@@ -314,7 +319,7 @@ const Tasks = () => {
                   {(["Hari Ini", "Mingguan", "Bulanan", "Tahunan"] as Periode[]).map((p) => (
                     <button
                       key={p}
-                      onClick={() => setPeriode(p)}
+                      onClick={() => { setPeriode(p); setPage(1); }}
                       className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
                         periode === p ? "bg-[#0F4C81] text-white" : "text-gray-500 hover:text-gray-700"
                       }`}
@@ -329,7 +334,7 @@ const Tasks = () => {
                   <div className="relative inline-block">
                     <select
                       value={selectedGedung}
-                      onChange={(e) => { setSelectedGedung(e.target.value); setSelectedLantai("Semua Lantai"); }}
+                      onChange={(e) => { setSelectedGedung(e.target.value); setSelectedLantai("Semua Lantai"); setPage(1); }}
                       className="appearance-none bg-blue-50 text-[#0F4C81] font-semibold text-sm rounded-full pl-4 pr-9 py-2 outline-none cursor-pointer border border-blue-100"
                     >
                       <option value="Semua Gedung">Semua Gedung</option>

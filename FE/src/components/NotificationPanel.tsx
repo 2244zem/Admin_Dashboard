@@ -55,13 +55,26 @@ export default function NotificationPanel({
             </span>
           )}
         </h3>
-        <button
-          onClick={onMarkAllRead}
-          className="text-xs font-semibold text-[#0F4C81] hover:underline disabled:opacity-40 disabled:no-underline"
-          disabled={notifications.every(n => n.read)}
-        >
-          Tandai semua dibaca
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onMarkAllRead}
+            className="text-xs font-semibold text-[#0F4C81] hover:underline disabled:opacity-40 disabled:no-underline"
+            disabled={notifications.every(n => n.read)}
+          >
+            Tandai semua dibaca
+          </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              aria-label="Tutup"
+              className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* List */}

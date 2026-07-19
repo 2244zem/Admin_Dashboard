@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import useUsers from "../hooks/useUsers";
-import { useToast } from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 import AddUserModal from "../components/AddUserModal";
+import type { AddUserPayload } from "../components/AddUserModal";
 import EditUserModal from "../components/EditUserModal";
+import type { EditUserPayload } from "../components/EditUserModal";
 import { ROLE_OPTIONS, STATUS_USER_COLOR } from "../types/user";
 import type { AppUser, UserRole } from "../types/user";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
@@ -109,7 +111,7 @@ const Users = () => {
     }
   };
 
-  const handleAddUserSave = async (payload: any) => {
+  const handleAddUserSave = async (payload: AddUserPayload) => {
     try {
       const res = await addUser(payload);
       if (res && res.success === false) {
@@ -123,7 +125,7 @@ const Users = () => {
     }
   };
 
-  const handleEditUserSave = async (payload: any) => {
+  const handleEditUserSave = async (payload: EditUserPayload) => {
     if (!editTarget?.backendId) return;
     try {
       const res = await updateUser(editTarget.backendId, payload);
@@ -250,7 +252,7 @@ const Users = () => {
               <div className="relative">
                 <select
                   value={roleDraft}
-                  onChange={(e) => setRoleDraft(e.target.value as any)}
+                  onChange={(e) => setRoleDraft(e.target.value as UserRole)}
                   className="w-full bg-white text-gray-800 text-sm rounded-xl pl-4 pr-10 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all duration-200 appearance-none cursor-pointer"
                 >
                   <option value="Semua Role">Semua Role</option>

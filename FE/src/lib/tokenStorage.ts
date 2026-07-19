@@ -11,7 +11,7 @@ export const tokenStorage = {
     return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
   },
   
-  getUser: (): any | null => {
+  getUser: (): unknown => {
     const raw = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
     if (!raw) return null;
     try {
@@ -31,7 +31,7 @@ export const tokenStorage = {
     }
   },
 
-  setUser: (user: any, remember: boolean): void => {
+  setUser: (user: unknown, remember: boolean): void => {
     const val = JSON.stringify(user);
     if (remember) {
       localStorage.setItem(USER_KEY, val);

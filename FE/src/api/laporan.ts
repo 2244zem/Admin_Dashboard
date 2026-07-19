@@ -16,7 +16,7 @@ export interface UserProfileResponse {
     total_laporan: number; tasksCompleted: number; rejected: number;
   };
   laporan: {
-    items: any[];
+    items: Record<string, unknown>[];
     next_cursor: string;
     meta: { total_items: number; current_page: number; limit: number; total_pages: number };
   };
@@ -38,7 +38,7 @@ export interface AdminLaporanResponse {
   message: string;
   data: {
     laporan: {
-      items: any[];
+      items: Record<string, unknown>[];
       meta: { total_items: number; current_page: number; limit: number; total_pages: number };
     };
     ruangan_terpopuler: Array<{ ruangan_id: string; nama_ruangan: string; nama_lantai: string; nama_lokasi: string; total_laporan: number }>;
@@ -46,19 +46,27 @@ export interface AdminLaporanResponse {
   };
 }
 
-export async function getAdminLaporan(params?: AdminLaporanParams) {
+export interface AdminLaporanResult {
+  items: Record<string, unknown>[];
+  meta: { total_items: number; current_page: number; limit: number; total_pages: number };
+}
+
+export async function getAdminLaporan(params?: AdminLaporanParams): Promise<AdminLaporanResult> {
   const response = await apiClient.get<AdminLaporanResponse>("/api/admin/laporan", { params });
-  // Return items directly, not wrapped
-  return response?.data?.laporan?.items ?? [];
+  const laporan = response?.data?.laporan;
+  return {
+    items: laporan?.items ?? [],
+    meta: laporan?.meta ?? { total_items: 0, current_page: params?.page ?? 1, limit: params?.limit ?? 0, total_pages: 1 },
+  };
 }
 
 export async function getAdminLaporanDetail(id: string) {
-  const response = await apiClient.get<any>(`/api/admin/laporan/${id}`);
+  const response = await apiClient.get<Record<string, unknown>>(`/api/admin/laporan/${id}`);
   // Return data directly for detail
   return response?.data ?? response;
 }
 
-export async function updateAdminLaporan(id: string, payload: any) {
+export async function updateAdminLaporan(id: string, payload: Record<string, unknown>) {
   return apiClient.patch(`/api/admin/laporan/${id}`, payload);
 }
 

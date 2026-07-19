@@ -1,4 +1,5 @@
 import apiClient from "../services/apiClient";
+import type { ApiMutationResult } from "../types/api";
 
 // Role UUID mapping - aligned with backend database
 export const ROLE_UUID_MAP: Record<string, string> = {
@@ -18,7 +19,7 @@ export interface AdminUsersResponse {
   success: boolean;
   message: string;
   data: {
-    items: any[];
+    items: Record<string, unknown>[];
     meta: { total_items: number; current_page: number; limit: number; total_pages: number };
   };
 }
@@ -29,21 +30,21 @@ export async function getAdminUsers(params?: { page?: number; limit?: number; se
 }
 
 export async function getAllOB() {
-  const response = await apiClient.get<any>("/api/admin/user/all-ob");
-  return response?.data ?? response;
+  const response = await apiClient.get<unknown>("/api/admin/user/all-ob");
+  return (response as { data?: unknown })?.data ?? response;
 }
 
 export async function createUser(payload: { username: string; email: string; nama_lengkap: string; role_id: string }) {
-  return apiClient.post("/api/admin/user", payload);
+  return apiClient.post<ApiMutationResult>("/api/admin/user", payload);
 }
 
 export async function getUserDetail(id: string) {
-  const response = await apiClient.get<any>(`/api/admin/user/${id}`);
-  return response?.data ?? response;
+  const response = await apiClient.get<unknown>(`/api/admin/user/${id}`);
+  return (response as { data?: unknown })?.data ?? response;
 }
 
-export async function updateUser(id: string, payload: FormData | Record<string, any>) {
-  return apiClient.patch(`/api/admin/user/${id}`, payload);
+export async function updateUser(id: string, payload: FormData | Record<string, unknown>) {
+  return apiClient.patch<ApiMutationResult>(`/api/admin/user/${id}`, payload);
 }
 
 export async function deleteUser(id: string) {

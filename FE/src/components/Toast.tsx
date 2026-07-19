@@ -1,22 +1,7 @@
-import { createContext, useContext, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-
-export type ToastType = "success" | "error";
-
-export interface ToastItem {
-  id: number;
-  type: ToastType;
-  message: string;
-}
-
-interface ToastContextType {
-  toasts: ToastItem[];
-  push: (type: ToastType, message: string) => void;
-  dismiss: (id: number) => void;
-}
-
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
+import { ToastContext, type ToastItem, type ToastType } from "./ToastContext";
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -39,14 +24,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </ToastContext.Provider>
   );
-}
-
-export function useToast() {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error("useToast harus digunakan di dalam ToastProvider");
-  }
-  return context;
 }
 
 const BG_STYLE: Record<ToastType, string> = {

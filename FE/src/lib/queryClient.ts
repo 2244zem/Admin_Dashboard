@@ -6,7 +6,12 @@ export const queryClient = new QueryClient({
       staleTime: 5_000,
       gcTime: 5 * 60_000,
       refetchOnWindowFocus: false,
-      retry: 1,
+      retry: (failureCount, error: unknown) => {
+        // Don't retry auth/permission errors — the interceptor already handles 401.
+        const statusCode = (error as { statusCode?: number } | null)?.statusCode;
+        if (statusCode === 401 || statusCode === 403) return false;
+        return failureCount < 1;
+      },
     },
   },
 });

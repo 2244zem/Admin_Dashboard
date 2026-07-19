@@ -60,6 +60,7 @@ export default function DailyChecklistModal({
                   <p className="text-xs text-gray-400 mt-0.5">
                     {detail.nama} • {detail.gedung} • {detail.lokasi}
                   </p>
+                  <p className="text-xs text-gray-400">{formatTanggalPanjang(detail.tanggal)}</p>
                 </div>
               </div>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 shrink-0">

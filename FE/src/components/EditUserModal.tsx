@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ROLE_OPTIONS } from "../types/user";
 import type { AppUser, UserRole, UserStatus } from "../types/user";
@@ -10,6 +10,7 @@ export interface EditUserPayload {
   noTelepon: string;
   role: UserRole;
   status: UserStatus;
+  [key: string]: unknown;
 }
 
 interface EditUserModalProps {
@@ -21,23 +22,20 @@ interface EditUserModalProps {
 
 const STATUS_OPTIONS: UserStatus[] = ["Aktif", "Non-Aktif", "Menunggu", "Aktivasi Kadaluwarsa"];
 
-const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
-  const [form, setForm] = useState<EditUserPayload | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      setForm({
+const buildForm = (user: AppUser | null): EditUserPayload | null =>
+  user
+    ? {
         namaLengkap: user.namaLengkap,
         username: user.username,
         email: user.email,
         noTelepon: user.noTelepon,
         role: user.role,
         status: user.status,
-      });
-    } else {
-      setForm(null);
-    }
-  }, [user]);
+      }
+    : null;
+
+const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
+  const [form, setForm] = useState<EditUserPayload | null>(() => buildForm(user));
 
   const handleSubmit = async () => {
     if (!user || !form) return;
@@ -48,7 +46,10 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
 
     try {
       await onSave(form);
-    } catch {}
+    } catch {
+      // onSave surfaces the error via a toast; keep the modal open.
+      return;
+    }
   };
 
   return (

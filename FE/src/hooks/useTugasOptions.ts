@@ -6,8 +6,8 @@ import { optionSchema, validateList } from "../schemas";
 
 async function fetchTugas(kategori_id?: string) {
   const data = await getAllTugas({ kategori_id });
-  const list = extractArray(data, "tugas");
-  return validateList(optionSchema, list.map((t: any) => ({ id: String(t.id), nama: t.nama_tugas || "-" })), "tugas");
+  const list = extractArray<{ id: unknown; nama_tugas?: string }>(data, "tugas");
+  return validateList(optionSchema, list.map((t) => ({ id: String(t.id), nama: t.nama_tugas || "-" })));
 }
 
 export { useTugasOptions };

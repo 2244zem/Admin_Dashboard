@@ -1,5 +1,5 @@
 import apiClient from "../services/apiClient";
-import { unwrapData, flattenChecklistItems } from "../lib/response";
+import { flattenChecklistItems } from "../lib/response";
 
 export type ChecklistStatus = "BELUM_DIKERJAKAN" | "SEDANG_DIKERJAKAN" | "SELESAI" | "TERLEWAT";
 
@@ -13,27 +13,37 @@ export interface ChecklistPayload {
   lantai_id?: string; ob_id?: string; status?: ChecklistStatus; catatan?: string;
 }
 
+export type ChecklistRow = Record<string, unknown>;
+
+export interface ChecklistHarianResponse {
+  items: ChecklistRow[];
+  [key: string]: unknown;
+}
+
 const ENDPOINT = "/api/checklist-harian";
 
-export async function getChecklistHarian(params?: ChecklistParams) {
-  const data = await apiClient.get<any>(ENDPOINT, { params });
-  const items = flattenChecklistItems(
-    data?.checklist?.items ?? data?.items ?? data?.checklist ?? data ?? []
+export async function getChecklistHarian(params?: ChecklistParams): Promise<ChecklistHarianResponse> {
+  const data = await apiClient.get<ChecklistHarianResponse>(ENDPOINT, { params });
+  const items = flattenChecklistItems<ChecklistRow>(
+    (data?.checklist as { items?: ChecklistRow[] } | undefined)?.items
+      ?? (data?.items as ChecklistRow[] | undefined)
+      ?? (data?.checklist as ChecklistRow[] | undefined)
+      ?? []
   );
   return { ...data, items };
 }
 
 export async function createChecklistHarian(payload: ChecklistPayload) {
-  return apiClient.post<any>(ENDPOINT, payload);
+  return apiClient.post<unknown>(ENDPOINT, payload);
 }
 
-export async function getChecklistHarianDetail(id: string) {
-  const data = await apiClient.get<any>(`${ENDPOINT}/${id}`);
-  return unwrapData(data);
+export async function getChecklistHarianDetail(id: string): Promise<ChecklistRow> {
+  const data = await apiClient.get<ChecklistRow>(`${ENDPOINT}/${id}`);
+  return data;
 }
 
 export async function updateChecklistHarian(id: string, payload: ChecklistPayload) {
-  return apiClient.patch<any>(`${ENDPOINT}/${id}`, payload);
+  return apiClient.patch<unknown>(`${ENDPOINT}/${id}`, payload);
 }
 
 export async function deleteChecklistHarian(id: string) {

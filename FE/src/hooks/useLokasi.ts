@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import apiClient from "../services/apiClient";
 import { getLokasi, getLantai, getRuangan } from "../api/lokasi";
@@ -9,6 +9,10 @@ export interface Ruangan { id: string; nama: string }
 export interface Lantai { id: string; label: string; nama: string; ruangan: Ruangan[] }
 export interface Gedung { id: string; nama: string; kapasitas: string; lantai: Lantai[] }
 
+interface LokasiRow { id?: unknown; nama_lokasi?: string; jumlah_lantai?: unknown }
+interface LantaiRow { id?: unknown; lokasi_id?: unknown; nomor_lantai?: unknown; nama_lantai?: string }
+interface RuanganRow { id?: unknown; lantai_id?: unknown; nama?: string }
+
 const GEDUNG_KEY = ["gedung"] as const;
 
 async function fetchGedung(): Promise<Gedung[]> {
@@ -16,23 +20,24 @@ async function fetchGedung(): Promise<Gedung[]> {
     getLokasi(), getLantai(), getRuangan()
   ]);
 
-  const lokasiList = extractArray(lokasi, "lokasi");
-  const lantaiList = extractArray(lantai, "lantai");
-  const ruanganList = extractArray(ruangan, "ruangan");
+  const lokasiList = extractArray<LokasiRow>(lokasi, "lokasi");
+  const lantaiList = extractArray<LantaiRow>(lantai, "lantai");
+  const ruanganList = extractArray<RuanganRow>(ruangan, "ruangan");
 
-  return lokasiList.map((loc: any) => {
+  return lokasiList.map((loc) => {
+    const lokasiId = String(loc.id);
     const lantai = lantaiList
-      .filter((l: any) => String(l.lokasi_id) === String(loc.id))
-      .map((l: any) => ({
+      .filter((l) => String(l.lokasi_id) === lokasiId)
+      .map((l) => ({
         id: String(l.id),
         label: `L${l.nomor_lantai ?? ""}`,
         nama: l.nama_lantai || `Lantai ${l.nomor_lantai}`,
         ruangan: ruanganList
-          .filter((r: any) => String(r.lantai_id) === String(l.id))
-          .map((r: any) => ({ id: String(r.id), nama: r.nama || "-" })),
+          .filter((r) => String(r.lantai_id) === String(l.id))
+          .map((r) => ({ id: String(r.id), nama: r.nama || "-" })),
       }));
 
-    return { id: String(loc.id), nama: loc.nama_lokasi || "-", kapasitas: String(loc.jumlah_lantai || lantai.length), lantai };
+    return { id: lokasiId, nama: loc.nama_lokasi || "-", kapasitas: String(loc.jumlah_lantai || lantai.length), lantai };
   });
 }
 
@@ -54,12 +59,14 @@ function useLokasi() {
   const refetch = () => qc.invalidateQueries({ queryKey: GEDUNG_KEY });
 
   useEffect(() => {
-    const h = () => { if (!import.meta.env.VITE_API_BASE_URL) refetch(); };
+    const h = () => {
+      if (!import.meta.env.VITE_API_BASE_URL) qc.invalidateQueries({ queryKey: GEDUNG_KEY });
+    };
     window.addEventListener("local-data-changed", h);
     return () => window.removeEventListener("local-data-changed", h);
   }, [qc]);
 
-  const run = (fn: () => Promise<any>) => fn().catch((e: any) => { throw new Error(getErrorMessage(e)); });
+  const run = (fn: () => Promise<unknown>) => fn().catch((e: unknown) => { throw new Error(getErrorMessage(e)); });
 
   return {
     gedungList: query.data ?? [],

@@ -43,7 +43,10 @@ const AddUserModal = ({ open, onClose, onSave }: AddUserModalProps) => {
     try {
       await onSave(form);
       resetAndClose();
-    } catch {}
+    } catch {
+      // onSave surfaces the error via a toast; keep the modal open.
+      return;
+    }
   };
 
   return (

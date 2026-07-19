@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { STATUS_COLOR } from "../types/laporan";
 import type { Laporan } from "../types/laporan";
 import ReportDetailModal from "../components/ReportDetailModal";
 import useLaporan from "../hooks/useLaporan";
+import { useToast } from "../hooks/useToast";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import Avatar from "../components/ui/Avatar";
@@ -29,6 +30,7 @@ const LEVEL_OPTIONS = ["Semua Level", "URGENT", "STANDARD"];
 const ITEMS_PER_PAGE = 4;
 
 const Reports = () => {
+  const { push } = useToast();
   // --- Filter state ---
   const [filterStatus, setFilterStatus] = useState("Semua Status");
   const [filterLokasi, setFilterLokasi] = useState("Semua Area");
@@ -36,16 +38,15 @@ const Reports = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const apiFilters = useMemo(() => ({
-    // Convert UI status label to backend enum
+    // Convert UI status label to backend enum (server-side filter)
     status: STATUS_MAP[filterStatus],
-    // API only accepts lokasi_id (UUID) for location filter, not area name
-    // We'll do client-side filtering for area display names
-    level: filterLevel === "Semua Level" ? undefined : filterLevel,
+    // NOTE: area (lokasi) & level are filtered client-side below because the
+    // API only accepts UUID lokasi_id, not the display names used here.
     page: currentPage,
     limit: ITEMS_PER_PAGE,
-  }), [filterStatus, filterLokasi, filterLevel, currentPage]);
+  }), [filterStatus, currentPage]);
 
-  const { laporanList, isLoading, error, fetchLaporan, getLaporanDetail, deleteLaporan, updateLaporan } = useLaporan(apiFilters);
+  const { laporanList, meta, isLoading, error, fetchLaporan, getLaporanDetail, deleteLaporan, updateLaporan } = useLaporan(apiFilters);
 
   // Client-side filter for area (lokasi) since API only accepts UUID
   const filteredByArea = useMemo(() => {
@@ -61,7 +62,6 @@ const Reports = () => {
 
   // Foto bukti dan deskripsi ditampilkan melalui modal detail laporan.
   const [previewFoto, setPreviewFoto] = useState<{ url: string; desc: string } | null>(null);
-  const [assignTarget, setAssignTarget] = useState<Laporan | null>(null);
 
   const totalLaporanAktif = useMemo(() => {
     return filteredByLevel.filter(
@@ -103,8 +103,9 @@ const Reports = () => {
       // Refresh detail data
       const refreshed = await getLaporanDetail({ ...detailTarget, status: newStatus });
       setDetailTarget(refreshed);
-    } catch {
-      // Error handled by hook
+      push("success", "Status laporan diperbarui");
+    } catch (err: unknown) {
+      push("error", err instanceof Error ? err.message : "Gagal memperbarui status laporan");
     }
   };
 
@@ -118,10 +119,12 @@ const Reports = () => {
       await updateLaporan(_updated.backendId || String(_updated.id), {
         status: _updated.status,
         admin_catatan: _updated.desc,
+        assignedTo: _updated.assignedTo,
       });
       closeEditModal();
-    } catch {
-      // Error handled by hook
+      push("success", "Laporan diperbarui");
+    } catch (err) {
+      push("error", err instanceof Error ? err.message : "Gagal memperbarui laporan");
     }
   };
 
@@ -134,15 +137,18 @@ const Reports = () => {
     try {
       await deleteLaporan(deleteTarget.backendId || String(deleteTarget.id));
       closeDeleteConfirm();
-    } catch {
-      // Error handled by hook
+      push("success", "Laporan berhasil dihapus");
+    } catch (err) {
+      push("error", err instanceof Error ? err.message : "Gagal menghapus laporan");
     }
   };
 
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredByLevel.length / ITEMS_PER_PAGE));
-  const startIndex = filteredByLevel.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
-  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, filteredByLevel.length);
+  // Pagination (server-side via meta). Area/level filters above only narrow the
+  // rows already fetched for the current page.
+  const totalPages = Math.max(1, meta.total_pages || 1);
+  const totalItems = meta.total_items || 0;
+  const startIndex = totalItems === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
 
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages) return;
@@ -327,7 +333,7 @@ const Reports = () => {
                   ) : (
                     filteredByLevel.map((data) => (
                       <motion.tr
-                        key={data.id}
+                        key={data.backendId || data.id}
                         whileHover={{ backgroundColor: "rgba(15, 76, 129, 0.03)" }}
                         className="transition-colors"
                       >
@@ -422,9 +428,9 @@ const Reports = () => {
             {/* Pagination */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500">
               <span>
-                {filteredByLevel.length === 0
+                {totalItems === 0
                   ? "Tidak ada laporan"
-                  : `Menampilkan ${startIndex} sampai ${endIndex} dari ${filteredByLevel.length} laporan`}
+                  : `Menampilkan ${startIndex} sampai ${endIndex} dari ${totalItems} laporan`}
               </span>
               <div className="flex items-center gap-1">
                 <motion.button
@@ -514,7 +520,7 @@ const Reports = () => {
       />
 
       {/* MODAL EDIT LAPORAN */}
-      <EditLaporanModal laporan={editTarget} onClose={closeEditModal} onSave={handleSaveEdit} />
+      <EditLaporanModal key={editTarget?.backendId ?? editTarget?.id} laporan={editTarget} onClose={closeEditModal} onSave={handleSaveEdit} />
 
       {/* MODAL KONFIRMASI HAPUS LAPORAN */}
       <DeleteLaporanModal laporan={deleteTarget} onClose={closeDeleteConfirm} onConfirm={handleConfirmDelete} />
@@ -536,6 +542,8 @@ interface EditLaporanModalProps {
 }
 
 const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) => {
+  // Form diinisialisasi sekali dari laporan. Parent memasang `key` per-laporan
+  // sehingga komponen remount (dan form ter-reset) saat laporan target berubah.
   const [form, setForm] = useState<{
     name: string;
     loc: string;
@@ -544,23 +552,19 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
     assignedTo: string;
     desc: string;
     catatanOb: string;
-  } | null>(null);
-
-  // Sinkronkan form setiap kali laporan target berubah (modal dibuka untuk laporan baru).
-  useEffect(() => {
-    if (laporan) {
-      setForm({
-        name: laporan.name,
-        loc: laporan.loc,
-        area: laporan.area ?? EDIT_KATEGORI_OPTIONS[0],
-        status: laporan.status,
-        assignedTo: laporan.assignedTo ?? "",
-        desc: laporan.desc,
-        catatanOb: "",
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [laporan?.id]);
+  } | null>(() =>
+    laporan
+      ? {
+          name: laporan.name,
+          loc: laporan.loc,
+          area: laporan.area ?? EDIT_KATEGORI_OPTIONS[0],
+          status: laporan.status,
+          assignedTo: laporan.assignedTo ?? "",
+          desc: laporan.desc,
+          catatanOb: "",
+        }
+      : null
+  );
 
   if (!laporan || !form) return null;
 

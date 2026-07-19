@@ -21,25 +21,33 @@ const mapApiStatus = (s: unknown): StatusTask => {
   return "Belum";
 };
 
-const mapUiStatus = (s: StatusTask): ChecklistStatus => ({
-  "Proses": "SEDANG_DIKERJAKAN", "Selesai": "SELESAI", "Delayed": "TERLEWAT",
-}[s] ?? "BELUM_DIKERJAKAN");
+const UI_TO_CHECKLIST_STATUS: Record<StatusTask, ChecklistStatus> = {
+  Belum: "BELUM_DIKERJAKAN",
+  Proses: "SEDANG_DIKERJAKAN",
+  Selesai: "SELESAI",
+  Delayed: "TERLEWAT",
+};
+
+const mapUiStatus = (s: StatusTask): ChecklistStatus => UI_TO_CHECKLIST_STATUS[s] ?? "BELUM_DIKERJAKAN";
 
 // Map API row to Task
-export function mapApiChecklistToTask(row: any): Task {
-  const get = (v: any, ...keys: string[]) => keys.reduce((o, k) => o?.[k], v) ?? "";
-  const tanggal = row.tanggal || row.created_at || new Date().toISOString();
+export function mapApiChecklistToTask(row: Record<string, unknown>): Task {
+  const get = (v: unknown, ...keys: string[]): unknown =>
+    keys.reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), v) ?? "";
+  const tanggal = String(row.tanggal ?? row.created_at ?? new Date().toISOString());
+
+  const lantai = row.lantai as { nomor_lantai?: unknown } | undefined;
 
   return {
     id: String(row.id ?? ""),
-    kategori: get(row, "kategori", "nama_kategori") || get(row, "tugas", "kategori", "nama_kategori") || "-",
-    namaTugas: get(row, "nama_tugas") || get(row, "tugas", "nama_tugas") || "-",
-    gedung: get(row, "nama_lokasi") || get(row, "lokasi", "nama") || "-",
-    lantai: get(row, "nama_lantai") || (row.lantai?.nomor_lantai ? `Lantai ${row.lantai.nomor_lantai}` : "-"),
-    petugas: { nama: get(row, "ob", "nama_lengkap") || get(row, "nama_ob") || "Belum ditugaskan" },
+    kategori: String(get(row, "kategori", "nama_kategori") || get(row, "tugas", "kategori", "nama_kategori") || "-"),
+    namaTugas: String(get(row, "nama_tugas") || get(row, "tugas", "nama_tugas") || "-"),
+    gedung: String(get(row, "nama_lokasi") || get(row, "lokasi", "nama") || "-"),
+    lantai: String(get(row, "nama_lantai") || (lantai?.nomor_lantai ? `Lantai ${lantai.nomor_lantai}` : "-")),
+    petugas: { nama: String(get(row, "ob", "nama_lengkap") || get(row, "nama_ob") || "Belum ditugaskan") },
     waktu: String(tanggal).slice(11, 16) || "-",
     tanggal: String(tanggal).slice(0, 10),
-    catatan: row.catatan,
+    catatan: row.catatan != null ? String(row.catatan) : undefined,
     status: mapApiStatus(row.status),
   };
 }
@@ -51,15 +59,25 @@ export interface TaskFilters {
 // Strip prefix (gd-, lt-, etc)
 const stripPrefix = (id: string) => id?.replace(/^[a-z]+-/, "");
 
+interface TaskPayload {
+  nama_tugas?: string;
+  kategori_id?: string;
+  lokasi_id?: string;
+  lantai_id?: string;
+  ob_id?: string;
+  status?: StatusTask;
+  catatan?: string;
+}
+
 // Build payload for checklist API
-const toPayload = (p: any) => ({
+const toPayload = (p: TaskPayload) => ({
   ...(p.nama_tugas && { nama_tugas: p.nama_tugas }),
   ...(p.kategori_id && { kategori_id: stripPrefix(p.kategori_id) }),
   ...(p.lokasi_id && { lokasi_id: stripPrefix(p.lokasi_id) }),
   ...(p.lantai_id && { lantai_id: stripPrefix(p.lantai_id) }),
-  ...(p.ob_id != null && p.ob_id !== "" && { ob_id: stripPrefix(p.ob_id) }),
+  ...(p.ob_id && { ob_id: stripPrefix(p.ob_id) }),
   ...(p.status && { status: mapUiStatus(p.status) }),
-  ...(p.catatan && { catatan: p.catatan }),
+  ...(p.catatan ? { catatan: p.catatan } : {}),
 });
 
 const TASKS_KEY = ["tasks"] as const;
@@ -67,7 +85,7 @@ const TASKS_KEY = ["tasks"] as const;
 async function fetchTasks(filters?: TaskFilters): Promise<Task[]> {
   const payload = await getChecklistHarian(filters);
   const items = Array.isArray(payload) ? payload : payload?.items ?? [];
-  return validateList(taskSchema, items.map(mapApiChecklistToTask), "task");
+  return validateList(taskSchema, items.map(mapApiChecklistToTask));
 }
 
 export { useTasks };
@@ -89,13 +107,13 @@ function useTasks(filters?: TaskFilters) {
   const runMutation = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
     setMutating(true); setError(null);
     try { return await fn(); }
-    catch (e: any) {
+    catch (e: unknown) {
       setError(getErrorMessage(e)); throw e;
     } finally { setMutating(false); }
   }, []);
 
   const fetchTaskDetail = async (id: string): Promise<Task | null> => {
-    try { return mapApiChecklistToTask(await getChecklistHarianDetail(id)); }
+    try { return mapApiChecklistToTask(await getChecklistHarianDetail(id) as Record<string, unknown>); }
     catch { return null; }
   };
 
@@ -105,8 +123,8 @@ function useTasks(filters?: TaskFilters) {
     error: mutationError ?? (query.error ? getErrorMessage(query.error) : null),
     fetchTasks: () => qc.invalidateQueries({ queryKey: TASKS_KEY }),
     fetchTaskDetail,
-    createTask: (p: any) => runMutation(() => createChecklistHarian(toPayload(p))),
-    updateTask: (id: string, p: any) => runMutation(() => updateChecklistHarian(id, toPayload(p))),
+    createTask: (p: TaskPayload) => runMutation(() => createChecklistHarian(toPayload(p))),
+    updateTask: (id: string, p: TaskPayload) => runMutation(() => updateChecklistHarian(id, toPayload(p))),
     deleteTask: (id: string) => runMutation(() => deleteChecklistHarian(id)),
     updateTaskStatus: async (id: string, status: StatusTask) => {
       await updateChecklistHarian(id, { status: mapUiStatus(status) });

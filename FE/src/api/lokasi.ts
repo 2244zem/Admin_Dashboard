@@ -8,8 +8,8 @@ export interface RuanganPayload { lantai_id: string; nama: string }
 
 // Lokasi
 export async function getLokasi() {
-  const data = await apiClient.get<any>("/api/lokasi");
-  return unwrapData<any[]>(data);
+  const data = await apiClient.get<unknown>("/api/lokasi");
+  return unwrapData<unknown[]>(data);
 }
 
 export async function createLokasi(payload: LokasiPayload) {
@@ -17,7 +17,7 @@ export async function createLokasi(payload: LokasiPayload) {
 }
 
 export async function getLokasiDetail(id: string) {
-  return apiClient.get<any>(`/api/lokasi/${id}`);
+  return apiClient.get<unknown>(`/api/lokasi/${id}`);
 }
 
 export async function updateLokasi(id: string, payload: LokasiPayload) {
@@ -30,7 +30,7 @@ export async function deleteLokasi(id: string) {
 
 // Lantai
 export async function getLantai(lokasi_id?: string) {
-  return apiClient.get<any>("/api/lantai", { params: { lokasi_id } });
+  return apiClient.get<unknown>("/api/lantai", { params: { lokasi_id } });
 }
 
 export async function createLantai(payload: LantaiPayload) {
@@ -47,7 +47,7 @@ export async function deleteLantai(id: string) {
 
 // Ruangan
 export async function getRuangan(lantai_id?: string) {
-  return apiClient.get<any>("/api/ruangan", { params: { lantai_id } });
+  return apiClient.get<unknown>("/api/ruangan", { params: { lantai_id } });
 }
 
 export async function createRuangan(payload: RuanganPayload) {

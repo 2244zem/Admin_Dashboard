@@ -1,20 +1,9 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import type { AuthUser, LoginRequest, UserRole } from "../types/auth";
 import { tokenStorage } from "../lib/tokenStorage";
 import { login as loginRequest, logout as logoutRequest } from "../api/auth";
-
-interface AuthContextType {
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (credentials: LoginRequest, remember: boolean) => Promise<void>;
-  logout: () => Promise<void>;
-  hasPermission: (permission: string) => boolean;
-  hasRole: (...roles: UserRole[]) => boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from "./AuthContextValue";
 
 /**
  * Decode JWT payload for client-side usage only.
@@ -23,7 +12,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
  * and the frontend would still decode it. The backend must always verify the
  * token signature before trusting any claims.
  */
-function decodeJwtPayload(token: string): Record<string, any> | null {
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const [, payload] = token.split(".");
     if (!payload) return null;
@@ -36,7 +25,7 @@ function decodeJwtPayload(token: string): Record<string, any> | null {
 
     // Decode base64 and parse JSON
     const decoded = atob(padded);
-    return JSON.parse(decoded);
+    return JSON.parse(decoded) as Record<string, unknown>;
   } catch {
     return null;
   }
@@ -54,19 +43,20 @@ function normalizeRole(role: unknown): UserRole {
 
 function userFromToken(token: string, identifierFallback = "user"): AuthUser {
   const payload = decodeJwtPayload(token) || {};
-  const namaLengkap =
+  const namaLengkap = String(
     payload.nama_lengkap ||
     payload.namaLengkap ||
     payload.name ||
     payload.username ||
-    identifierFallback;
+    identifierFallback
+  );
   const role = normalizeRole(payload.role || payload.role_name || payload.nama_role);
 
   return {
-    id: payload.id || payload.user_id || payload.sub || identifierFallback,
+    id: String(payload.id || payload.user_id || payload.sub || identifierFallback),
     namaLengkap,
-    username: payload.username || payload.email || identifierFallback,
-    email: payload.email || "",
+    username: String(payload.username || payload.email || identifierFallback),
+    email: String(payload.email || ""),
     role,
     permissions:
       role === "Admin"
@@ -79,32 +69,16 @@ function userFromToken(token: string, identifierFallback = "user"): AuthUser {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
+  const [user, setUser] = useState<AuthUser | null>(() => {
     const token = tokenStorage.getToken();
-
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
-
-    // Client-side token expiry check is for UX only
-    // Backend MUST verify token signature and expiry on every request
-    if (tokenStorage.isTokenExpired(token)) {
-      tokenStorage.clear();
-      setIsLoading(false);
-      return;
-    }
-
+    if (!token || tokenStorage.isTokenExpired(token)) return null;
     const remember = !!localStorage.getItem("token");
     const cachedUser = tokenStorage.getUser();
-    const activeUser = cachedUser || userFromToken(token);
+    const activeUser = (cachedUser as AuthUser | null) || userFromToken(token);
     tokenStorage.setUser(activeUser, remember);
-    setUser(activeUser);
-    setIsLoading(false);
-  }, []);
+    return activeUser;
+  });
+  const [isLoading] = useState(false);
 
   const login = async (credentials: LoginRequest, remember: boolean) => {
     // loginRequest now returns the token string directly
@@ -156,12 +130,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth harus digunakan di dalam AuthProvider");
-  }
-  return context;
 }

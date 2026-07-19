@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
-import type { AppNotification, NotifType } from "../types/notification";
+import type { AppNotification } from "../types/notification";
 import {
   getNotifikasi,
   getUnreadNotificationCount,
@@ -9,47 +9,18 @@ import {
   type ApiNotification,
 } from "../api/notifikasi";
 import { connectNotificationSocket } from "../api/websocket";
+import { mapApiNotificationToAppNotification } from "../lib/notificationMapper";
 
 interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
+  isConnected: boolean;
   markAllRead: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
   fetchNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
-
-function mapNotifType(type: unknown): NotifType {
-  const value = String(type || "").toUpperCase();
-  if (value.includes("TUGAS") || value.includes("CHECKLIST")) return "tugas";
-  if (value.includes("USER") || value.includes("AKUN")) return "user";
-  if (value.includes("INGAT") || value.includes("REMINDER")) return "pengingat";
-  return "laporan";
-}
-
-export function mapApiNotificationToAppNotification(row: ApiNotification): AppNotification {
-  const rawId = row.id ?? row.notification_id ?? row._id ?? row.uuid ?? "";
-  const type = row.tipe ?? row.type ?? row.tipe_notif ?? "";
-  const title = row.judul ?? row.title ?? "Notifikasi";
-  const message = row.pesan ?? row.message ?? "";
-  const createdAt = row.created_at ?? row.createdAt ?? new Date().toISOString();
-  const isRead = row.is_read ?? row.read ?? false;
-  const senderName = row.pengirim?.nama_lengkap ?? "";
-
-  const id = String(rawId) || `notif-${createdAt}`;
-
-  return {
-    id: String(id),
-    type: mapNotifType(type),
-    title: String(title),
-    message: String(message),
-    highPriority: String(type).toUpperCase().includes("URGENT"),
-    createdAt: String(createdAt),
-    read: Boolean(isRead),
-    senderName: String(senderName),
-  };
-}
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -64,17 +35,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         getUnreadNotificationCount(),
       ]);
 
+      let unreadFromList = 0;
       if (grouped) {
         const merged: AppNotification[] = [
           ...grouped.hari_ini.map(mapApiNotificationToAppNotification),
           ...grouped.kemarin.map(mapApiNotificationToAppNotification),
         ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+        unreadFromList = merged.filter((n) => !n.read).length;
         setNotifications(merged);
       }
 
       // Use API count if available, otherwise count from list
-      setUnreadCount(count > 0 ? count : notifications.filter(n => !n.read).length);
+      setUnreadCount(count > 0 ? count : unreadFromList);
     } catch {
       // Silent fail - keep existing state
     }
@@ -82,13 +55,35 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Initial fetch + WebSocket connection
   useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
+    void (async () => {
+      try {
+        const [grouped, count] = await Promise.all([
+          getNotifikasi(),
+          getUnreadNotificationCount(),
+        ]);
+
+        let unreadFromList = 0;
+        if (grouped) {
+          const merged: AppNotification[] = [
+            ...grouped.hari_ini.map(mapApiNotificationToAppNotification),
+            ...grouped.kemarin.map(mapApiNotificationToAppNotification),
+          ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+          unreadFromList = merged.filter((n) => !n.read).length;
+          setNotifications(merged);
+        }
+
+        setUnreadCount(count > 0 ? count : unreadFromList);
+      } catch {
+        // Silent fail - keep existing state
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const cleanup = connectNotificationSocket({
       onNotification: (payload) => {
-        if ((payload as any)?.type === "CONNECTED") {
+        if ((payload as { type?: unknown })?.type === "CONNECTED") {
           setIsConnected(true);
           return;
         }
@@ -157,6 +152,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       value={{
         notifications,
         unreadCount,
+        isConnected,
         markAllRead,
         markRead,
         fetchNotifications,
@@ -167,12 +163,4 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useNotifications() {
-  const context = useContext(NotificationContext);
-  if (!context) {
-    throw new Error("useNotifications harus digunakan di dalam NotificationProvider");
-  }
-  return context;
-}
-
-export default useNotifications;
+export { NotificationContext };

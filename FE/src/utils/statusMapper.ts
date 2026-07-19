@@ -1,25 +1,10 @@
 /**
- * Status mapping between frontend display and backend API enum
- * Backend enum: BELUM_DIKERJAKAN, PENDING, SELESAI, DITOLAK
- * Frontend display: Menunggu, Ditugaskan/Dikerjakan, Selesai, Ditolak
+ * Status display styles for laporan (report) UI.
+ * Enum <-> display mapping lives in a single place: src/hooks/useLaporan.ts
+ * (statusToBackend / mapStatus). Do NOT re-add a mapper here.
  */
 
-export type ApiStatus = "BELUM_DIKERJAKAN" | "PENDING" | "SELESAI" | "DITOLAK";
 export type DisplayStatus = "Menunggu" | "Ditugaskan" | "Selesai" | "Ditolak";
-
-export const STATUS_API_TO_DISPLAY: Record<string, DisplayStatus> = {
-  BELUM_DIKERJAKAN: "Menunggu",
-  PENDING: "Ditugaskan",
-  SELESAI: "Selesai",
-  DITOLAK: "Ditolak",
-};
-
-export const STATUS_DISPLAY_TO_API: Record<DisplayStatus, ApiStatus> = {
-  Menunggu: "BELUM_DIKERJAKAN",
-  Ditugaskan: "PENDING",
-  Selesai: "SELESAI",
-  Ditolak: "DITOLAK",
-};
 
 export const STATUS_COLOR: Record<DisplayStatus, { bg: string; text: string }> = {
   Menunggu: { bg: "bg-amber-50", text: "text-amber-700" },
@@ -54,19 +39,3 @@ export const STATUS_BANNER_STYLE: Record<DisplayStatus, { bg: string; border: st
     label: "Ditolak",
   },
 };
-
-/**
- * Convert API status to display status
- */
-export function mapApiStatusToDisplay(apiStatus: string | undefined | null): DisplayStatus {
-  if (!apiStatus) return "Menunggu";
-  const normalized = apiStatus.toUpperCase().replace(/-/g, "_");
-  return STATUS_API_TO_DISPLAY[normalized] ?? "Menunggu";
-}
-
-/**
- * Convert display status to API status
- */
-export function mapDisplayStatusToApi(displayStatus: DisplayStatus): ApiStatus {
-  return STATUS_DISPLAY_TO_API[displayStatus];
-}

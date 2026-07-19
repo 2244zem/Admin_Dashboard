@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface GedungForm {
@@ -14,6 +14,9 @@ interface GedungFormModalProps {
   initialData?: GedungForm | null;
 }
 
+const buildForm = (mode: "create" | "edit", initialData?: GedungForm | null): GedungForm =>
+  mode === "edit" && initialData ? initialData : { nama: "", kapasitas: "" };
+
 export const GedungFormModal: React.FC<GedungFormModalProps> = ({
   isOpen,
   onClose,
@@ -21,17 +24,7 @@ export const GedungFormModal: React.FC<GedungFormModalProps> = ({
   mode,
   initialData,
 }) => {
-  const [form, setForm] = useState<GedungForm>({ nama: "", kapasitas: "" });
-
-  useEffect(() => {
-    if (isOpen) {
-      if (mode === "edit" && initialData) {
-        setForm(initialData);
-      } else {
-        setForm({ nama: "", kapasitas: "" });
-      }
-    }
-  }, [isOpen, mode, initialData]);
+  const [form, setForm] = useState<GedungForm>(() => buildForm(mode, initialData));
 
   const handleSimpan = () => {
     if (!form.nama.trim() || !form.kapasitas.trim()) {

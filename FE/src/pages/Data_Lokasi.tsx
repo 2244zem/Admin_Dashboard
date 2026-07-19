@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import useLokasi from "../hooks/useLokasi";
 import type { Gedung, Lantai, Ruangan } from "../hooks/useLokasi";
@@ -9,7 +9,11 @@ import ConfirmDialog from "../components/ui/ConfirmDialog";
 import GedungFormModal from "../components/lokasi/GedungFormModal";
 import LantaiFormModal from "../components/lokasi/LantaiFormModal";
 import RuanganFormModal from "../components/lokasi/RuanganFormModal";
-import { useToast } from "../components/Toast";
+import { useToast } from "../hooks/useToast";
+
+interface GedungFormData { nama: string; kapasitas: string }
+interface LantaiFormData { nama: string }
+interface RuanganFormData { nama: string }
 
 const DataLokasi = () => {
   const { push } = useToast();
@@ -31,14 +35,8 @@ const DataLokasi = () => {
 
   const [selectedGedungId, setSelectedGedungId] = useState<string | null>(null);
 
-  // Set default selected building on first load
-  useEffect(() => {
-    if (gedungList.length > 0 && !selectedGedungId) {
-      setSelectedGedungId(gedungList[0].id);
-    }
-  }, [gedungList, selectedGedungId]);
+  const selectedGedung = gedungList.find((g) => g.id === (selectedGedungId ?? gedungList[0]?.id)) ?? null;
 
-  const selectedGedung = gedungList.find((g) => g.id === selectedGedungId) ?? null;
 
   // ----------------------------------------------------------
   // MODAL: Tambah / Edit Gedung
@@ -46,7 +44,7 @@ const DataLokasi = () => {
   const [gedungModalOpen, setGedungModalOpen] = useState(false);
   const [gedungModalMode, setGedungModalMode] = useState<"create" | "edit">("create");
   const [editingGedungId, setEditingGedungId] = useState<string | null>(null);
-  const [gedungEditData, setGedungEditData] = useState<any>(null);
+  const [gedungEditData, setGedungEditData] = useState<GedungFormData | null>(null);
 
   const openCreateGedung = () => {
     setGedungModalMode("create");
@@ -65,7 +63,7 @@ const DataLokasi = () => {
     setGedungModalOpen(true);
   };
 
-  const handleSimpanGedung = async (form: any) => {
+  const handleSimpanGedung = async (form: GedungFormData) => {
     try {
       if (gedungModalMode === "edit" && editingGedungId) {
         await updateGedung(editingGedungId, form);
@@ -106,7 +104,7 @@ const DataLokasi = () => {
   const [lantaiModalOpen, setLantaiModalOpen] = useState(false);
   const [lantaiModalMode, setLantaiModalMode] = useState<"create" | "edit">("create");
   const [editingLantaiId, setEditingLantaiId] = useState<string | null>(null);
-  const [lantaiEditData, setLantaiEditData] = useState<any>(null);
+  const [lantaiEditData, setLantaiEditData] = useState<LantaiFormData | null>(null);
 
   const openCreateLantai = () => {
     if (!selectedGedung) return;
@@ -123,7 +121,7 @@ const DataLokasi = () => {
     setLantaiModalOpen(true);
   };
 
-  const handleSimpanLantai = async (form: any) => {
+  const handleSimpanLantai = async (form: LantaiFormData) => {
     if (!selectedGedung) return;
     try {
       if (lantaiModalMode === "edit" && editingLantaiId) {
@@ -162,7 +160,7 @@ const DataLokasi = () => {
   const [ruanganModalMode, setRuanganModalMode] = useState<"create" | "edit">("create");
   const [activeLantaiId, setActiveLantaiId] = useState<string | null>(null);
   const [editingRuanganId, setEditingRuanganId] = useState<string | null>(null);
-  const [ruanganEditData, setRuanganEditData] = useState<any>(null);
+  const [ruanganEditData, setRuanganEditData] = useState<RuanganFormData | null>(null);
 
   const openCreateRuangan = (lantaiId: string) => {
     setRuanganModalMode("create");
@@ -180,7 +178,7 @@ const DataLokasi = () => {
     setRuanganModalOpen(true);
   };
 
-  const handleSimpanRuangan = async (form: any) => {
+  const handleSimpanRuangan = async (form: RuanganFormData) => {
     if (!selectedGedung || !activeLantaiId) return;
     try {
       if (ruanganModalMode === "edit" && editingRuanganId) {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { getErrorMessage } from "../lib/utils";
 
 interface LoginForm {
@@ -51,7 +51,7 @@ const Login = () => {
     try {
       await login({ identifier: form.identifier, password: form.password }, ingatSaya);
       navigate("/dashboard", { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrorMsg(getErrorMessage(err));
     } finally {
       setIsLoading(false);

@@ -1,24 +1,34 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface Option { id: string; nama: string }
+
+interface TaskFormValues {
+  kategori_id: string;
+  nama_tugas: string;
+  lokasi_id: string;
+  lantai_id: string;
+  catatan: string;
+}
 
 interface TaskFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (form: {
-    kategori_id: string;
-    nama_tugas: string;
-    lokasi_id: string;
-    lantai_id: string;
-    catatan: string;
-  }) => void | Promise<void>;
+  onSave: (form: TaskFormValues) => void | Promise<void>;
   mode: "create" | "edit";
-  initialData: any;
+  initialData: Record<string, unknown> | null;
   gedungOptions: Option[];
   lantaiOptions: Option[];
   kategoriOptions: Option[];
 }
+
+const buildState = (initialData: Record<string, unknown> | null) => ({
+  kategoriId: String(initialData?.kategori_id ?? ""),
+  namaTugas: String(initialData?.namaTugas ?? ""),
+  lokasiId: String(initialData?.lokasi_id ?? ""),
+  lantaiId: String(initialData?.lantai_id ?? ""),
+  catatan: String(initialData?.catatan ?? ""),
+});
 
 export default function TaskFormModal({
   isOpen,
@@ -30,29 +40,8 @@ export default function TaskFormModal({
   lantaiOptions,
   kategoriOptions,
 }: TaskFormModalProps) {
-  const [kategoriId, setKategoriId] = useState("");
-  const [namaTugas, setNamaTugas] = useState("");
-  const [lokasiId, setLokasiId] = useState("");
-  const [lantaiId, setLantaiId] = useState("");
-  const [catatan, setCatatan] = useState("");
+  const [{ kategoriId, namaTugas, lokasiId, lantaiId, catatan }, setForm] = useState(() => buildState(initialData));
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (initialData) {
-      setKategoriId(initialData.kategori_id || "");
-      setNamaTugas(initialData.namaTugas || "");
-      setLokasiId(initialData.lokasi_id || "");
-      setLantaiId(initialData.lantai_id || "");
-      setCatatan(initialData.catatan || "");
-    } else {
-      setKategoriId("");
-      setNamaTugas("");
-      setLokasiId("");
-      setLantaiId("");
-      setCatatan("");
-    }
-  }, [isOpen, initialData]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -98,7 +87,7 @@ export default function TaskFormModal({
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Kategori</label>
                   <select
                     value={kategoriId}
-                    onChange={(e) => setKategoriId(e.target.value)}
+                    onChange={(e) => setForm((s) => ({ ...s, kategoriId: e.target.value }))}
                     className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">Pilih Kategori</option>
@@ -112,7 +101,7 @@ export default function TaskFormModal({
                   <input
                     type="text"
                     value={namaTugas}
-                    onChange={(e) => setNamaTugas(e.target.value)}
+                    onChange={(e) => setForm((s) => ({ ...s, namaTugas: e.target.value }))}
                     placeholder="Masukkan nama tugas..."
                     className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
                   />
@@ -124,7 +113,7 @@ export default function TaskFormModal({
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Lokasi Gedung</label>
                   <select
                     value={lokasiId}
-                    onChange={(e) => setLokasiId(e.target.value)}
+                    onChange={(e) => setForm((s) => ({ ...s, lokasiId: e.target.value }))}
                     className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">Pilih Gedung</option>
@@ -137,7 +126,7 @@ export default function TaskFormModal({
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Lokasi Lantai</label>
                   <select
                     value={lantaiId}
-                    onChange={(e) => setLantaiId(e.target.value)}
+                    onChange={(e) => setForm((s) => ({ ...s, lantaiId: e.target.value }))}
                     className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">Pilih Lantai</option>
@@ -152,7 +141,7 @@ export default function TaskFormModal({
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Catatan Khusus</label>
                 <textarea
                   value={catatan}
-                  onChange={(e) => setCatatan(e.target.value)}
+                  onChange={(e) => setForm((s) => ({ ...s, catatan: e.target.value }))}
                   placeholder="Jelaskan instruksi khusus di sini..."
                   rows={3}
                   className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"

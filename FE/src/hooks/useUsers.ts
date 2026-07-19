@@ -5,24 +5,30 @@ import apiClient from "../services/apiClient";
 import { getAdminUsers, getUserDetail as getUserDetailApi, renewUserToken, ROLE_UUID_MAP, ROLE_NAME_MAP } from "../api/user";
 import { getErrorMessage } from "../lib/utils";
 import { appUserSchema, validateList } from "../schemas";
+import type { ApiMutationResult } from "../types/api";
 
 // Normalize role from backend response - aligned with spec
-const normalizeRole = (roleData: any): AppUser["role"] => {
+const normalizeRole = (roleData: unknown): AppUser["role"] => {
+  const r = roleData as { role_id?: unknown; role?: { id?: unknown }; nama_role?: unknown; name?: unknown } | string | null | undefined;
   // Check for UUID in role_id
-  if (roleData?.role_id && ROLE_NAME_MAP[roleData.role_id]) {
-    return ROLE_NAME_MAP[roleData.role_id] as AppUser["role"];
+  if (r && typeof r !== "string" && r.role_id && ROLE_NAME_MAP[String(r.role_id)]) {
+    return ROLE_NAME_MAP[String(r.role_id)] as AppUser["role"];
   }
   // Check for UUID directly
-  if (typeof roleData === "string" && ROLE_NAME_MAP[roleData]) {
-    return ROLE_NAME_MAP[roleData] as AppUser["role"];
+  if (typeof r === "string" && ROLE_NAME_MAP[r]) {
+    return ROLE_NAME_MAP[r] as AppUser["role"];
   }
   // Check nested role object
-  const nestedId = roleData?.role?.id;
-  if (nestedId && ROLE_NAME_MAP[nestedId]) {
-    return ROLE_NAME_MAP[nestedId] as AppUser["role"];
+  if (r && typeof r !== "string" && r.role && typeof r.role === "object" && "id" in r.role) {
+    const nestedId = (r.role as { id?: unknown }).id;
+    if (nestedId && ROLE_NAME_MAP[String(nestedId)]) {
+      return ROLE_NAME_MAP[String(nestedId)] as AppUser["role"];
+    }
   }
   // Fallback to name-based matching
-  const value = String(roleData?.nama_role ?? roleData?.name ?? roleData ?? "").toLowerCase();
+  const value = String(
+    (r && typeof r !== "string" ? (r.nama_role ?? r.name) : r) ?? ""
+  ).toLowerCase();
   if (value.includes("admin")) return "Admin";
   if (value.includes("hr") || value.includes("human resource")) return "HR";
   if (value.includes("ob") || value.includes("office")) return "OB";
@@ -30,28 +36,33 @@ const normalizeRole = (roleData: any): AppUser["role"] => {
 };
 
 // Map API row to AppUser
-const mapApiUser = (row: any): AppUser => ({
-  id: Number.parseInt(String(row.id ?? "").replace(/\D/g, ""), 10) || Date.now(),
-  backendId: String(row.id ?? ""),
-  namaLengkap: row.nama_lengkap || row.name || row.username || "Pengguna",
-  username: row.username || "-",
-  email: row.email || "",
-  noTelepon: row.no_telepon || row.phone || "-",
-  role: normalizeRole(row.role_id ? { role_id: row.role_id } : row.role),
-  departemen: row.departemen || "-",
-  status: row.is_active === false ? "Non-Aktif" : row.status || "Aktif",
-  avatar: row.profile_picture,
-  createdAt: row.created_at || new Date().toISOString(),
-  tokenStatus: row.is_active === false ? "Expired" : "Aktif",
-  tokenExpiredAt: row.token_expired_at || new Date(Date.now() + 86400000).toISOString(),
-  tokenString: row.activation_token || "-",
-  stats: {
-    tasksCompleted: row.stats?.tasksCompleted ?? row.stats?.tasks_completed ?? 0,
-    avgResponseMinutes: row.stats?.avgResponseMinutes ?? 0,
-    rejected: row.stats?.rejected ?? 0,
-  },
-  activityLog: [],
-});
+const mapApiUser = (row: Record<string, unknown>): AppUser => {
+  const stats = row.stats as { tasksCompleted?: unknown; tasks_completed?: unknown; avgResponseMinutes?: unknown; rejected?: unknown } | undefined;
+  const roleId = row.role_id as unknown;
+  const role = (row.role as unknown) ?? undefined;
+  return {
+    id: Number.parseInt(String(row.id ?? "").replace(/\D/g, ""), 10) || Date.now(),
+    backendId: String(row.id ?? ""),
+    namaLengkap: String(row.nama_lengkap ?? row.name ?? row.username ?? "Pengguna"),
+    username: String(row.username ?? "-"),
+    email: String(row.email ?? ""),
+    noTelepon: String(row.no_telepon ?? row.phone ?? "-"),
+    role: normalizeRole(roleId !== undefined ? { role_id: roleId } : role),
+    departemen: String(row.departemen ?? "-"),
+    status: row.is_active === false ? "Non-Aktif" : (row.status as AppUser["status"]) ?? "Aktif",
+    avatar: row.profile_picture as string | undefined,
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+    tokenStatus: row.is_active === false ? "Expired" : "Aktif",
+    tokenExpiredAt: String(row.token_expired_at ?? new Date(Date.now() + 86400000).toISOString()),
+    tokenString: String(row.activation_token ?? "-"),
+    stats: {
+      tasksCompleted: Number(stats?.tasksCompleted ?? stats?.tasks_completed ?? 0),
+      avgResponseMinutes: Number(stats?.avgResponseMinutes ?? 0),
+      rejected: Number(stats?.rejected ?? 0),
+    },
+    activityLog: [],
+  };
+};
 
 const USERS_KEY = ["users"] as const;
 const OB_KEY = ["ob"] as const;
@@ -59,14 +70,14 @@ const OB_KEY = ["ob"] as const;
 async function fetchUsers(): Promise<AppUser[]> {
   // getAdminUsers already returns items array directly
   const rows = await getAdminUsers({ page: 1, limit: 100 });
-  return validateList(appUserSchema, (rows as any[]).map(mapApiUser), "user");
+  return validateList(appUserSchema, (rows as Record<string, unknown>[]).map(mapApiUser));
 }
 
 async function fetchOB(): Promise<Array<{ id: string; nama: string }>> {
   const rows = await getAdminUsers({ page: 1, limit: 200 });
-  return (rows as any[]).map((u: any) => ({
+  return (rows as Record<string, unknown>[]).map((u) => ({
     id: String(u.id ?? ""),
-    nama: u.nama_lengkap || u.username || "Pengguna",
+    nama: String(u.nama_lengkap ?? u.username ?? "Pengguna"),
   }));
 }
 
@@ -89,27 +100,27 @@ function useUsers() {
   const runMutation = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
     setMutating(true); setError(null);
     try { const r = await fn(); await qc.invalidateQueries({ queryKey: USERS_KEY }); return r; }
-    catch (e: any) { setError(getErrorMessage(e)); throw e; }
+    catch (e: unknown) { setError(getErrorMessage(e)); throw e; }
     finally { setMutating(false); }
   }, [qc]);
 
   const addUser = async (p: { namaLengkap: string; email: string; role: string }) => {
     const body = { username: p.email.split("@")[0], email: p.email, nama_lengkap: p.namaLengkap, role_id: p.role };
-    return apiClient.post("/api/admin/user", body);
+    return apiClient.post<ApiMutationResult>("/api/admin/user", body);
   };
 
-  const updateUser = async (id: string, p: any) => {
-    const body: Record<string, any> = {};
+  const updateUser = async (id: string, p: Record<string, unknown>) => {
+    const body: Record<string, unknown> = {};
     if (p.username) body.username = p.username;
     if (p.email) body.email = p.email;
     if (p.namaLengkap) body.nama_lengkap = p.namaLengkap;
     // Map role name to UUID if needed
     if (p.role) {
-      body.role_id = ROLE_UUID_MAP[p.role] || p.role;
+      body.role_id = ROLE_UUID_MAP[String(p.role)] || p.role;
     }
     if (p.password) body.password = p.password;
     if (p.status) body.is_active = p.status === "Aktif";
-    return apiClient.patch(`/api/admin/user/${encodeURIComponent(id)}`, body);
+    return apiClient.patch<ApiMutationResult>(`/api/admin/user/${encodeURIComponent(id)}`, body);
   };
 
   const deleteUser = (id: string) => apiClient.delete(`/api/admin/user/${encodeURIComponent(id)}`);
@@ -120,13 +131,13 @@ function useUsers() {
     error: mutationError ?? (query.error ? getErrorMessage(query.error) : null),
     fetchUsers: () => qc.invalidateQueries({ queryKey: USERS_KEY }),
     fetchOB: () => qc.fetchQuery({ queryKey: OB_KEY, queryFn: fetchOB, staleTime: 30_000 }).catch(() => []),
-    addUser: (p: any) => runMutation(() => addUser(p)),
-    updateUser: (id: string, p: any) => runMutation(() => updateUser(id, p)),
+    addUser: (p: { namaLengkap: string; email: string; role: string }) => runMutation(() => addUser(p)),
+    updateUser: (id: string, p: Record<string, unknown>) => runMutation(() => updateUser(id, p)),
     deleteUser: (id: string) => runMutation(() => deleteUser(id)),
     renewToken: (id: string, h?: number) => runMutation(() => renewUserToken(id, h)),
     getUserById: (id: number) => query.data?.find((u) => u.id === id),
     getUserDetail: async (id: string) => {
-      try { return mapApiUser(await getUserDetailApi(id)); }
+      try { return mapApiUser(await getUserDetailApi(id) as Record<string, unknown>); }
       catch { return query.data?.find((u) => u.backendId === id) ?? null; }
     },
   };

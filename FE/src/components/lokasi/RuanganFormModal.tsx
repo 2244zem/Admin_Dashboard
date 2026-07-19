@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface RuanganForm {
@@ -14,6 +14,9 @@ interface RuanganFormModalProps {
   lantaiNama?: string;
 }
 
+const buildForm = (mode: "create" | "edit", initialData?: RuanganForm | null): RuanganForm =>
+  mode === "edit" && initialData ? initialData : { nama: "" };
+
 export const RuanganFormModal: React.FC<RuanganFormModalProps> = ({
   isOpen,
   onClose,
@@ -22,17 +25,7 @@ export const RuanganFormModal: React.FC<RuanganFormModalProps> = ({
   initialData,
   lantaiNama,
 }) => {
-  const [form, setForm] = useState<RuanganForm>({ nama: "" });
-
-  useEffect(() => {
-    if (isOpen) {
-      if (mode === "edit" && initialData) {
-        setForm(initialData);
-      } else {
-        setForm({ nama: "" });
-      }
-    }
-  }, [isOpen, mode, initialData]);
+  const [form, setForm] = useState<RuanganForm>(() => buildForm(mode, initialData));
 
   const handleSimpan = () => {
     if (!form.nama.trim()) {

@@ -4,12 +4,12 @@ import { unwrapData } from "../lib/response";
 export interface Kategori { id: string; nama_kategori: string }
 
 export async function getAllKategori() {
-  const data = await apiClient.get<any>("/api/kategori");
+  const data = await apiClient.get<unknown>("/api/kategori");
   return unwrapData<Kategori[]>(data);
 }
 
 export async function getKategoriById(id: string) {
-  const data = await apiClient.get<any>(`/api/kategori/${id}`);
+  const data = await apiClient.get<unknown>(`/api/kategori/${id}`);
   return unwrapData<Kategori>(data);
 }
 

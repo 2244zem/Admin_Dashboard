@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
 import useUsers from "../hooks/useUsers";
-import { useToast } from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 import EditUserModal from "../components/EditUserModal";
-import { STATUS_USER_COLOR, TOKEN_DURATION_OPTIONS } from "../types/user";
+import type { EditUserPayload } from "../components/EditUserModal";
+import { TOKEN_DURATION_OPTIONS } from "../types/user";
 import type { AppUser } from "../types/user";
-import { formatTanggal, formatTanggalWaktuWIB } from "../lib/utils";
+import { formatTanggal, formatTanggalWaktuWIB, getErrorMessage } from "../lib/utils";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import Avatar from "../components/ui/Avatar";
@@ -55,8 +56,8 @@ const UserDetail = () => {
         } else {
           setDetailError("Pengguna tidak ditemukan");
         }
-      } catch (err: any) {
-        setDetailError(err.message || "Gagal memuat data pengguna");
+      } catch (err: unknown) {
+        setDetailError(getErrorMessage(err) || "Gagal memuat data pengguna");
       } finally {
         setIsLoadingDetail(false);
       }
@@ -72,8 +73,8 @@ const UserDetail = () => {
       await deleteUser(user.backendId);
       push("success", "Pengguna berhasil dihapus");
       navigate("/users");
-    } catch (err: any) {
-      push("error", err.message || "Gagal menghapus pengguna");
+    } catch (err: unknown) {
+      push("error", getErrorMessage(err) || "Gagal menghapus pengguna");
     }
   }, [user, deleteUser, navigate, push]);
 
@@ -83,12 +84,12 @@ const UserDetail = () => {
       await renewToken(user.backendId, selectedDuration);
       push("success", "Token akses berhasil diperpanjang");
       setShowTokenModal(false);
-    } catch (err: any) {
-      push("error", err.message || "Gagal memperpanjang token");
+    } catch (err: unknown) {
+      push("error", getErrorMessage(err) || "Gagal memperpanjang token");
     }
   }, [user, renewToken, selectedDuration, push]);
 
-  const handleEditSave = useCallback(async (payload: any) => {
+  const handleEditSave = useCallback(async (payload: EditUserPayload) => {
     if (!user?.backendId) return;
     try {
       const res = await updateUser(user.backendId, payload);
@@ -101,8 +102,8 @@ const UserDetail = () => {
         const updatedUser = await getUserDetail(user.backendId);
         if (updatedUser) setUser(updatedUser);
       }
-    } catch (err: any) {
-      push("error", err.message || "Gagal memperbarui pengguna");
+    } catch (err: unknown) {
+      push("error", getErrorMessage(err) || "Gagal memperbarui pengguna");
     }
   }, [user, updateUser, getUserDetail, push]);
 
@@ -121,7 +122,6 @@ const UserDetail = () => {
 
   // === DERIVED STATE ===
   const isOB = user?.role === "OB" || user?.role === "HR";
-  const isKaryawan = user?.role === "Karyawan";
   const isTokenExpired = user?.tokenStatus === "Expired";
 
   const roleDisplayLabel = (() => {
@@ -455,6 +455,7 @@ const UserDetail = () => {
 
       {/* EDIT MODAL */}
       <EditUserModal
+        key={user?.backendId}
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
         user={user}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface LantaiForm {
@@ -14,6 +14,9 @@ interface LantaiFormModalProps {
   gedungNama?: string;
 }
 
+const buildForm = (mode: "create" | "edit", initialData?: LantaiForm | null): LantaiForm =>
+  mode === "edit" && initialData ? initialData : { nama: "" };
+
 export const LantaiFormModal: React.FC<LantaiFormModalProps> = ({
   isOpen,
   onClose,
@@ -22,17 +25,7 @@ export const LantaiFormModal: React.FC<LantaiFormModalProps> = ({
   initialData,
   gedungNama,
 }) => {
-  const [form, setForm] = useState<LantaiForm>({ nama: "" });
-
-  useEffect(() => {
-    if (isOpen) {
-      if (mode === "edit" && initialData) {
-        setForm(initialData);
-      } else {
-        setForm({ nama: "" });
-      }
-    }
-  }, [isOpen, mode, initialData]);
+  const [form, setForm] = useState<LantaiForm>(() => buildForm(mode, initialData));
 
   const handleSimpan = () => {
     if (!form.nama.trim()) {

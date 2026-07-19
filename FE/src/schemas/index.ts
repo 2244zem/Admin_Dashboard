@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export function validateList<T>(schema: z.ZodTypeAny, items: T[], label: string): T[] {
+export function validateList<T>(schema: z.ZodTypeAny, items: T[]): T[] {
   const valid: T[] = [];
   for (const item of items) {
     const result = schema.safeParse(item);

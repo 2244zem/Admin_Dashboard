@@ -4,7 +4,7 @@ import { unwrapData } from "../lib/response";
 export interface Tugas { id: string; nama_tugas: string; kategori_id: string; is_active?: boolean }
 
 export async function getAllTugas(params?: { kategori_id?: string }) {
-  const data = await apiClient.get<any>("/api/tugas", { params });
+  const data = await apiClient.get<unknown>("/api/tugas", { params });
   return unwrapData<Tugas[]>(data);
 }
 
