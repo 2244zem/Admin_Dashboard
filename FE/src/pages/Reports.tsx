@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { STATUS_COLOR } from "../types/laporan";
 import type { Laporan } from "../types/laporan";
@@ -54,7 +55,7 @@ function RowActionMenu({
     <div className="relative inline-block" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer dark:bg-elevated"
         title="Aksi"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -68,11 +69,11 @@ function RowActionMenu({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -6 }}
             transition={{ duration: 0.12 }}
-            className="absolute right-0 top-full mt-1 z-20 w-36 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden"
+            className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-20 w-36 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden dark:bg-surface"
           >
             <button
               onClick={() => { setOpen(false); onDetail(); }}
-              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer dark:bg-surface"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -80,7 +81,7 @@ function RowActionMenu({
               </svg>
               Lihat Detail
             </button>
-            <div className="h-px bg-gray-100" />
+            <div className="h-px bg-gray-100 dark:bg-elevated" />
             <button
               onClick={() => { setOpen(false); onEdit(); }}
               className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-yellow-600 hover:bg-yellow-50 transition-colors cursor-pointer"
@@ -90,7 +91,7 @@ function RowActionMenu({
               </svg>
               Edit
             </button>
-            <div className="h-px bg-gray-100" />
+            <div className="h-px bg-gray-100 dark:bg-elevated" />
             <button
               onClick={() => { setOpen(false); onDelete(); }}
               className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
@@ -125,6 +126,22 @@ const Reports = () => {
   }), [filterStatus, currentPage]);
 
   const { laporanList, meta, isLoading, error, fetchLaporan, getLaporanDetail, deleteLaporan, updateLaporan } = useLaporan(apiFilters);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkId = searchParams.get("laporan");
+
+  // Deep-link from a notification: ?laporan=<id> opens the detail modal once,
+  // then clears the param so it can't re-trigger (and the same notif can
+  // re-open later by navigating again).
+  useEffect(() => {
+    if (!deepLinkId) return;
+    let cancelled = false;
+    getLaporanDetail({ backendId: deepLinkId } as Laporan)
+      .then((det) => { if (!cancelled) setDetailTarget(det); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setSearchParams({}, { replace: true }); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkId]);
 
   // Client-side filter for area (lokasi) since API only accepts UUID
   const filteredByArea = useMemo(() => {
@@ -234,9 +251,9 @@ const Reports = () => {
   };
 
   return (
-    <div className="flex h-screen bg-white font-sans text-gray-800">
+    <div className="flex h-screen bg-white font-sans text-gray-800 dark:bg-base dark:text-white">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-white p-8">
+        <main className="flex-1 overflow-auto bg-white p-8 dark:bg-base">
           {isLoading && filteredByLevel.length === 0 ? (
             <div>
               <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
@@ -266,10 +283,10 @@ const Reports = () => {
                     setFilterStatus(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="w-full bg-gray-50 hover:bg-white text-gray-700 text-sm font-medium rounded-2xl px-4 py-3 outline-none appearance-none cursor-pointer border-2 border-gray-200 transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-2xl px-4 py-3 outline-none appearance-none cursor-pointer border-2 border-gray-200 transition-all duration-200 shadow-sm hover:shadow-md dark:bg-surface dark:text-white"
                 >
                   {STATUS_OPTIONS.map((s) => (
-                    <option key={s}>{s}</option>
+                    <option key={s} className="bg-black text-white">{s}</option>
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-[#0F4C81]">
@@ -293,10 +310,10 @@ const Reports = () => {
                     setFilterLokasi(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="w-full bg-gray-50 hover:bg-white text-gray-700 text-sm font-medium rounded-2xl px-4 py-3 outline-none appearance-none cursor-pointer border-2 border-gray-200 transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-2xl px-4 py-3 outline-none appearance-none cursor-pointer border-2 border-gray-200 transition-all duration-200 shadow-sm hover:shadow-md dark:bg-surface dark:text-white"
                 >
                   {LOKASI_OPTIONS.map((l) => (
-                    <option key={l}>{l}</option>
+                    <option key={l} className="bg-black text-white">{l}</option>
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-[#0F4C81]">
@@ -320,10 +337,10 @@ const Reports = () => {
                     setFilterLevel(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="w-full bg-gray-50 hover:bg-white text-gray-700 text-sm font-medium rounded-2xl px-4 py-3 outline-none appearance-none cursor-pointer border-2 border-gray-200 transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-2xl px-4 py-3 outline-none appearance-none cursor-pointer border-2 border-gray-200 transition-all duration-200 shadow-sm hover:shadow-md dark:bg-surface dark:text-white"
                 >
                   {LEVEL_OPTIONS.map((l) => (
-                    <option key={l}>{l}</option>
+                    <option key={l} className="bg-black text-white">{l}</option>
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-[#0F4C81]">
@@ -363,19 +380,19 @@ const Reports = () => {
           >
             <h2 className="text-sm font-bold text-gray-700 mb-4">Lokasi Terpopuler</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 15 }} className="bg-gray-50 rounded-lg py-6 flex flex-col items-center justify-center gap-1 cursor-default">
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 15 }} className="bg-gray-50 rounded-lg py-6 flex flex-col items-center justify-center gap-1 cursor-default dark:bg-surface">
                 <span className="text-[11px] font-bold text-gray-500 uppercase">Toilet</span>
                 <span className="text-2xl font-bold text-red-500">{lokasiStats.Toilet}</span>
               </motion.div>
-              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 15 }} className="bg-gray-50 rounded-lg py-6 flex flex-col items-center justify-center gap-1 cursor-default">
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 15 }} className="bg-gray-50 rounded-lg py-6 flex flex-col items-center justify-center gap-1 cursor-default dark:bg-surface">
                 <span className="text-[11px] font-bold text-gray-500 uppercase">Lobi</span>
                 <span className="text-2xl font-bold text-orange-400">{lokasiStats.Lobi}</span>
               </motion.div>
-              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 15 }} className="bg-gray-50 rounded-lg py-6 flex flex-col items-center justify-center gap-1 cursor-default">
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 15 }} className="bg-gray-50 rounded-lg py-6 flex flex-col items-center justify-center gap-1 cursor-default dark:bg-surface">
                 <span className="text-[11px] font-bold text-gray-500 uppercase">Area Kantor</span>
                 <span className="text-2xl font-bold text-blue-500">{lokasiStats["Area Kantor"]}</span>
               </motion.div>
-              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 15 }} className="bg-gray-50 rounded-lg py-6 flex flex-col items-center justify-center gap-1 cursor-default">
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 15 }} className="bg-gray-50 rounded-lg py-6 flex flex-col items-center justify-center gap-1 cursor-default dark:bg-surface">
                 <span className="text-[11px] font-bold text-gray-500 uppercase">Parkir</span>
                 <span className="text-2xl font-bold text-[#0F4C81]">{lokasiStats.Parkir}</span>
               </motion.div>
@@ -387,11 +404,11 @@ const Reports = () => {
             initial="initial"
             animate="animate"
             transition={{ duration: 0.25, delay: 0.05 }}
-            className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden mb-6 mt-6 animate-fadeIn"
+            className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden mb-6 mt-6 animate-fadeIn dark:bg-surface"
           >
             <div className="overflow-x-auto">
               <table className="w-full text-center text-sm">
-                <thead className="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200 bg-gray-100/50">
+                <thead className="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200 bg-gray-100/50 dark:bg-elevated">
                   <tr>
                     <th className="px-6 py-4 w-32 text-center">ID LAPORAN</th>
                     <th className="px-6 py-4 text-center">NAMA KARYAWAN</th>
@@ -401,7 +418,7 @@ const Reports = () => {
                     <th className="px-6 py-4 w-36 text-center">AKSI</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 bg-white text-gray-700">
+                <tbody className="divide-y divide-gray-200 bg-white text-gray-700 dark:bg-surface">
                   {filteredByLevel.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-10 text-center text-gray-500">
@@ -478,7 +495,7 @@ const Reports = () => {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500">
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500 dark:bg-surface">
               <span>
                 {totalItems === 0
                   ? "Tidak ada laporan"
@@ -544,13 +561,13 @@ const Reports = () => {
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl overflow-hidden shadow-xl max-w-md w-full"
+              className="bg-white rounded-2xl overflow-hidden shadow-xl max-w-md w-full dark:bg-surface"
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <h3 className="text-sm font-bold text-gray-800">Foto Bukti Laporan</h3>
                 <button
                   onClick={() => setPreviewFoto(null)}
-                  className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+                  className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer dark:bg-elevated"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -651,7 +668,7 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ type: "spring", stiffness: 300, damping: 26 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden bg-white rounded-2xl shadow-xl"
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden bg-white rounded-2xl shadow-xl dark:bg-surface"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
@@ -665,7 +682,7 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
               </div>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer dark:bg-elevated"
                 aria-label="Tutup"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -676,13 +693,13 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
 
             <div className="px-6 py-5 space-y-5">
               {/* Status (editable) */}
-              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:bg-surface">
                 <div className="flex items-center gap-3">
                   <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</p>
                   <select
                     value={form.status}
                     onChange={(e) => setForm({ ...form, status: e.target.value })}
-                    className="text-sm font-semibold rounded-lg px-3 py-1 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer bg-white"
+                    className="text-sm font-semibold rounded-lg px-3 py-1 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer bg-white dark:bg-surface"
                   >
                     {EDIT_STATUS_OPTIONS.map((s) => (
                       <option key={s} value={s}>{s}</option>
@@ -828,16 +845,16 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
                   onChange={(e) => setForm({ ...form, catatanOb: e.target.value })}
                   rows={3}
                   placeholder="Tulis catatan atau instruksi tambahan..."
-                  className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 leading-relaxed outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none"
+                  className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 leading-relaxed outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 resize-none dark:bg-surface"
                 />
               </div>
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 dark:bg-surface">
               <button
                 onClick={onClose}
-                className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors cursor-pointer"
+                className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors cursor-pointer dark:bg-elevated"
               >
                 Batal
               </button>
@@ -883,7 +900,7 @@ const DeleteLaporanModal = ({ laporan, onClose, onConfirm }: DeleteLaporanModalP
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-surface"
           >
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
@@ -911,7 +928,7 @@ const DeleteLaporanModal = ({ laporan, onClose, onConfirm }: DeleteLaporanModalP
               </button>
               <button
                 onClick={onClose}
-                className="w-full py-2.5 rounded-lg bg-white text-slate-700 font-medium text-sm border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="w-full py-2.5 rounded-lg bg-white text-slate-700 font-medium text-sm border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer dark:bg-surface"
               >
                 Batal
               </button>

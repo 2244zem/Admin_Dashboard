@@ -10,7 +10,23 @@ import {
 } from "../api/notifikasi";
 import { connectNotificationSocket } from "../api/websocket";
 import { mapApiNotificationToAppNotification } from "../lib/notificationMapper";
+import { getPhotoMaps, resolveAssetUrl } from "../lib/assets";
 import { queryClient } from "../lib/queryClient";
+
+// Attach sender profile photos (resolved against the API origin) to notifications.
+async function withSenderPhotos(list: AppNotification[]): Promise<AppNotification[]> {
+  if (list.every((n) => n.senderPhoto || (!n.senderId && !n.senderName))) return list;
+  const map = await getPhotoMaps();
+  return list.map((n) => {
+    if (n.senderPhoto) return n;
+    const raw = n.senderId
+      ? map.get(n.senderId)
+      : n.senderName
+        ? map.get(n.senderName.toLowerCase())
+        : undefined;
+    return raw ? { ...n, senderPhoto: resolveAssetUrl(raw) } : n;
+  });
+}
 
 interface NotificationContextType {
   notifications: AppNotification[];
@@ -44,7 +60,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         unreadFromList = merged.filter((n) => !n.read).length;
-        setNotifications(merged);
+        setNotifications(await withSenderPhotos(merged));
       }
 
       setUnreadCount(count > 0 ? count : unreadFromList);
@@ -60,7 +76,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const cleanup = connectNotificationSocket({
-      onNotification: (payload) => {
+      onNotification: async (payload) => {
         if ((payload as { type?: unknown })?.type === "CONNECTED") {
           setIsConnected(true);
           return;
@@ -69,10 +85,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         try {
           const notification = mapApiNotificationToAppNotification(payload as ApiNotification);
 
+          const map = await getPhotoMaps();
+          const raw = notification.senderId
+            ? map.get(notification.senderId)
+            : notification.senderName
+              ? map.get(notification.senderName.toLowerCase())
+              : undefined;
+          const enriched: AppNotification = raw
+            ? { ...notification, senderPhoto: resolveAssetUrl(raw) }
+            : notification;
+
           // Deduplicate by ID
           setNotifications((prev) => {
-            if (prev.some(n => n.id === notification.id)) return prev;
-            return [notification, ...prev];
+            if (prev.some(n => n.id === enriched.id)) return prev;
+            return [enriched, ...prev];
           });
 
           // Increment unread count only if not already read

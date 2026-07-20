@@ -82,7 +82,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+            className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-surface"
           >
             <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
               <span className="h-9 w-9 rounded-lg bg-blue-100 text-[#0F4C81] flex items-center justify-center shrink-0">
@@ -94,7 +94,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
                 <h2 className="text-base font-bold text-gray-900">Edit Data Pengguna</h2>
                 <p className="text-xs text-gray-400">Perbarui informasi profil dan hak akses pengguna.</p>
               </div>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer">
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer dark:bg-elevated">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -109,7 +109,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
                     type="text"
                     value={form.namaLengkap}
                     onChange={(e) => setForm((f) => f && { ...f, namaLengkap: e.target.value })}
-                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                    className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 dark:bg-surface"
                   />
                 </div>
                 <div>
@@ -120,7 +120,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
                       type="text"
                       value={form.username}
                       onChange={(e) => setForm((f) => f && { ...f, username: e.target.value })}
-                      className="w-full bg-white text-gray-700 text-sm rounded-xl pl-7 pr-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                      className="w-full bg-white text-gray-700 text-sm rounded-xl pl-7 pr-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 dark:bg-surface"
                     />
                   </div>
                 </div>
@@ -132,7 +132,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => f && { ...f, email: e.target.value })}
-                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 dark:bg-surface"
                 />
               </div>
 
@@ -142,7 +142,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
                   type="text"
                   value={form.noTelepon}
                   onChange={(e) => setForm((f) => f && { ...f, noTelepon: e.target.value })}
-                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 dark:bg-surface"
                 />
               </div>
 
@@ -151,7 +151,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
                 <select
                   value={form.role}
                   onChange={(e) => setForm((f) => f && { ...f, role: e.target.value as UserRole })}
-                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer dark:bg-surface"
                 >
                   {roles.map((r) => (
                     <option key={r.id} value={r.label}>{r.label}</option>
@@ -164,7 +164,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
                 <select
                   value={form.status}
                   onChange={(e) => setForm((f) => f && { ...f, status: e.target.value as UserStatus })}
-                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer dark:bg-surface"
                 >
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>{s}</option>
@@ -182,8 +182,8 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-              <button onClick={onClose} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 cursor-pointer">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 dark:bg-surface">
+              <button onClick={onClose} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 cursor-pointer dark:bg-elevated">
                 Batal
               </button>
               <button

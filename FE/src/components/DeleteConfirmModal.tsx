@@ -23,7 +23,7 @@ const DeleteConfirmModal = ({ open, onClose, onConfirm }: DeleteConfirmModalProp
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 text-center"
+            className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 text-center dark:bg-surface"
           >
             <div className="h-14 w-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
               <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -43,7 +43,7 @@ const DeleteConfirmModal = ({ open, onClose, onConfirm }: DeleteConfirmModalProp
               </button>
               <button
                 onClick={onClose}
-                className="w-full py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50"
+                className="w-full py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 dark:bg-surface"
               >
                 Batal
               </button>

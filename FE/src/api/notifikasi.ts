@@ -19,7 +19,9 @@ export interface ApiNotification {
   createdAt?: string;
   is_read?: boolean;
   read?: boolean;
-  pengirim?: { nama_lengkap?: string } | null;
+  ref_id?: string;
+  ref_tipe?: string;
+  pengirim?: { id?: string; nama_lengkap?: string } | null;
   [key: string]: unknown;
 }
 

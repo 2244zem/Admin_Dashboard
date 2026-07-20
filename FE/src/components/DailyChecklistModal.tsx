@@ -50,7 +50,7 @@ export default function DailyChecklistModal({
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden"
+            className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-surface"
           >
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div className="flex items-center gap-3">
@@ -63,7 +63,7 @@ export default function DailyChecklistModal({
                   <p className="text-xs text-gray-400">{formatTanggalPanjang(detail.tanggal)}</p>
                 </div>
               </div>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 shrink-0">
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 shrink-0 dark:bg-elevated">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -75,7 +75,7 @@ export default function DailyChecklistModal({
                 <span className="text-sm font-bold text-[#0F4C81]">Progress: {selesai}/{total} Selesai</span>
                 <span className="text-sm font-bold text-[#0F4C81]">{pct}%</span>
               </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden -mt-2 mb-4">
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden -mt-2 mb-4 dark:bg-elevated">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${pct}%` }}
@@ -126,8 +126,8 @@ export default function DailyChecklistModal({
               })}
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-              <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 dark:bg-surface">
+              <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 dark:bg-elevated">
                 Tutup
               </button>
               <button

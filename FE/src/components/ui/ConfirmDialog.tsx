@@ -43,7 +43,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden"
+            className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-surface"
           >
             <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center">
               <div className={`h-12 w-12 rounded-full ${iconColorClass} flex items-center justify-center mb-4`}>
@@ -60,10 +60,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               <h3 className="text-lg font-bold text-gray-900">{title}</h3>
               <p className="text-sm text-gray-500 mt-2 leading-relaxed">{message}</p>
             </div>
-            <div className="flex items-center gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <div className="flex items-center gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 dark:bg-surface">
               <button
                 onClick={onClose}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors cursor-pointer"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors cursor-pointer dark:bg-elevated"
               >
                 {cancelLabel}
               </button>

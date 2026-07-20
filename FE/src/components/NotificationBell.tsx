@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNotifications } from "../hooks/useNotifications";
 import NotificationPanel from "./NotificationPanel";
+import { getNotificationPath } from "../lib/notificationRoute";
 
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const { notifications, unreadCount, markAllRead, markRead } = useNotifications();
+  const navigate = useNavigate();
   const bellRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +58,7 @@ export default function NotificationBell() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer z-50"
+        className="relative p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer z-50 dark:bg-elevated"
         title="Notifikasi"
         aria-label={`Notifikasi${unreadCount > 0 ? ` (${unreadCount} belum dibaca)` : ""}`}
       >
@@ -101,12 +104,10 @@ export default function NotificationBell() {
             <NotificationPanel
               notifications={notifications}
               onMarkAllRead={markAllRead}
-              onItemClick={(id) => {
-                markRead(id);
-                // Close panel after marking as read
-                if (notifications.filter(n => !n.read).length <= 1) {
-                  setIsOpen(false);
-                }
+              onItemClick={(n) => {
+                markRead(n.id);
+                setIsOpen(false);
+                navigate(getNotificationPath(n));
               }}
               onClose={() => setIsOpen(false)}
             />

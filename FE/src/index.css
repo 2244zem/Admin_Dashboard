@@ -1,1 +1,85 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Dark Mode palette — pure black background, white text */
+@theme {
+  --color-base: #181A22;      /* Primary background */
+  --color-surface: #181A22;   /* Card / container surface */
+  --color-elevated: #181A22;  /* Secondary surface / elevated elements */
+  --color-line: #404040;      /* Borders / dividers (visible on black) */
+  --color-muted: #FFFFFF;     /* Secondary text & icons (white) */
+  --color-ink: #FFFFFF;       /* Primary text & headings */
+}
+
+/* Smooth transition light <-> dark */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease,
+      color 0.3s ease, fill 0.3s ease, stroke 0.3s ease;
+  }
+}
+
+/* Dark mode: neutralize blue interactive feedback -> neutral white */
+@layer components {
+  /* focus ring / border */
+  .dark [class*="focus:ring"]:focus,
+  .dark [class*="focus:border"]:focus {
+    --tw-ring-color: rgba(255, 255, 255, 0.4) !important;
+    border-color: #ffffff !important;
+  }
+  /* hover / active blue tints -> darker than base */
+  .dark [class*="hover:bg-blue"]:hover,
+  .dark [class*="active:bg-blue"]:active,
+  .dark [class*="hover:bg-[#0a355c]"]:hover {
+    background-color: #0E0F13 !important;
+  }
+  /* sidebar/header light hover -> darker than base */
+  .dark [class~="dark:hover:bg-ink/10"]:hover {
+    background-color: #0E0F13 !important;
+  }
+  /* light-blue surfaces (cards / active nav) -> dark */
+  .dark [class~="bg-blue-50"],
+  .dark [class~="bg-blue-50/40"],
+  .dark [class~="bg-blue-50/50"],
+  .dark [class~="bg-[#DCE6F7]"] {
+    background-color: #20232C !important;
+  }
+  /* blue accent text -> white in dark mode */
+  .dark [class~="text-[#0F4C81]"],
+  .dark [class~="text-blue-500"],
+  .dark [class~="text-blue-600"] {
+    color: #ffffff !important;
+  }
+  /* light-blue borders -> dark in dark mode */
+  .dark [class~="border-blue-100"] {
+    border-color: #2A2E38 !important;
+  }
+  /* brand buttons -> dark in dark mode (combined selectors exclude
+     progress-bar fills / legend dots that also use bg-[#0F4C81]) */
+  .dark [class~="bg-[#0F4C81]"][class~="hover:bg-[#0a355c]"],
+  .dark [class~="bg-[#0F4C81]"][class~="hover:bg-[#0c3c68]"],
+  .dark [class~="bg-[#0F2F6B]"][class~="hover:bg-[#0c2657]"],
+  .dark [class~="bg-[#2f8fe0]"][class~="hover:bg-[#0F4C81]"],
+  .dark [class~="bg-[#4a9fe0]"] {
+    background-color: #2A2E38 !important;
+  }
+  .dark [class~="hover:bg-[#0c3c68]"]:hover,
+  .dark [class~="hover:bg-[#0c2657]"]:hover,
+  .dark [class~="hover:bg-[#0F4C81]"]:hover {
+    background-color: #1A1D24 !important;
+  }
+  /* force all gray text & placeholders to white in dark mode */
+  .dark [class*="text-gray-"],
+  .dark [class*="text-slate-"],
+  .dark [class*="text-zinc-"],
+  .dark [class*="text-neutral-"] {
+    color: #ffffff !important;
+  }
+  .dark [class*="placeholder:text-gray-"]::placeholder,
+  .dark [class*="placeholder:text-slate-"]::placeholder,
+  .dark [class*="placeholder:text-zinc-"]::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+  }
+}

@@ -27,12 +27,6 @@ function getAvatarColor(name: string) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-const PERIOD_LABEL: Record<PerformancePeriod, string> = {
-  mingguan: "7 Hari Terakhir",
-  bulanan: "30 Hari Terakhir",
-  tahunan: "1 Tahun Terakhir",
-};
-
 const Performa = () => {
   const { fetchOB } = useUsers();
   const { rows, isLoading, error, fetchAll } = usePerformanceOb();
@@ -55,11 +49,11 @@ const Performa = () => {
   const maxDiklaim = Math.max(...rows.map((r) => r.tugasDiklaim ?? 0), 1);
 
   return (
-    <div className="flex h-screen bg-white font-sans">
+    <div className="flex h-screen bg-white font-sans dark:bg-base">
       <div className="flex-1 flex flex-col overflow-hidden">
         <PageHeader title="Performa OB" />
 
-        <main className="flex-1 overflow-auto bg-white p-8 font-sans">
+        <main className="flex-1 overflow-auto bg-white p-8 font-sans dark:bg-base">
           {isLoading && rows.length === 0 ? (
             <div>
               <Skeleton className="h-8 w-64 mb-2" />
@@ -156,14 +150,14 @@ const Performa = () => {
                 <div className="border border-gray-200 rounded-xl p-6">
                   <h3 className="text-sm font-bold text-gray-700 mb-4">Perbandingan Penyelesaian Tugas</h3>
                   {rows.every((r) => r.tugasDiklaim === undefined) ? (
-                    <div className="h-48 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-gray-400">
+                    <div className="h-48 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-gray-400 dark:bg-surface">
                       Data belum tersedia
                     </div>
                   ) : (
                     <div className="h-48 flex items-end gap-4">
                       {rows.map((r) => (
                         <div key={r.userId} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                          <div className="w-full bg-gray-100 rounded-t-md flex items-end justify-center h-full relative overflow-hidden">
+                          <div className="w-full bg-gray-100 rounded-t-md flex items-end justify-center h-full relative overflow-hidden dark:bg-elevated">
                             <motion.div
                               initial={{ height: 0 }}
                               animate={{ height: `${((r.tugasDiklaim ?? 0) / maxDiklaim) * 100}%` }}
@@ -186,7 +180,7 @@ const Performa = () => {
                 */}
                 <div className="border border-gray-200 rounded-xl p-6">
                   <h3 className="text-sm font-bold text-gray-700 mb-4">Tren Keluhan</h3>
-                  <div className="h-48 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-gray-400">
+                  <div className="h-48 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-gray-400 dark:bg-surface">
                     Data belum tersedia — butuh endpoint tren bulanan dari backend
                   </div>
                 </div>
@@ -206,7 +200,7 @@ const Performa = () => {
                 ) : (
                   <>
                     <table className="w-full text-left text-sm text-gray-600">
-                      <thead className="text-[11px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50">
+                      <thead className="text-[11px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50 dark:bg-surface">
                         <tr>
                           <th className="px-6 py-3">Peringkat / Staf</th>
                           <th className="px-6 py-3">Tugas Diklaim</th>
@@ -217,7 +211,7 @@ const Performa = () => {
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {rankedRows.map((row: ObPerformanceRow, idx: number) => (
-                          <tr key={row.userId} className="hover:bg-gray-50/50 transition-colors">
+                          <tr key={row.userId} className="hover:bg-gray-50/50 transition-colors dark:bg-surface">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-bold text-gray-400 w-4">{idx + 1}</span>

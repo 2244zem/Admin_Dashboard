@@ -75,8 +75,8 @@ export default function ActivateAccount() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-100 p-4 font-sans">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-100 p-4 font-sans dark:bg-elevated">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-surface">
         <div className="px-8 pt-8 pb-5 border-b border-gray-100">
           <img src="/src/assets/WGSLogoNoBG.png" alt="Logo WGS" className="h-16 w-auto -ml-3 mb-3" />
           <h1 className="text-xl font-bold text-gray-900">Aktivasi Akun</h1>
@@ -107,7 +107,7 @@ export default function ActivateAccount() {
                   autoComplete="new-password"
                   value={form.password}
                   onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-                  className="w-full bg-gray-50 text-gray-800 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 hover:border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                  className="w-full bg-gray-50 text-gray-800 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 hover:border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 dark:bg-surface"
                 />
               </div>
 
@@ -121,7 +121,7 @@ export default function ActivateAccount() {
                   autoComplete="new-password"
                   value={form.confirmPassword}
                   onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
-                  className="w-full bg-gray-50 text-gray-800 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 hover:border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
+                  className="w-full bg-gray-50 text-gray-800 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 hover:border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 dark:bg-surface"
                 />
               </div>
 

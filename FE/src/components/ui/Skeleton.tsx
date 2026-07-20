@@ -37,10 +37,10 @@ export const TableSkeleton: React.FC<TableSkeletonProps> = ({
   rows = 5,
   withAvatar = true,
 }) => (
-  <div className="bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden">
+  <div className="bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden dark:bg-surface">
     <div className="overflow-x-auto">
       <table className="w-full text-left">
-        <thead className="border-b border-gray-200 bg-gray-100/50">
+        <thead className="border-b border-gray-200 bg-gray-100/50 dark:bg-elevated">
           <tr>
             {Array.from({ length: columns }).map((_, i) => (
               <th key={i} className="px-6 py-4">
@@ -49,7 +49,7 @@ export const TableSkeleton: React.FC<TableSkeletonProps> = ({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200 bg-white">
+        <tbody className="divide-y divide-gray-200 bg-white dark:bg-surface">
           {Array.from({ length: rows }).map((_, r) => (
             <tr key={r}>
               {Array.from({ length: columns }).map((_, c) => (

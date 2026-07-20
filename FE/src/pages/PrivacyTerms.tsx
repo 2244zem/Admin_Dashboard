@@ -14,7 +14,7 @@ const LAST_UPDATED: Record<TabKey, string> = {
 function DocInfoPanel() {
   return (
     <div className="flex flex-col gap-4">
-      <div className="border border-gray-200 rounded-2xl p-5 bg-white">
+      <div className="border border-gray-200 rounded-2xl p-5 bg-white dark:bg-surface">
         <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4">Informasi Dokumen</h3>
 
         <div className="mb-4">
@@ -40,7 +40,7 @@ function DocInfoPanel() {
         </div>
       </div>
 
-      <div className="border border-gray-200 rounded-2xl p-5 bg-white">
+      <div className="border border-gray-200 rounded-2xl p-5 bg-white dark:bg-surface">
         <div className="flex items-start gap-3">
           <span className="h-9 w-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
             <ShieldCheck className="h-4 w-4 text-[#0F4C81]" />
@@ -173,9 +173,9 @@ export default function PrivacyTerms() {
   };
 
   return (
-    <div className="flex h-screen bg-white font-sans">
+    <div className="flex h-screen bg-white font-sans dark:bg-base">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between px-8 py-6 bg-white border-b border-gray-200">
+        <header className="flex items-center justify-between px-8 py-6 bg-white border-b border-gray-200 dark:bg-surface">
           <h1 className="text-[2rem] font-bold text-[#0F4C81] tracking-tight">Privasi dan Syarat Ketentuan</h1>
           <div className="flex items-center gap-5">
             <div className="relative">
@@ -184,7 +184,7 @@ export default function PrivacyTerms() {
               </motion.button>
               <AnimatePresence>
                 {showNotif ? (
-                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="absolute right-0 mt-3 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-20 text-sm text-gray-500">
+                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="absolute right-0 mt-3 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-20 text-sm text-gray-500 dark:bg-surface">
                     Tidak ada notifikasi baru
                   </motion.div>
                 ) : null}
@@ -203,7 +203,7 @@ export default function PrivacyTerms() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto bg-white p-8">
+        <main className="flex-1 overflow-auto bg-white p-8 dark:bg-base">
           <div className="flex items-center gap-6 border-b border-gray-200 mb-6">
             <button onClick={() => setActiveTab("syarat")} className={activeTab === "syarat" ? "pb-3 text-sm font-semibold border-b-2 text-[#0F4C81] border-[#0F4C81] cursor-pointer" : "pb-3 text-sm font-semibold border-b-2 text-gray-400 border-transparent hover:text-gray-600 cursor-pointer"}>
               Syarat dan Ketentuan
@@ -214,7 +214,7 @@ export default function PrivacyTerms() {
           </div>
 
           <div className="grid grid-cols-3 gap-6 items-start">
-            <div className="col-span-2 border border-gray-200 rounded-2xl p-7 bg-white">
+            <div className="col-span-2 border border-gray-200 rounded-2xl p-7 bg-white dark:bg-surface">
               {activeTab === "syarat" ? <SyaratKetentuanContent /> : <KebijakanPrivasiContent />}
 
               <div className="flex items-center justify-between mt-8 pt-5 border-t border-gray-100">

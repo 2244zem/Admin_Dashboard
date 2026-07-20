@@ -1,33 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Laporan, StatusLaporan } from "../types/laporan";
 import { getAdminLaporan, getAdminLaporanDetail, updateAdminLaporan, deleteAdminLaporan, type AdminLaporanParams } from "../api/laporan";
-import { getAdminUsers } from "../api/user";
 import { getErrorMessage, getInitials } from "../lib/utils";
-
-// Cached user photo maps (5 min TTL)
-let _photoMaps: Map<string, string> | null = null;
-let _photoMapsTime = 0;
-const PHOTO_TTL = 5 * 60_000;
-
-const getPhotoMaps = async (): Promise<Map<string, string>> => {
-  const now = Date.now();
-  if (_photoMaps && now - _photoMapsTime < PHOTO_TTL) return _photoMaps;
-
-  const map = new Map<string, string>();
-  try {
-    const rows = await getAdminUsers({ page: 1, limit: 200 });
-    for (const u of rows) {
-      const photo = u.profile_picture || u.foto_profil;
-      if (photo) {
-        const photoStr = String(photo);
-        map.set(String(u.id ?? ""), photoStr);
-        map.set(String(u.nama_lengkap ?? "").toLowerCase().trim(), photoStr);
-      }
-    }
-  } catch { /* graceful */ }
-  _photoMaps = map; _photoMapsTime = now;
-  return map;
-};
+import { getPhotoMaps, resolveAssetUrl } from "../lib/assets";
 
 // Status mappers - aligned with backend enum
 const mapStatus = (s: unknown): StatusLaporan => {
@@ -48,17 +23,23 @@ export const mapApiLaporanToLaporan = (row: Record<string, unknown>): Laporan =>
   const get = (v: unknown, ...keys: string[]): unknown =>
     keys.reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), v) ?? "";
 
-  // Handle bukti_foto from various possible structures per spec
-  let fotoUrl: string | undefined;
+  // Handle bukti_foto from various possible structures per spec.
+  // Laporan photos arrive under different keys depending on the endpoint:
+  // bukti_foto.{urls,url,foto_url} (detail), foto_masalah[] (list per spec), or foto/foto_url.
+  const fotoMasalah = row.foto_masalah;
   const buktiFoto = row.bukti_foto as { urls?: unknown; url?: unknown; foto_url?: unknown } | undefined;
-  if (buktiFoto) {
-    if (Array.isArray(buktiFoto.urls) && buktiFoto.urls.length > 0) {
-      fotoUrl = String(buktiFoto.urls[0]);
-    } else if (buktiFoto.url || buktiFoto.foto_url) {
-      fotoUrl = String(buktiFoto.url ?? buktiFoto.foto_url);
-    }
-  }
-  fotoUrl = fotoUrl || String(row.foto_url ?? row.foto) || "https://placehold.co/160x120?text=Bukti";
+  const buktiUrls = Array.isArray(buktiFoto?.urls) ? (buktiFoto!.urls as unknown[]) : [];
+  const fotoCandidates = [
+    buktiUrls[0],
+    buktiFoto?.url,
+    buktiFoto?.foto_url,
+    row.foto_url,
+    row.foto,
+    Array.isArray(fotoMasalah) ? fotoMasalah[0] : undefined,
+    typeof fotoMasalah === "string" ? fotoMasalah : undefined,
+  ].filter((v): v is string | number | boolean => v != null && v !== "").map(String);
+
+  const fotoUrl = resolveAssetUrl(fotoCandidates[0] ?? "");
 
   return {
     id: Number.parseInt(String(row.id ?? "").replace(/\D/g, ""), 10) || 0,
@@ -80,8 +61,8 @@ export const mapApiLaporanToLaporan = (row: Record<string, unknown>): Laporan =>
     status: mapStatus(row.status),
     level: ["URGENT", "TINGGI", "HIGH", "DARURAT"].includes(String(row.prioritas ?? "").toUpperCase()) ? "URGENT" : "STANDARD",
     prioritas: row.prioritas != null ? String(row.prioritas) : "STANDARD",
-    foto: fotoUrl ?? "https://placehold.co/160x120?text=Bukti",
-    fotoProfil: row.profile_picture != null ? String(row.profile_picture) : (row.karyawan as Record<string, unknown> | undefined)?.profile_picture != null ? String((row.karyawan as Record<string, unknown> | undefined)?.profile_picture) : undefined,
+    foto: fotoUrl,
+    fotoProfil: row.profile_picture != null ? resolveAssetUrl(String(row.profile_picture)) : (row.karyawan as Record<string, unknown> | undefined)?.profile_picture != null ? resolveAssetUrl(String((row.karyawan as Record<string, unknown> | undefined)?.profile_picture)) : undefined,
     assignedTo: (() => { const a = get(row, "nama_ob") || get(row, "ob", "nama_lengkap"); return a != null ? String(a) : undefined; })(),
     taskId: row.task_id != null ? String(row.task_id) : undefined,
   };
@@ -108,6 +89,11 @@ async function fetchLaporan(params: Record<string, unknown>): Promise<LaporanPag
     sort_order: str(params.sort_order) as AdminLaporanParams["sort_order"],
   });
 
+  // ponytail-debug: dump one raw laporan row so we can find the real foto field
+  if (import.meta.env.DEV && items.length) {
+    console.log("[laporan raw row]", JSON.stringify(items[0]));
+  }
+
   const photoMaps = await getPhotoMaps();
   const mapped = items.map(mapApiLaporanToLaporan);
 
@@ -116,7 +102,7 @@ async function fetchLaporan(params: Record<string, unknown>): Promise<LaporanPag
   const enriched = mapped.map((l) => {
     if (l.fotoProfil || !l.karyawanId) return l;
     const photo = photoMaps.get(l.karyawanId);
-    return photo ? { ...l, fotoProfil: photo } : l;
+    return photo ? { ...l, fotoProfil: resolveAssetUrl(photo) } : l;
   });
 
   return { items: enriched, meta };
@@ -164,8 +150,17 @@ function useLaporan(filters?: Record<string, unknown>) {
     },
     getLaporanDetail: async (laporan: Laporan) => {
       const id = laporan.backendId || String(laporan.id);
-      const mapped = mapApiLaporanToLaporan(await getAdminLaporanDetail(id) as Record<string, unknown>);
-      return { ...mapped, id: laporan.id, createdAt: laporan.createdAt, name: laporan.name };
+      const raw = await getAdminLaporanDetail(id) as Record<string, unknown>;
+      if (import.meta.env.DEV) console.log("[laporan detail raw]", JSON.stringify(raw));
+      const mapped = mapApiLaporanToLaporan(raw);
+      // Preserve detail-fetched fields; only keep caller values when present
+      // (a deep-link passes only backendId, so name/createdAt come from detail).
+      return {
+        ...mapped,
+        ...(laporan.id ? { id: laporan.id } : {}),
+        ...(laporan.createdAt ? { createdAt: laporan.createdAt } : {}),
+        ...(laporan.name ? { name: laporan.name } : {}),
+      };
     },
   };
 }

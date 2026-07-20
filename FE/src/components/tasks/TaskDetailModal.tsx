@@ -69,7 +69,7 @@ export default function TaskDetailModal({ task, detailData, isLoading, onClose, 
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
+            className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col dark:bg-surface"
           >
             <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100">
               <div className="flex items-start gap-3">
@@ -81,14 +81,14 @@ export default function TaskDetailModal({ task, detailData, isLoading, onClose, 
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base font-bold text-gray-900">Detail Tugas: {display.namaTugas}</h2>
-                    <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">#{display.id}</span>
+                    <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full dark:bg-elevated">#{display.id}</span>
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {display.gedung}, {display.lantai} • Dikerjakan oleh: {display.petugas?.nama || "Belum ditugaskan"}
                   </p>
                 </div>
               </div>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 shrink-0 cursor-pointer">
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 shrink-0 cursor-pointer dark:bg-elevated">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -109,7 +109,7 @@ export default function TaskDetailModal({ task, detailData, isLoading, onClose, 
                         {display.fotoSebelum ? (
                           <img src={display.fotoSebelum} alt="Sebelum" className="w-full h-32 object-cover rounded-lg" />
                         ) : (
-                          <div className="w-full h-32 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                          <div className="w-full h-32 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400 dark:bg-elevated">
                             Belum tersedia
                           </div>
                         )}
@@ -119,7 +119,7 @@ export default function TaskDetailModal({ task, detailData, isLoading, onClose, 
                         {display.fotoSesudah ? (
                           <img src={display.fotoSesudah} alt="Sesudah" className="w-full h-32 object-cover rounded-lg" />
                         ) : (
-                          <div className="w-full h-32 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                          <div className="w-full h-32 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400 dark:bg-elevated">
                             Belum tersedia
                           </div>
                         )}

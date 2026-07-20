@@ -121,25 +121,15 @@ const UserDetail = () => {
   }, [user, push]);
 
   // === DERIVED STATE ===
-  const isOB = user?.role === "OB" || user?.role === "HR";
+  const isOB = user?.role === "OB";
   const isTokenExpired = user?.tokenStatus === "Expired";
-
-  const roleDisplayLabel = (() => {
-    switch (user?.role) {
-      case "OB": return "Office Boy (OB)";
-      case "Karyawan": return "Karyawan";
-      case "HR": return "HR";
-      case "Admin": return "Admin";
-      default: return user?.role || "-";
-    }
-  })();
 
   // === EARLY RETURNS (SETELAH SEMUA HOOKS) ===
 
   // Loading state
   if (isLoadingDetail) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex h-screen items-center justify-center bg-white dark:bg-surface">
         <LoadingSpinner text="Memuat data detail pengguna..." />
       </div>
     );
@@ -148,7 +138,7 @@ const UserDetail = () => {
   // Error state
   if (detailError || !user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex h-screen items-center justify-center bg-white dark:bg-surface">
         <div className="text-center">
           <p className="text-gray-500 mb-4 font-semibold">{detailError || "Pengguna tidak ditemukan."}</p>
           <button
@@ -164,170 +154,321 @@ const UserDetail = () => {
 
   // === RENDER ===
   return (
-    <div className="flex h-screen bg-white font-sans text-gray-800">
+    <div className="flex h-screen bg-white font-sans text-gray-800 dark:bg-base dark:text-ink">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-white p-8">
+        <main className="flex-1 overflow-auto bg-[#FAFAFA] p-8 dark:bg-base">
           {/* Breadcrumb */}
           <div className="flex items-center gap-3 mb-6">
             <button
               onClick={() => navigate("/users")}
-              className="h-8 w-8 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer focus:outline-none"
+              className="flex items-center text-sm text-[#0F4C81] font-semibold hover:underline cursor-pointer focus:outline-none"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5" />
               </svg>
             </button>
-            <div className="text-xs text-gray-400 select-none">
-              <button onClick={() => navigate("/users")} className="hover:text-gray-600 cursor-pointer">Pengguna</button>
-              <span className="mx-1">›</span>
-              <span className="text-[#0F4C81] font-semibold">Detail Pengguna</span>
+            <div className="text-sm text-gray-500 font-medium select-none">
+              <button onClick={() => navigate("/users")} className="hover:text-gray-800 cursor-pointer">Pengguna</button>
+              <span className="mx-2">›</span>
+              <span className="text-[#0F4C81] font-bold">Detail Pengguna</span>
             </div>
           </div>
 
           {/* Grid utama */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Kolom kiri */}
             <div className="lg:col-span-2 flex flex-col gap-6">
-              {/* Profil */}
-              <div className="border border-gray-200 rounded-xl p-6 bg-white">
-                <div className="flex items-start gap-4 mb-6">
-                  <Avatar name={user.namaLengkap} src={user.avatar} size="lg" />
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h2 className="text-lg font-bold text-gray-900">{user.namaLengkap}</h2>
-                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#0F4C81]">
-                        {roleDisplayLabel}
+              {isOB ? (
+                <div className="border border-gray-200 rounded-2xl p-7 bg-white shadow-sm dark:bg-surface">
+                  <div className="flex items-start justify-between mb-8">
+                    <div className="flex gap-5">
+                      <div className="relative">
+                        <div className="w-24 h-24 rounded-xl overflow-hidden shadow-sm">
+                          {user.avatar ? (
+                            <img src={user.avatar} alt={user.namaLengkap} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500 text-3xl font-bold">
+                              {user.namaLengkap.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-green-500 text-white text-[11px] font-bold px-3 py-0.5 rounded-full border-2 border-white">
+                          OB
+                        </span>
+                      </div>
+                      <div className="pt-1">
+                        <h2 className="text-2xl font-black text-[#1F2937] tracking-tight uppercase">{user.namaLengkap}</h2>
+                        <p className="text-sm font-medium text-gray-500 mb-2">@{user.username || `${user.namaLengkap.toLowerCase()}_OB`}</p>
+                        
+                        <div className="bg-[#382314] text-[#F3E8E0] text-xs font-semibold px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 mb-3 shadow-sm">
+                          <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                          </svg>
+                          Fast Responder - {user.stats?.tasksCompleted ?? 0} Tasks Completed
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                          <span className="flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Bergabung {formatTanggal(user.createdAt)}
+                          </span>
+                           <span className={`flex items-center gap-1.5 ${user.status === "Aktif" ? "text-green-500" : "text-gray-400"}`}>
+                             <span className={`h-1.5 w-1.5 rounded-full ${user.status === "Aktif" ? "bg-green-500" : "bg-gray-400"}`}></span>
+                             {user.status === "Aktif" ? "Sedang Bertugas" : user.status}
+                           </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr className="border-gray-100 mb-6" />
+
+                  <div className="grid grid-cols-2 divide-x divide-gray-100">
+                    <div className="pr-6">
+                      <h3 className="flex items-center gap-2 text-[15px] font-bold text-gray-800 mb-4">
+                        <svg className="w-5 h-5 text-[#0F4C81]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Informasi Pribadi
+                      </h3>
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">Alamat Email</p>
+                            <p className="text-sm font-semibold text-gray-800">{user.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">Nomor Telepon</p>
+                            <p className="text-sm font-semibold text-gray-800">{user.noTelepon || "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+                    </div>
+                    
+                    <div className="pl-6">
+                      <h3 className="flex items-center gap-2 text-[15px] font-bold text-gray-800 mb-1">
+                        <svg className="w-5 h-5 text-[#0F4C81]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                        Skill Spesialisasi
+                      </h3>
+                      <p className="text-[11px] text-gray-400 italic mb-4">(Terdeteksi Otomatis Berdasarkan Riwayat)</p>
+                      
+                      <p className="text-xs text-gray-400 italic">Belum ada data spesialisasi.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* === TAMPILAN PROFIL KARYAWAN === */
+                <div className="border border-gray-200 rounded-2xl p-7 bg-white shadow-sm dark:bg-surface">
+                  <div className="flex gap-5 mb-8">
+                    <div className="relative">
+                      <div className="w-24 h-24 rounded-xl overflow-hidden shadow-sm">
+                        {user.avatar ? (
+                          <img src={user.avatar} alt={user.namaLengkap} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500 text-3xl font-bold">
+                            {user.namaLengkap.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-[#10B981] text-white text-[11px] font-bold px-3 py-0.5 rounded-full border-2 border-white">
+                        Karyawan
                       </span>
                     </div>
-                    <p className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                    <div className="pt-2">
+                      <h2 className="text-2xl font-black text-[#1F2937] tracking-tight uppercase">{user.namaLengkap}</h2>
+                      <p className="text-sm font-medium text-gray-500 mb-3">@{user.username}</p>
+                      <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                        <span className="flex items-center gap-1.5">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Dibuat: {formatTanggal(user.createdAt)}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-green-500 font-bold">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Aktif
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr className="border-gray-100 mb-6" />
+
+                  <div className="grid grid-cols-2 gap-y-6 gap-x-8">
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Nama Lengkap</p>
+                      <p className="text-sm font-bold text-gray-800 uppercase">{user.namaLengkap}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Username</p>
+                      <p className="text-sm font-bold text-gray-800 uppercase">{user.username}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">No Telepon</p>
+                      <p className="text-sm font-bold text-gray-800">{user.noTelepon || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Email</p>
+                      <p className="text-sm font-bold text-gray-800">{user.email}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* === TABEL SESUAI ROLE === */}
+              {isOB ? (
+                /* Tabel Detail Laporan untuk OB */
+                <div className="border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden flex flex-col dark:bg-surface">
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-gray-900">Detail Laporan</h2>
+                    <div className="relative">
+                      <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
-                      Dibuat {formatTanggal(user.createdAt)}
-                    </p>
-                    <p className="flex items-center gap-1.5 text-xs font-semibold">
-                      <span className={`h-2 w-2 rounded-full ${user.status === "Aktif" ? "bg-green-500" : "bg-gray-300"}`}></span>
-                      <span className={user.status === "Aktif" ? "text-green-600" : "text-gray-500"}>{user.status}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">Nama Lengkap</p>
-                    <p className="text-sm font-bold text-gray-800">{user.namaLengkap}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">Username</p>
-                    <p className="text-sm font-bold text-gray-800">@{user.username}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">No Telepon</p>
-                    <p className="text-sm font-bold text-gray-800">{user.noTelepon || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">Email</p>
-                    <p className="text-sm font-bold text-gray-800">{user.email}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Statistik */}
-              <div className="border border-gray-200 rounded-xl p-6 bg-white">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-sm font-bold text-gray-800">
-                    {isOB ? "Statistik Performa" : "Statistik Pengguna"}
-                  </h3>
-                  {isOB && (
-                    <div className="inline-flex bg-gray-100 rounded-full p-1 text-xs">
-                      {(["Mingguan", "Bulanan", "Tahunan"] as PerformaTab[]).map((tab) => (
-                        <button
-                          key={tab}
-                          onClick={() => setPerformaTab(tab)}
-                          className={`px-3 py-1 rounded-full font-semibold transition-colors cursor-pointer ${
-                            performaTab === tab ? "bg-[#0F4C81] text-white" : "text-gray-500 hover:text-gray-700"
-                          }`}
-                        >
-                          {tab}
-                        </button>
-                      ))}
+                      <input 
+                        type="text" 
+                        placeholder="Cari laporan..." 
+                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0F4C81] w-64"
+                      />
                     </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-gray-50 rounded-xl p-5 text-center">
-                    <div className="flex justify-center mb-2">
-                      <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                    </div>
-                    <span className="text-3xl font-bold text-gray-800">{user.stats?.tasksCompleted || 0}</span>
-                    <p className="text-xs text-gray-500 font-semibold mt-1">Tugas Selesai</p>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-5 text-center">
-                    <div className="flex justify-center mb-2">
-                      <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-gray-700">
+                      <thead className="text-[11px] font-bold text-gray-500 bg-gray-50/80 border-b border-gray-100 uppercase dark:bg-surface">
+                        <tr>
+                          <th className="px-6 py-4">ID Laporan</th>
+                          <th className="px-6 py-4">Kategori</th>
+                          <th className="px-6 py-4">Lokasi</th>
+                          <th className="px-6 py-4">Tanggal</th>
+                          <th className="px-6 py-4">Status</th>
+                          <th className="px-6 py-4 text-center">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        <tr>
+                          <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">
+                            Belum ada laporan untuk pengguna ini.
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div className="border-t border-gray-100 p-4 flex items-center justify-between text-xs text-gray-500">
+                    <span>Belum ada laporan</span>
+                    <div className="flex items-center gap-2">
+                      <button className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 dark:bg-surface">&lt;</button>
+                      <button className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 dark:bg-surface">&gt;</button>
                     </div>
-                    <span className="text-3xl font-bold text-gray-800">{user.stats?.rejected || 0}</span>
-                    <p className="text-xs text-gray-500 font-semibold mt-1">Laporan Ditolak</p>
                   </div>
                 </div>
-
-                <button
-                  onClick={handleExportPdf}
-                  className="w-full flex items-center justify-center gap-2 bg-[#0F4C81] hover:bg-[#0c3c68] text-white text-sm font-semibold rounded-xl py-3 transition-colors cursor-pointer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                  </svg>
-                  Ekspor PDF
-                </button>
-              </div>
+              ) : (
+                /* Tabel Riwayat Laporan untuk Karyawan */
+                <div className="border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden flex flex-col dark:bg-surface">
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-gray-900">Riwayat Laporan</h2>
+                    <button className="text-sm font-bold text-[#0070AF] hover:underline cursor-pointer">Lihat Semua</button>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-gray-700">
+                      <thead className="text-[12px] font-bold text-gray-500 bg-indigo-50/50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-6 py-4">ID Tugas</th>
+                          <th className="px-6 py-4">Deskripsi Tugas</th>
+                          <th className="px-6 py-4">Waktu</th>
+                          <th className="px-6 py-4">Status</th>
+                          <th className="px-6 py-4 text-center">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        <tr>
+                          <td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-400">
+                            Belum ada riwayat laporan.
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Kolom kanan */}
+            {/* KOLOM KANAN */}
             <div className="flex flex-col gap-6">
-              {/* Status Token */}
-              <div className={`border rounded-xl p-5 ${isTokenExpired ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`h-5 w-5 rounded-full flex items-center justify-center ${isTokenExpired ? "bg-red-200 text-red-600" : "bg-green-200 text-green-600"}`}>
-                    {isTokenExpired ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    )}
+              
+              {/* Metrik Kinerja (Hanya untuk OB) */}
+              {isOB && (
+                <div className="bg-[#0c6b9d] rounded-2xl p-6 text-white shadow-sm relative overflow-hidden">
+                  <div className="absolute right-0 bottom-0 opacity-10">
+                    <svg width="150" height="150" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
                   </div>
-                  <h3 className={`text-sm font-bold ${isTokenExpired ? "text-red-700" : "text-green-700"}`}>Status Token Akses</h3>
+                  
+                  <h2 className="text-lg font-bold mb-4">Metrik Kinerja</h2>
+                  
+                  <div className="mb-6">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Total Tugas Selesai</p>
+                    <p className="text-5xl font-bold">{user.stats?.tasksCompleted ?? 0}</p>
+                  </div>
+                  
+                  <div className="border-t border-blue-400/30 pt-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Rata-Rata Kecepatan Pengerjaan</p>
+                    <p className="text-3xl font-bold">{user.stats?.avgResponseMinutes ?? 0} <span className="text-lg font-medium">Menit</span></p>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Token Akses */}
+              <div className={`border rounded-2xl p-6 ${isTokenExpired ? "border-red-100 bg-[#FDF7F7]" : "border-gray-200 bg-white"}`}>
+                <div className="flex items-center gap-2 mb-5">
+                  <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <h3 className="text-sm font-bold text-red-600">Status Token Akses</h3>
                 </div>
 
-                <div className="space-y-2 mb-3">
-                  <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${isTokenExpired ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>
-                    {isTokenExpired ? "Expired / Kadaluwarsa" : "Aktif"}
-                  </span>
+                <div className="space-y-4 mb-5">
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 mb-1">Status Saat Ini</p>
+                    <span className={`inline-block px-3 py-1.5 rounded-full text-xs font-bold ${isTokenExpired ? "bg-[#FCE8E8] text-[#C53030]" : "bg-green-100 text-green-700"}`}>
+                      {isTokenExpired ? "Expired / Kedaluwarsa" : "Aktif"}
+                    </span>
+                  </div>
 
-                  <div className="mt-2">
-                    <p className="text-xs text-gray-500">Waktu Kadaluwarsa</p>
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 mb-1">Waktu Kedaluwarsa</p>
                     <p className="text-sm font-bold text-gray-800">{formatTanggalWaktuWIB(user.tokenExpiredAt)}</p>
                   </div>
+                  
+                  {isTokenExpired && (
+                    <p className="text-[10px] text-red-500 italic">
+                      Token ini sudah tidak dapat digunakan untuk otentikasi sistem.
+                    </p>
+                  )}
                 </div>
 
                 <button
                   onClick={() => setShowTokenModal(true)}
-                  className={`w-full text-center text-xs font-bold py-2 rounded-lg transition-colors cursor-pointer ${
+                  className={`w-full text-center text-xs font-bold py-3 rounded-lg transition-colors cursor-pointer ${
                     isTokenExpired
-                      ? "bg-red-100 text-red-700 hover:bg-red-200"
-                      : "bg-green-100 text-green-700 hover:bg-green-200"
+                      ? "bg-[#FCE8E8] text-[#C53030] hover:bg-red-200"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   Lihat detail token
@@ -336,35 +477,58 @@ const UserDetail = () => {
 
               {/* Pengaturan Akun */}
               <Can permission="users:all" roles={["Admin", "HR"]} anyOf>
-                <div className="border border-gray-200 rounded-xl p-6 bg-white">
+                <div className="border border-gray-200 rounded-2xl p-6 bg-white shadow-sm dark:bg-surface">
                   <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4">Pengaturan Akun</h3>
-                  <div className="flex flex-col gap-2.5">
+                  <div className="flex flex-col gap-3">
                     <button
                       onClick={() => setShowEditModal(true)}
-                      className="w-full flex items-center justify-between gap-2 border border-gray-200 text-gray-700 hover:text-gray-900 text-sm font-semibold rounded-xl py-2.5 px-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="w-full flex items-center justify-between gap-2 border border-gray-200 text-gray-700 hover:text-gray-900 text-sm font-semibold rounded-xl py-3 px-4 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm dark:bg-surface"
                     >
                       <div className="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                        <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
                         Edit Data Pengguna
                       </div>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="text-gray-400">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
                     <button
                       onClick={() => setShowDeleteModal(true)}
-                      className="w-full flex items-center gap-2 border border-red-200 text-red-600 hover:text-red-700 text-sm font-semibold rounded-xl py-2.5 px-4 hover:bg-red-50/50 transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2 border border-red-200 bg-[#FDF7F7] text-red-600 hover:text-red-700 text-sm font-semibold rounded-xl py-3 px-4 transition-colors cursor-pointer shadow-sm"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                       Hapus Pengguna
                     </button>
                   </div>
                 </div>
               </Can>
+
+              {/* Log Sistem (Mockup visual) */}
+              <div className="bg-[#F8F9FA] border border-gray-200 rounded-2xl p-6 text-xs text-gray-500 font-mono">
+                <h3 className="flex items-center gap-1.5 font-sans font-bold text-gray-700 mb-4 text-sm">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Log Sistem
+                </h3>
+                <div className="flex justify-between mb-2">
+                  <span>Last Login:</span>
+                  <span className="font-bold text-gray-700">N/A</span>
+                </div>
+                <div className="flex justify-between mb-2">
+                  <span>Device ID:</span>
+                  <span className="font-bold text-gray-700">—</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>App Version:</span>
+                  <span className="font-bold text-gray-700">—</span>
+                </div>
+              </div>
+              
             </div>
           </div>
         </main>
@@ -386,11 +550,11 @@ const UserDetail = () => {
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+              className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-surface"
             >
               <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900">Detail Token</h3>
-                <button onClick={() => setShowTokenModal(false)} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer">
+                <button onClick={() => setShowTokenModal(false)} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer dark:bg-elevated">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -411,7 +575,7 @@ const UserDetail = () => {
                     <select
                       value={selectedDuration}
                       onChange={(e) => setSelectedDuration(Number(e.target.value))}
-                      className="w-full bg-white text-gray-800 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer"
+                      className="w-full bg-white text-gray-800 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer dark:bg-surface"
                     >
                       {TOKEN_DURATION_OPTIONS.map((opt) => (
                         <option key={opt.hours} value={opt.hours}>{opt.label}</option>
@@ -423,7 +587,7 @@ const UserDetail = () => {
                 <div>
                   <p className="text-xs font-semibold text-gray-500 mb-1.5">String Token</p>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-200 font-mono text-sm text-gray-700 truncate">
+                    <div className="flex-1 bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-200 font-mono text-sm text-gray-700 truncate dark:bg-surface">
                       {user.tokenString || "-"}
                     </div>
                     <button
@@ -438,8 +602,8 @@ const UserDetail = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-                <button onClick={() => setShowTokenModal(false)} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 cursor-pointer">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 dark:bg-surface">
+                <button onClick={() => setShowTokenModal(false)} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 cursor-pointer dark:bg-elevated">
                   Batal
                 </button>
                 {isTokenExpired && (

@@ -1,9 +1,10 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppUser } from "../types/user";
 import apiClient from "../services/apiClient";
 import { getAdminUsers, getAllOB, getAllKaryawan, getUserDetail as getUserDetailApi, renewUserToken, ROLE_UUID_MAP, ROLE_NAME_MAP } from "../api/user";
 import { getErrorMessage } from "../lib/utils";
+import { resolveAssetUrl } from "../lib/assets";
 import { appUserSchema, validateList } from "../schemas";
 import type { ApiMutationResult } from "../types/api";
 
@@ -63,7 +64,7 @@ const mapApiUser = (row: Record<string, unknown>): AppUser => {
     role: normalizeRole(roleId !== undefined ? { role_id: roleId } : role),
     departemen: String(row.departemen ?? "-"),
     status: row.is_active === false ? "Non-Aktif" : (row.status as AppUser["status"]) ?? "Aktif",
-    avatar: row.profile_picture as string | undefined,
+    avatar: row.profile_picture ? resolveAssetUrl(String(row.profile_picture)) : undefined,
     createdAt: String(row.created_at ?? new Date().toISOString()),
     tokenStatus: row.is_active === false ? "Expired" : "Aktif",
     tokenExpiredAt: String(row.token_expired_at ?? new Date(Date.now() + 86400000).toISOString()),
@@ -81,17 +82,20 @@ const USERS_KEY = ["users"] as const;
 const OB_KEY = ["ob"] as const;
 const KARYAWAN_KEY = ["karyawan"] as const;
 
-async function fetchUsers(): Promise<AppUser[]> {
-  const rows = await getAdminUsers({ page: 1, limit: 100 });
+async function fetchUsers(filters?: { search?: string; role_id?: string }): Promise<AppUser[]> {
+  // Forward search + role_id ke API (GET /api/admin/user mendukung keduanya);
+  // ambil hingga 1000 row agar filter/pagination bekerja di sisi client.
+  const rows = await getAdminUsers({ page: 1, limit: 1000, search: filters?.search, role_id: filters?.role_id });
   const mapped = (rows as Record<string, unknown>[]).map(mapApiUser);
   return validateList(appUserSchema, mapped);
 }
 
-async function fetchOB(): Promise<Array<{ id: string; nama: string }>> {
+async function fetchOB(): Promise<Array<{ id: string; nama: string; isActive: boolean }>> {
   const rows = await getAllOB();
   return (rows as Record<string, unknown>[]).map((u) => ({
     id: String(u.id ?? ""),
     nama: String(u.nama_lengkap ?? u.username ?? "Pengguna"),
+    isActive: u.is_active !== false,
   }));
 }
 
@@ -105,14 +109,14 @@ async function fetchKaryawan(): Promise<Array<{ id: string; nama: string }>> {
 
 export { useUsers };
 export default useUsers;
-function useUsers() {
+function useUsers(filters?: { search?: string; role_id?: string }) {
   const qc = useQueryClient();
   const [isMutating, setMutating] = useState(false);
   const [mutationError, setError] = useState<string | null>(null);
 
   const query = useQuery({
-    queryKey: USERS_KEY,
-    queryFn: fetchUsers,
+    queryKey: filters ? [...USERS_KEY, filters] : USERS_KEY,
+    queryFn: () => fetchUsers(filters),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     retry: 2,

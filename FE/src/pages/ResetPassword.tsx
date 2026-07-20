@@ -14,7 +14,7 @@ const ResetPassword = () => {
   // POST /api/auth/reset-password returns 401 if token is invalid — handle it there.
   const [isCheckingToken] = useState(!token); // skip check if no token, else false (form shows, POST handles 401)
   const [isTokenValid] = useState(!!token);
-  const [tokenErrorMsg, setTokenErrorMsg] = useState<string | null>(!token ? "Tautan tidak valid atau tidak ditemukan token." : null);
+  const [tokenErrorMsg] = useState<string | null>(!token ? "Tautan tidak valid atau tidak ditemukan token." : null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -57,8 +57,8 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-100 p-4 font-sans">
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-100 p-4 font-sans dark:bg-elevated">
+      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-surface">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <img
@@ -247,7 +247,7 @@ const ResetPassword = () => {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-8 py-4 border-t border-gray-100 bg-gray-50/50">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-8 py-4 border-t border-gray-100 bg-gray-50/50 dark:bg-surface">
           <span className="text-xs text-gray-500">
             <span className="font-semibold text-[#0F4C81]">Lapor-OB</span>{" "}
             &copy; {new Date().getFullYear()} Lapor-OB Facility Management. All rights reserved.

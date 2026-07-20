@@ -62,7 +62,7 @@ function RowActionMenu({
     <div className="relative inline-block" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer dark:bg-elevated"
         title="Aksi"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -76,11 +76,11 @@ function RowActionMenu({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -6 }}
             transition={{ duration: 0.12 }}
-            className="absolute right-0 top-full mt-1 z-20 w-36 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden"
+            className="absolute right-0 top-full mt-1 z-20 w-36 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden dark:bg-surface"
           >
             <button
               onClick={() => { setOpen(false); onDetail(); }}
-              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer dark:bg-surface"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -88,7 +88,7 @@ function RowActionMenu({
               </svg>
               Lihat Detail
             </button>
-            <div className="h-px bg-gray-100" />
+            <div className="h-px bg-gray-100 dark:bg-elevated" />
             {canEdit && (
               <>
                 <button
@@ -100,7 +100,7 @@ function RowActionMenu({
                   </svg>
                   Edit
                 </button>
-                <div className="h-px bg-gray-100" />
+                <div className="h-px bg-gray-100 dark:bg-elevated" />
               </>
             )}
             {canDelete && (
@@ -122,7 +122,6 @@ function RowActionMenu({
 }
 
 const Users = () => {
-  const { userList, isLoading, error, fetchUsers, addUser, updateUser, deleteUser } = useUsers();
   const { push } = useToast();
   const navigate = useNavigate();
 
@@ -131,6 +130,17 @@ const Users = () => {
   const [roleDraft, setRoleDraft] = useState<UserRole | "Semua Role">("Semua Role");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [appliedRole, setAppliedRole] = useState<UserRole | "Semua Role">("Semua Role");
+
+  // Search + role filter dijalankan di server (GET /api/admin/user?search=&role_id=)
+  const userFilters = useMemo(
+    () => ({
+      search: appliedSearch,
+      role_id: appliedRole !== "Semua Role" ? ROLE_UUID_MAP[appliedRole] : undefined,
+    }),
+    [appliedSearch, appliedRole]
+  );
+
+  const { userList, isLoading, error, fetchUsers, addUser, updateUser, deleteUser } = useUsers(userFilters);
 
   const handleApplyFilter = () => {
     setAppliedSearch(searchDraft);
@@ -146,20 +156,9 @@ const Users = () => {
     setCurrentPage(1);
   };
 
-  const filteredUsers = useMemo(() => {
-    const result = userList.filter((u) => {
-      const q = appliedSearch.trim().toLowerCase();
-      const matchSearch =
-        q === "" || u.namaLengkap.toLowerCase().includes(q) || u.username.toLowerCase().includes(q);
-      const matchRole = appliedRole === "Semua Role" || u.role === appliedRole;
-      return matchSearch && matchRole;
-    });
-    return result;
-  }, [userList, appliedSearch, appliedRole]);
-
   // --- Pagination ---
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(userList.length / ITEMS_PER_PAGE));
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -167,11 +166,11 @@ const Users = () => {
 
   const paginatedUsers = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredUsers.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredUsers, currentPage]);
+    return userList.slice(start, start + ITEMS_PER_PAGE);
+  }, [userList, currentPage]);
 
-  const startIndex = filteredUsers.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
-  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, filteredUsers.length);
+  const startIndex = userList.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, userList.length);
 
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages) return;
@@ -230,9 +229,9 @@ const Users = () => {
   };
 
   return (
-    <div className="flex h-screen bg-white font-sans text-gray-800">
+    <div className="flex h-screen bg-white font-sans text-gray-800 dark:bg-base dark:text-ink">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-white p-8">
+        <main className="flex-1 overflow-auto bg-white p-8 dark:bg-base">
           {isLoading && userList.length === 0 ? (
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -296,7 +295,7 @@ const Users = () => {
                 <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">User Non-Aktif</span>
                 <span className="text-xl font-bold text-gray-500">{userNonAktif.toLocaleString("id-ID")}</span>
               </div>
-              <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
+              <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 dark:bg-elevated">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -317,7 +316,7 @@ const Users = () => {
           </div>
 
           {/* Filter Panel */}
-          <div className="border border-gray-200 rounded-xl p-5 mb-6 flex flex-wrap md:flex-nowrap gap-4 items-end bg-gray-50/50">
+          <div className="border border-gray-200 rounded-xl p-5 mb-6 flex flex-wrap md:flex-nowrap gap-4 items-end bg-gray-50/50 dark:bg-surface">
             <div className="flex-1">
               <label className="block text-xs font-semibold text-gray-500 mb-1.5">Cari User</label>
               <div className="relative">
@@ -326,7 +325,7 @@ const Users = () => {
                   placeholder="Nama Lengkap / Username..."
                   value={searchDraft}
                   onChange={(e) => setSearchDraft(e.target.value)}
-                  className="w-full bg-white text-gray-800 text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all duration-200"
+                  className="w-full bg-white text-gray-800 text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all duration-200 dark:bg-surface"
                 />
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -342,7 +341,7 @@ const Users = () => {
                 <select
                   value={roleDraft}
                   onChange={(e) => setRoleDraft(e.target.value as UserRole)}
-                  className="w-full bg-white text-gray-800 text-sm rounded-xl pl-4 pr-10 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all duration-200 appearance-none cursor-pointer"
+                  className="w-full bg-white text-gray-800 text-sm rounded-xl pl-4 pr-10 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all duration-200 appearance-none cursor-pointer dark:bg-surface"
                 >
                   <option value="Semua Role">Semua Role</option>
                   {ROLE_OPTIONS.map((opt) => (
@@ -368,24 +367,24 @@ const Users = () => {
               </button>
               <button
                 onClick={handleResetFilter}
-                className="border border-gray-200 bg-white text-gray-500 hover:text-gray-800 text-sm font-semibold rounded-xl px-5 py-2.5 transition-colors cursor-pointer"
+                className="border border-gray-200 bg-white text-gray-500 hover:text-gray-800 text-sm font-semibold rounded-xl px-5 py-2.5 transition-colors cursor-pointer dark:bg-surface"
               >
                 Reset
               </button>
             </div>
           </div>
 
-          {filteredUsers.length === 0 ? (
+          {userList.length === 0 ? (
             <EmptyState
               title="Pengguna Tidak Ditemukan"
               description="Tidak ada pengguna yang sesuai dengan pencarian atau kriteria penyaringan Anda."
             />
           ) : (
             <React.Fragment>
-            <div className="bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden mb-6">
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden mb-6 dark:bg-surface">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-gray-600">
-                  <thead className="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200 bg-gray-100/50">
+                  <thead className="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200 bg-gray-100/50 dark:bg-elevated">
                     <tr>
                       <th className="px-6 py-4">User</th>
                       <th className="px-6 py-4">Username</th>
@@ -395,12 +394,12 @@ const Users = () => {
                       <th className="px-6 py-4 text-right">Aksi</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
+                  <tbody className="divide-y divide-gray-200 bg-white dark:bg-surface">
                     {paginatedUsers.map((u) => (
                         <motion.tr
                           key={u.id}
                           whileHover={{ backgroundColor: "rgba(15, 76, 129, 0.02)" }}
-                          className="transition-colors hover:bg-gray-50"
+                          className="transition-colors hover:bg-gray-50 dark:bg-surface"
                         >
                           <td className="px-6 py-4 flex items-center gap-3">
                             <Avatar name={u.namaLengkap} src={u.avatar} size="md" />
@@ -433,9 +432,9 @@ const Users = () => {
               </div>
 
               {/* Pagination */}
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500">
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500 dark:bg-surface">
                 <span>
-                  Menampilkan {startIndex} sampai {endIndex} dari {filteredUsers.length} user
+                  Menampilkan {startIndex} sampai {endIndex} dari {userList.length} user
                 </span>
                 <div className="flex items-center gap-1">
                   <button

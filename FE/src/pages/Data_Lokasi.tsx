@@ -211,10 +211,10 @@ const DataLokasi = () => {
   };
 
   return (
-    <div className="flex h-screen bg-white font-sans text-gray-800">
+    <div className="flex h-screen bg-white font-sans text-gray-800 dark:bg-base dark:text-ink">
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* BODY: 2 KOLOM */}
-        <main className="flex-1 overflow-hidden flex flex-col md:flex-row gap-6 p-8 bg-white">
+        <main className="flex-1 overflow-hidden flex flex-col md:flex-row gap-6 p-8 bg-white dark:bg-base">
           {isLoading && gedungList.length === 0 ? (
             <>
               <div className="w-full md:w-[300px] flex-shrink-0 space-y-3">
@@ -317,11 +317,11 @@ const DataLokasi = () => {
               </div>
 
               {/* KOLOM KANAN: STRUKTUR LANTAI & RUANGAN */}
-              <div className="flex-1 border border-gray-200 rounded-2xl overflow-hidden flex flex-col bg-white">
+              <div className="flex-1 border border-gray-200 rounded-2xl overflow-hidden flex flex-col bg-white dark:bg-surface">
                 {selectedGedung ? (
                   <>
                     {/* Header struktur */}
-                    <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-white">
+                    <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-white dark:bg-surface">
                       <div>
                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Struktur</p>
                         <h2 className="text-base font-bold text-gray-800">{selectedGedung.nama}</h2>
@@ -342,12 +342,12 @@ const DataLokasi = () => {
                     </div>
 
                     {/* Daftar lantai */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white dark:bg-surface">
                       {selectedGedung.lantai && selectedGedung.lantai.length > 0 ? (
                         selectedGedung.lantai.map((lantai) => (
-                          <div key={lantai.id} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                          <div key={lantai.id} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden dark:bg-surface">
                             {/* Header lantai */}
-                            <div className="flex items-center justify-between px-4 py-3 bg-gray-100/70">
+                            <div className="flex items-center justify-between px-4 py-3 bg-gray-100/70 dark:bg-elevated">
                               <div className="flex items-center gap-3">
                                 <span className="h-7 w-7 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center">
                                   {lantai.label}
@@ -381,12 +381,12 @@ const DataLokasi = () => {
                             </div>
 
                             {/* Daftar ruangan */}
-                            <div className="divide-y divide-gray-100 bg-white">
+                            <div className="divide-y divide-gray-100 bg-white dark:bg-surface">
                               {lantai.ruangan && lantai.ruangan.length > 0 ? (
                                 lantai.ruangan.map((ruangan) => (
                                   <div
                                     key={ruangan.id}
-                                    className="flex items-center justify-between px-4 py-3 pl-14 hover:bg-gray-50/50 transition-colors"
+                                    className="flex items-center justify-between px-4 py-3 pl-14 hover:bg-gray-50/50 transition-colors dark:bg-surface"
                                   >
                                     <span className="text-sm text-gray-600">{ruangan.nama}</span>
                                     <div className="flex items-center gap-1">
@@ -424,7 +424,7 @@ const DataLokasi = () => {
                               <Can permission="lokasi:create">
                                 <button
                                   onClick={() => openCreateRuangan(lantai.id)}
-                                  className="w-full text-left px-4 py-3 pl-14 text-sm font-semibold text-[#0F4C81] hover:bg-gray-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                  className="w-full text-left px-4 py-3 pl-14 text-sm font-semibold text-[#0F4C81] hover:bg-gray-50 transition-colors flex items-center gap-1.5 cursor-pointer dark:bg-surface"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -436,7 +436,7 @@ const DataLokasi = () => {
                           </div>
                         ))
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-center py-16 border-2 border-dashed border-gray-200 rounded-xl bg-white">
+                        <div className="flex flex-col items-center justify-center text-center py-16 border-2 border-dashed border-gray-200 rounded-xl bg-white dark:bg-surface">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V7l8-4v18M13 21V7l6 3v11" />
                           </svg>
@@ -447,7 +447,7 @@ const DataLokasi = () => {
                     </div>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-10 bg-white">
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-10 bg-white dark:bg-surface">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V7l8-4v18M13 21V7l6 3v11" />
                     </svg>

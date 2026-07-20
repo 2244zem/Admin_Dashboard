@@ -37,18 +37,18 @@ export async function getAdminUsers(params?: { page?: number; limit?: number; se
 }
 
 export async function getAllOB() {
-  const response = await apiClient.get<{ success: boolean; data: unknown[] }>("/api/admin/user/all-ob");
-  return response?.data?.data ?? [];
+  const response = await apiClient.get<{ success: boolean; data: Record<string, unknown>[] }>("/api/admin/user/all-ob");
+  return response?.data ?? [];
 }
 
 export async function getAllKaryawan() {
-  const response = await apiClient.get<{ success: boolean; data: unknown[] }>("/api/admin/user/all-karyawan");
-  return response?.data?.data ?? [];
+  const response = await apiClient.get<{ success: boolean; data: Record<string, unknown>[] }>("/api/admin/user/all-karyawan");
+  return response?.data ?? [];
 }
 
 export async function getAllRoles() {
   const response = await apiClient.get<{ success: boolean; data: { id: string; nama_role: string }[] }>("/api/admin/role");
-  return response?.data?.data ?? [];
+  return response?.data ?? [];
 }
 
 export async function createUser(payload: { username: string; email: string; nama_lengkap: string; role_id: string }) {

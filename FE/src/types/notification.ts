@@ -10,4 +10,8 @@ export interface AppNotification {
   createdAt: string;
   read: boolean;
   senderName?: string;
+  senderId?: string;
+  senderPhoto?: string;
+  refId?: string;
+  refTipe?: string;
 }

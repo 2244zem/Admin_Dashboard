@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useToast } from "../hooks/useToast";
+import { useNavigate } from "react-router-dom";
 import type { Task, StatusTask } from "../types/task";
 import useTasks, { type TaskFilters } from "../hooks/useTasks";
 import useLokasi from "../hooks/useLokasi";
@@ -41,20 +42,6 @@ const UI_STATUS_STYLE: Record<StatusTask, { dot: string; text: string; label: st
   Delayed: { dot: "bg-red-500", text: "text-red-600", label: "Terlewat" },
 };
 
-// ---------- Urgency ----------
-// NOTE: Task type saat ini TIDAK punya field urgency/prioritas dari mapApiChecklistToTask.
-// Dibaca secara optional agar siap begitu backend/mapper menyediakannya; fallback "Standard".
-type Urgency = "URGENT" | "Standard";
-function getUrgency(task: Task): Urgency {
-  const raw = (task as unknown as { urgency?: string; prioritas?: string }).urgency
-    ?? (task as unknown as { urgency?: string; prioritas?: string }).prioritas;
-  return raw === "URGENT" ? "URGENT" : "Standard";
-}
-const URGENCY_STYLE: Record<Urgency, string> = {
-  URGENT: "bg-red-100 text-red-600",
-  Standard: "bg-amber-100 text-amber-700",
-};
-
 function isToday(tanggal: string) {
   return tanggal === new Date().toISOString().slice(0, 10);
 }
@@ -90,6 +77,7 @@ const ITEMS_PER_PAGE = 10;
 
 const Tasks = () => {
   const { push } = useToast();
+  const navigate = useNavigate();
   const { gedungList } = useLokasi();
   const { kategoriList } = useKategori();
 
@@ -172,14 +160,12 @@ const Tasks = () => {
   // --- Statistik ---
   const totalHariIni = useMemo(() => resolvedTasks.filter((t) => isToday(t.tanggal)).length, [resolvedTasks]);
   const totalKemarin = useMemo(() => resolvedTasks.filter((t) => isYesterday(t.tanggal)).length, [resolvedTasks]);
-  const belumCount = periodTasks.filter((t) => t.status === "Belum").length;
   const prosesCount = periodTasks.filter((t) => t.status === "Proses").length;
   const selesaiCount = periodTasks.filter((t) => t.status === "Selesai").length;
   const prosesPct = Math.min(100, periodTasks.length === 0 ? 0 : Math.round((prosesCount / periodTasks.length) * 100));
 
   // --- Badge Kondisional ---
   const pctChangeHariIni = getPctChange(totalHariIni, totalKemarin);
-  const hasUrgentBelum = periodTasks.some((t) => t.status === "Belum" && getUrgency(t) === "URGENT");
   const needsReview = selesaiCount > 0;
 
   // --- Pagination ---
@@ -207,7 +193,7 @@ const Tasks = () => {
   const openEditModal = (task: Task) => {
     const selectedKategori = kategoriOptions.find((k) => k.nama === task.kategori);
     const selectedGedungOpt = gedungOptions.find((g) => g.nama === task.gedung);
-    const selectedLantai = lantaiOptions.find((l) => l.nama === task.lantai);
+    const selectedLantaiOpt = lantaiOptions.find((l) => l.nama === task.lantai);
 
     setModalMode("edit");
     setEditingTaskId(task.id);
@@ -215,7 +201,7 @@ const Tasks = () => {
       kategori_id: selectedKategori?.id || "",
       namaTugas: task.namaTugas,
       lokasi_id: selectedGedungOpt?.id || "",
-      lantai_id: selectedLantai?.id || "",
+      lantai_id: selectedLantaiOpt?.id || "",
       catatan: task.catatan || "",
     });
     setIsModalOpen(true);
@@ -289,16 +275,47 @@ const Tasks = () => {
     }
   };
 
+  // --- Jadikan Insidental ---
+  // Buka halaman Tugas Insidental dengan prefill dari task checklist ini, lalu
+  // disimpan lewat endpoint ad-hoc /api/tugas (bukan localStorage).
+  const handleJadikanInsidental = (task: Task) => {
+    const kategori = kategoriOptions.find((k) => k.nama === task.kategori);
+    setOpenMenuId(null);
+    navigate("/tugas-insidental", {
+      state: {
+        prefill: {
+          nama_tugas: task.namaTugas,
+          kategori_id: kategori?.id ?? "",
+          lantai_id: task.lantaiId ?? "",
+        },
+      },
+    });
+  };
+
+  // --- Dropdown menu Aksi (⋮) ---
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    }
+    if (openMenuId) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMenuId]);
+
   const isEmpty = tasks.length === 0;
 
   return (
-    <div className="flex h-screen bg-white font-sans">
+    <div className="flex h-screen bg-white font-sans dark:bg-base">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-white p-8 font-sans">
+        <main className="flex-1 overflow-auto bg-white p-8 font-sans dark:bg-base">
           {isTasksLoading && tasks.length === 0 ? (
             <div>
               <Skeleton className="h-9 w-72 rounded-full mb-6" />
-              <StatCardsSkeleton count={4} />
+              <StatCardsSkeleton count={3} />
               <div className="mt-6">
                 <CardListSkeleton count={3} />
               </div>
@@ -316,7 +333,7 @@ const Tasks = () => {
             <>
               {/* Tabs periode + filter gedung & lantai */}
               <div className="flex items-center justify-between mb-6">
-                <div className="inline-flex bg-gray-100 rounded-full p-1">
+                <div className="inline-flex bg-gray-100 rounded-full p-1 dark:bg-elevated">
                   {(["Hari Ini", "Mingguan", "Bulanan", "Tahunan"] as Periode[]).map((p) => (
                     <button
                       key={p}
@@ -353,7 +370,7 @@ const Tasks = () => {
                     <select
                       value={selectedLantai}
                       onChange={(e) => setSelectedLantai(e.target.value)}
-                      className="appearance-none bg-blue-50 text-[#0F4C81] font-semibold text-sm rounded-full pl-4 pr-9 py-2 outline-none cursor-pointer border border-blue-100"
+                      className="appearance-none bg-blue-50 text-[#0F4C81] font-semibold text-sm rounded-full pl-4 pr-9 py-2 outline-none cursor-pointer border border-blue-100 disabled:opacity-50"
                       disabled={selectedGedung === "Semua Gedung"}
                     >
                       <option value="Semua Lantai">Semua Lantai</option>
@@ -368,13 +385,13 @@ const Tasks = () => {
                 </div>
               </div>
 
-              {/* Stat Cards */}
-              <div className="grid grid-cols-4 gap-4 mb-6">
+              {/* Stat Cards (3 kartu, disederhanakan mengikuti desain baru) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div className="border border-gray-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="h-9 w-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                     {pctChangeHariIni !== null && pctChangeHariIni > 0 && (
@@ -383,23 +400,7 @@ const Tasks = () => {
                   </div>
                   <span className="block text-xs font-semibold text-gray-500 mb-1">Total Tugas Hari Ini</span>
                   <span className="text-2xl font-bold text-gray-900">{totalHariIni} Tugas</span>
-                  <p className="text-[11px] text-gray-400 mt-1">vs {totalKemarin} kemarin</p>
-                </div>
-
-                <div className="border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="h-9 w-9 rounded-lg bg-red-50 text-red-500 flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                      </svg>
-                    </div>
-                    {hasUrgentBelum && (
-                      <span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded-full">HIGH PRIORITY</span>
-                    )}
-                  </div>
-                  <span className="block text-xs font-semibold text-gray-500 mb-1">Belum Diklaim / In Pool</span>
-                  <span className="text-2xl font-bold text-gray-900">{String(belumCount).padStart(2, "0")} Tugas</span>
-                  <p className="text-[11px] text-gray-400 mt-1">Menunggu dialokasikan</p>
+                  <p className="text-[11px] text-gray-400 mt-1">vs {totalKemarin} Kemarin</p>
                 </div>
 
                 <div className="border border-gray-200 rounded-xl p-4">
@@ -413,7 +414,7 @@ const Tasks = () => {
                   </div>
                   <span className="block text-xs font-semibold text-gray-500 mb-1">Diproses OB</span>
                   <span className="text-2xl font-bold text-gray-900">{String(prosesCount).padStart(2, "0")} Tugas</span>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2 dark:bg-elevated">
                     <div className="h-full bg-[#0F4C81] rounded-full" style={{ width: `${prosesPct}%` }} />
                   </div>
                 </div>
@@ -422,68 +423,69 @@ const Tasks = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="h-9 w-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M12 22a10 10 0 100-20 10 10 0 000 20z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                       </svg>
                     </div>
                     {needsReview && (
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Review Required</span>
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Perlu ditinjau</span>
                     )}
                   </div>
-                  <span className="block text-xs font-semibold text-gray-500 mb-1">Selesai (Menunggu Approval)</span>
+                  <span className="block text-xs font-semibold text-gray-500 mb-1">Menunggu Approval Admin</span>
                   <span className="text-2xl font-bold text-gray-900">{String(selesaiCount).padStart(2, "0")} Tugas</span>
+                  {needsReview && (
+                    <p className="text-[11px] text-amber-600 mt-1 font-medium">Segera butuh verifikasi</p>
+                  )}
                 </div>
-              </div>
-
-              {/* Tombol Tambah Tugas — di atas tabel */}
-              <div className="flex justify-end mb-4">
-                <Can permission="tasks:create">
-                  <button
-                    onClick={openCreateModal}
-                    className="flex items-center gap-2 bg-[#0F4C81] hover:bg-[#0a355c] text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Tambah Tugas Baru
-                  </button>
-                </Can>
               </div>
 
               {/* Daftar Tugas */}
               <div className="border border-gray-200 rounded-2xl overflow-hidden">
-                <div className="px-6 py-5 border-b border-gray-100">
-                  <h2 className="text-base font-bold text-gray-900">Daftar Tugas</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Monitoring antrian tugas real-time.</p>
+                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">Daftar Tugas</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Monitoring antrian tugas real-time.</p>
+                  </div>
+                  <Can permission="tasks:create">
+                    <button
+                      onClick={openCreateModal}
+                      className="flex items-center gap-2 bg-[#0F4C81] hover:bg-[#0a355c] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Tambah Tugas Baru
+                    </button>
+                  </Can>
                 </div>
 
                 <table className="w-full text-left text-sm text-gray-600">
-                  <thead className="text-[11px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50">
+                  <thead className="text-[11px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50 dark:bg-surface">
                     <tr>
                       <th className="px-6 py-3">ID Laporan</th>
                       <th className="px-6 py-3">Detail Pekerjaan &amp; Lokasi</th>
-                      <th className="px-6 py-3">Urgency</th>
                       <th className="px-6 py-3">Status</th>
-                      <th className="px-6 py-3">Pengerja</th>
-                      <th className="px-6 py-3 text-right">Actions</th>
+                      <th className="px-6 py-3">Pekerja</th>
+                      <th className="px-6 py-3 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {paged.map((task) => {
                       const style = UI_STATUS_STYLE[task.status];
-                      const urgency = getUrgency(task);
                       const hasOb = Boolean(task.petugas?.nama) && task.petugas.nama !== "Belum ditugaskan";
+                      const isMenuOpen = openMenuId === task.id;
 
                       return (
-                        <tr key={task.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">#{task.id}</td>
+                        <tr key={task.id} className="hover:bg-gray-50/50 transition-colors dark:bg-surface">
+                          <td className="px-6 py-4 font-semibold text-[#0F4C81] whitespace-nowrap">#{task.id}</td>
                           <td className="px-6 py-4">
                             <p className="font-semibold text-gray-800">{task.namaTugas}</p>
-                            <p className="text-xs text-gray-400">{task.gedung}, {task.lantai}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${URGENCY_STYLE[urgency]}`}>
-                              {urgency}
-                            </span>
+                            <p className="text-xs text-gray-400 flex items-center gap-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                              </svg>
+                              {task.gedung}, {task.lantai}
+                            </p>
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${style.text}`}>
@@ -501,41 +503,68 @@ const Tasks = () => {
                               <span className="text-xs text-gray-400 italic">Waiting for OB...</span>
                             )}
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => openDetailModal(task)}
-                                className="text-gray-400 hover:text-[#0F4C81] p-1.5 rounded transition-colors cursor-pointer"
-                                title="Lihat Detail"
+                          <td className="px-6 py-4 text-right relative">
+                            <button
+                              onClick={() => setOpenMenuId(isMenuOpen ? null : task.id)}
+                              className="text-gray-400 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer dark:bg-elevated"
+                              title="Aksi"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 6a2 2 0 110-4 2 2 0 010 4zm0 8a2 2 0 110-4 2 2 0 010 4zm0 8a2 2 0 110-4 2 2 0 010 4z" />
+                              </svg>
+                            </button>
+
+                            {isMenuOpen && (
+                              <div
+                                ref={menuRef}
+                                className="absolute right-6 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-20 text-left dark:bg-surface"
                               >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                              </button>
-                              <Can roles={["Admin", "HR"]}>
+                                <Can roles={["Admin", "HR"]}>
+                                  <button
+                                    onClick={() => { setOpenMenuId(null); openEditModal(task); }}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer dark:bg-surface"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    Edit
+                                  </button>
+                                </Can>
                                 <button
-                                  onClick={() => openEditModal(task)}
-                                  className="text-gray-400 hover:text-[#0F4C81] p-1.5 rounded transition-colors cursor-pointer"
-                                  title="Edit"
+                                  onClick={() => { setOpenMenuId(null); openDetailModal(task); }}
+                                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer dark:bg-surface"
                                 >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                   </svg>
+                                  Lihat Detail
                                 </button>
-                              </Can>
-                              <Can permission="tasks:delete">
-                                <button
-                                  onClick={() => setTaskToDelete(task)}
-                                  className="text-gray-400 hover:text-red-500 p-1.5 rounded transition-colors cursor-pointer"
-                                  title="Hapus"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              </Can>
-                            </div>
+                                <Can roles={["Admin", "HR"]}>
+                                  <button
+                                    onClick={() => handleJadikanInsidental(task)}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer dark:bg-surface"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Jadikan Insidental
+                                  </button>
+                                </Can>
+                                <Can permission="tasks:delete">
+                                  <div className="my-1 border-t border-gray-100" />
+                                  <button
+                                    onClick={() => { setOpenMenuId(null); setTaskToDelete(task); }}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Hapus
+                                  </button>
+                                </Can>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -546,7 +575,7 @@ const Tasks = () => {
                 <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 text-xs text-gray-400">
                   <span>Showing {rangeStart} to {rangeEnd} of {sorted.length} tasks</span>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={pageClamped === 1} className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-400 disabled:opacity-40 hover:bg-gray-50 cursor-pointer">‹</button>
+                    <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={pageClamped === 1} className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-400 disabled:opacity-40 hover:bg-gray-50 cursor-pointer dark:bg-surface">‹</button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                       <button
                         key={p}
@@ -556,7 +585,7 @@ const Tasks = () => {
                         {p}
                       </button>
                     ))}
-                    <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={pageClamped === totalPages} className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-400 disabled:opacity-40 hover:bg-gray-50 cursor-pointer">›</button>
+                    <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={pageClamped === totalPages} className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-400 disabled:opacity-40 hover:bg-gray-50 cursor-pointer dark:bg-surface">›</button>
                   </div>
                 </div>
               </div>

@@ -77,7 +77,7 @@ export default function ReportDetailModal({
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden bg-white rounded-2xl shadow-xl"
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden bg-white rounded-2xl shadow-xl dark:bg-surface"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
@@ -91,7 +91,7 @@ export default function ReportDetailModal({
               </div>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer dark:bg-elevated"
                 aria-label="Tutup"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -116,7 +116,7 @@ export default function ReportDetailModal({
                         <select
                           value={laporan.status}
                           onChange={(e) => handleStatusChange(e.target.value as StatusLaporan)}
-                          className="text-xs font-semibold rounded-lg px-2 py-1 border border-current outline-none bg-white cursor-pointer"
+                          className="text-xs font-semibold rounded-lg px-2 py-1 border border-current outline-none bg-white cursor-pointer dark:bg-surface"
                         >
                           {DETAIL_STATUS_OPTIONS.map((s) => (
                             <option key={s} value={s}>{s}</option>
@@ -212,7 +212,7 @@ export default function ReportDetailModal({
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
                   Deskripsi Laporan
                 </p>
-                <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 text-sm text-gray-600 leading-relaxed">
+                <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 text-sm text-gray-600 leading-relaxed dark:bg-surface">
                   {laporan.desc}
                 </div>
               </div>
@@ -233,10 +233,10 @@ export default function ReportDetailModal({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 dark:bg-surface">
               <button
                 onClick={onClose}
-                className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors cursor-pointer"
+                className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors cursor-pointer dark:bg-elevated"
               >
                 Tutup
               </button>

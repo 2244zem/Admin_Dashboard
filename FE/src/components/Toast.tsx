@@ -50,7 +50,7 @@ export function ToastContainer({
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             className={`pointer-events-auto flex items-center gap-4 ${BG_STYLE[t.type]} text-white rounded-2xl px-6 py-5 shadow-xl`}
           >
-            <span className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+            <span className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 dark:bg-surface">
               {t.type === "success" ? (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />

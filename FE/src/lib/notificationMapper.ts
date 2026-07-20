@@ -17,6 +17,9 @@ export function mapApiNotificationToAppNotification(row: ApiNotification): AppNo
   const createdAt = row.created_at ?? row.createdAt ?? new Date().toISOString();
   const isRead = row.is_read ?? row.read ?? false;
   const senderName = row.pengirim?.nama_lengkap ?? "";
+  const senderId = row.pengirim?.id ?? "";
+  const refId = row.ref_id ?? "";
+  const refTipe = row.ref_tipe ?? "";
 
   const id = String(rawId) || `notif-${createdAt}`;
 
@@ -29,5 +32,8 @@ export function mapApiNotificationToAppNotification(row: ApiNotification): AppNo
     createdAt: String(createdAt),
     read: Boolean(isRead),
     senderName: String(senderName),
+    senderId: String(senderId) || undefined,
+    refId: String(refId) || undefined,
+    refTipe: String(refTipe) || undefined,
   };
 }

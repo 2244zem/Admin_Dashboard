@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { AuthUser, LoginRequest, UserRole } from "../types/auth";
 import { tokenStorage } from "../lib/tokenStorage";
 import { login as loginRequest, logout as logoutRequest } from "../api/auth";
+import { getUserProfile } from "../api/laporan";
 import { AuthContext } from "./AuthContextValue";
 
 /**
@@ -100,6 +101,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
     }
   };
+
+  // Ambil foto profil asli dari endpoint /api/user/profile (bukan placeholder ui-avatars)
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    getUserProfile({ limit: 1 })
+      .then((res) => {
+        if (cancelled) return;
+        const pic =
+          (res as { data?: { user?: { profile_picture?: string } } }).data?.user?.profile_picture ??
+          (res as { user?: { profile_picture?: string } }).user?.profile_picture;
+        if (!pic) return;
+        setUser((prev) => {
+          if (!prev || prev.avatar === pic) return prev;
+          const updated = { ...prev, avatar: pic };
+          tokenStorage.setUser(updated, !!localStorage.getItem("token"));
+          return updated;
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   // NOTE: ini hanya gate UI (UX). Otorisasi final WAJIB divalidasi di backend
   // per-endpoint — hacker bisa panggil API langsung lewat token tanpa peduli
