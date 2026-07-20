@@ -121,9 +121,12 @@ function useTasks(filters?: TaskFilters) {
     tasks: query.data ?? [],
     isLoading: query.isPending || isMutating,
     error: mutationError ?? (query.error ? getErrorMessage(query.error) : null),
-    fetchTasks: () => qc.invalidateQueries({ queryKey: TASKS_KEY }),
+    fetchTasks: () => qc.invalidateQueries({ queryKey: ["tasks"], refetchType: "all" }),
     fetchTaskDetail,
-    createTask: (p: TaskPayload) => runMutation(() => createChecklistHarian(toPayload(p))),
+    createTask: (p: TaskPayload) => runMutation(async () => {
+      await createChecklistHarian(toPayload(p));
+      await qc.invalidateQueries({ queryKey: TASKS_KEY, refetchType: "all" });
+    }),
     updateTask: (id: string, p: TaskPayload) => runMutation(() => updateChecklistHarian(id, toPayload(p))),
     deleteTask: (id: string) => runMutation(() => deleteChecklistHarian(id)),
     updateTaskStatus: async (id: string, status: StatusTask) => {

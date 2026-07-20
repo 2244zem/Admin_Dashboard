@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getAllRoles } from "../api/user";
+
+interface RoleOption { id: string; nama_role: string; label: string }
 
 export interface AddUserPayload {
   namaLengkap: string;
   email: string;
-  noTelepon: string;
   role: string; // UUID
 }
 
@@ -14,20 +16,22 @@ interface AddUserModalProps {
   onSave: (payload: AddUserPayload) => Promise<void>;
 }
 
-/**
- * Role UUIDs from backend database (hardcoded since no roles endpoint exists)
- */
-const ROLE_OPTIONS = [
-  { id: "dda2c23a-732c-41c5-80ee-b0818345fa25", nama_role: "admin", label: "Admin" },
-  { id: "eb89b4f9-635f-4e1e-8916-3a96af4e0c72", nama_role: "hr", label: "HR" },
-  { id: "62c0a9d8-afd7-45f5-9cb3-6dc6e8a9b8da", nama_role: "ob", label: "OB" },
-  { id: "d25542e0-93ad-4513-87ca-c567319f6187", nama_role: "karyawan", label: "Karyawan" },
-];
-
-const emptyForm: AddUserPayload = { namaLengkap: "", email: "", noTelepon: "", role: "" };
+const emptyForm: AddUserPayload = { namaLengkap: "", email: "", role: "" };
 
 const AddUserModal = ({ open, onClose, onSave }: AddUserModalProps) => {
   const [form, setForm] = useState<AddUserPayload>(emptyForm);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      getAllRoles()
+        .then((data) => {
+          const raw = data as Array<{ id: string; nama_role: string }>;
+          setRoles(raw.map((r) => ({ ...r, label: r.nama_role.charAt(0).toUpperCase() + r.nama_role.slice(1) })));
+        })
+        .catch(() => setRoles([]));
+    }
+  }, [open]);
 
   const resetAndClose = () => {
     setForm(emptyForm);
@@ -35,7 +39,7 @@ const AddUserModal = ({ open, onClose, onSave }: AddUserModalProps) => {
   };
 
   const handleSubmit = async () => {
-    if (!form.namaLengkap.trim() || !form.email.trim() || !form.noTelepon.trim() || !form.role) {
+    if (!form.namaLengkap.trim() || !form.email.trim() || !form.role) {
       alert("Mohon lengkapi semua data pengguna.");
       return;
     }
@@ -100,17 +104,6 @@ const AddUserModal = ({ open, onClose, onSave }: AddUserModalProps) => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Nomor Telepon</label>
-                <input
-                  type="text"
-                  placeholder="08XXX"
-                  value={form.noTelepon}
-                  onChange={(e) => setForm((f) => ({ ...f, noTelepon: e.target.value }))}
-                  className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-
-              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Peran</label>
                 <select
                   value={form.role}
@@ -118,7 +111,7 @@ const AddUserModal = ({ open, onClose, onSave }: AddUserModalProps) => {
                   className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
                 >
                   <option value="">Pilih Peran Pengguna</option>
-                  {ROLE_OPTIONS.map((r) => (
+                  {roles.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.label}
                     </option>

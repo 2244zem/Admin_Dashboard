@@ -17,6 +17,9 @@ import PrivacyTerms from "./pages/PrivacyTerms";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import NotificationBell from "./components/NotificationBell";
 import { useAuth } from "./hooks/useAuth";
+import LupaPassword from "./pages/LupaPassword";
+import ResetPassword from "./pages/ResetPassword";
+import Performa from "./pages/Performa";
 
 function UnauthorizedPage() {
   const navigate = useNavigate();
@@ -110,6 +113,8 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route path="/lupa-password" element={<LupaPassword />} />
+<Route path="/reset-password" element={<ResetPassword />} />
           <Route
             path="/tasks"
             element={
@@ -119,6 +124,14 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+  path="/performa"
+  element={
+    <ProtectedRoute>
+      <Performa />
+    </ProtectedRoute>
+  }
+/>
           <Route
             path="/reports"
             element={

@@ -25,13 +25,30 @@ export interface AdminUsersResponse {
 }
 
 export async function getAdminUsers(params?: { page?: number; limit?: number; search?: string; role_id?: string }) {
-  const response = await apiClient.get<AdminUsersResponse>("/api/admin/user", { params });
-  return response?.data?.items ?? [];
+  const response = await apiClient.get<Record<string, unknown>>("/api/admin/user", { params });
+  // Try multiple possible response shapes
+  const data = response?.data;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray((data as Record<string, unknown>)?.items)) return (data as Record<string, unknown>).items;
+  if (Array.isArray((data as Record<string, unknown>)?.users)) return (data as Record<string, unknown>).users;
+  if (Array.isArray((data as Record<string, unknown>)?.data)) return (data as Record<string, unknown>).data;
+  console.warn("[getAdminUsers] Unexpected response shape, returning empty array:", data);
+  return [];
 }
 
 export async function getAllOB() {
-  const response = await apiClient.get<unknown>("/api/admin/user/all-ob");
-  return (response as { data?: unknown })?.data ?? response;
+  const response = await apiClient.get<{ success: boolean; data: unknown[] }>("/api/admin/user/all-ob");
+  return response?.data?.data ?? [];
+}
+
+export async function getAllKaryawan() {
+  const response = await apiClient.get<{ success: boolean; data: unknown[] }>("/api/admin/user/all-karyawan");
+  return response?.data?.data ?? [];
+}
+
+export async function getAllRoles() {
+  const response = await apiClient.get<{ success: boolean; data: { id: string; nama_role: string }[] }>("/api/admin/role");
+  return response?.data?.data ?? [];
 }
 
 export async function createUser(payload: { username: string; email: string; nama_lengkap: string; role_id: string }) {
@@ -51,9 +68,9 @@ export async function deleteUser(id: string) {
   return apiClient.delete(`/api/admin/user/${id}`);
 }
 
-// Renew activation token - POST /api/auth/activate-account with user_id
+// Renew activation token - POST /api/admin/user/{user_id}/renew-token
 export async function renewUserToken(id: string, hours: number = 24) {
-  return apiClient.post("/api/auth/activate-account", { user_id: id, hours });
+  return apiClient.post(`/api/admin/user/${encodeURIComponent(id)}/renew-token`, { hours });
 }
 
 export const activateUserToken = renewUserToken;

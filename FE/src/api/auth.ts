@@ -44,3 +44,25 @@ export async function activateAccount(token: string, payload: ActivatePayload): 
 export async function logout() {
   try { await apiClient.post("/api/auth/logout"); } catch { /* ignore */ }
 }
+
+// Forgot password - POST /api/auth/forgot-password
+export async function requestPasswordReset(email: string) {
+  return apiClient.post("/api/auth/forgot-password", { email });
+}
+
+// Check reset token validity - GET /api/auth/check-token?token=...
+// NOTE: same endpoint as activation token check. Backend may mark token as used
+// on first call (single-use). For reset-password, we skip pre-check and call
+// POST /api/auth/reset-password directly, which returns 401 if token is invalid.
+export async function checkResetToken(token: string) {
+  return apiClient.get("/api/auth/check-token", { params: { token } });
+}
+
+// Reset password - POST /api/auth/reset-password?token=...
+// spec: 200 success, 400 validation failed (password < 6 chars), 401 token invalid/expired
+export async function resetPassword(token: string, password: string, confirmPassword: string) {
+  return apiClient.post(
+    `/api/auth/reset-password?token=${encodeURIComponent(token)}`,
+    { password, confirmPassword }
+  );
+}

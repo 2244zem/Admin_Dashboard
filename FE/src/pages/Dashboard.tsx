@@ -1,17 +1,19 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import type { Laporan } from "../types/laporan";
+import type { Task } from "../types/task";
 import ReportDetailModal from "../components/ReportDetailModal";
 import DailyChecklistModal, { type OBChecklistDetail } from "../components/DailyChecklistModal";
 import * as XLSX from "xlsx";
 import { useLaporan } from "../hooks/useLaporan";
 import { useTasks } from "../hooks/useTasks";
+import useUsers from "../hooks/useUsers";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import Avatar from "../components/ui/Avatar";
 
-type Tab = "Mingguan" | "Bulanan" | "Tahunan";
+type Tab = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
 
 // ---------- Helper: agregasi grafik "Laporan Masuk" ----------
 function getMingguanData(list: Laporan[]) {
@@ -69,6 +71,19 @@ function getTahunanData(list: Laporan[]) {
   return labels.map((label, i) => ({ label, count: counts[i] }));
 }
 
+function getHarianData(list: Laporan[]) {
+  // Grafik jam per jam untuk "Hari Ini" (00-NOW), hanya jam yang sudah lewat
+  const now = new Date();
+  const currentHour = now.getHours();
+  const labels = Array.from({ length: currentHour + 1 }, (_, i) => `${String(i).padStart(2, "0")}:00`);
+  const counts = labels.map(() => 0);
+  list.forEach((l) => {
+    const d = new Date(l.createdAt);
+    if (d.toDateString() === now.toDateString() && d.getHours() <= currentHour) counts[d.getHours()] += 1;
+  });
+  return labels.map((label, i) => ({ label, count: counts[i] }));
+}
+
 // ---------- Helper: export Excel ----------
 function exportToExcel(list: Laporan[]) {
   const header = ["Nama", "Lokasi", "Area", "Deskripsi", "Status", "Waktu"];
@@ -89,6 +104,118 @@ function exportToExcel(list: Laporan[]) {
   XLSX.writeFile(wb, `laporan_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
+function isToday(dateStr: string) {
+  return new Date(dateStr).toDateString() === new Date().toDateString();
+}
+function isYesterday(dateStr: string) {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return new Date(dateStr).toDateString() === d.toDateString();
+}
+function pctChange(today: number, yesterday: number): number | null {
+  if (yesterday === 0) return today > 0 ? null : 0;
+  return Math.round(((today - yesterday) / yesterday) * 100);
+}
+
+// ---------- Durasi tugas ----------
+// NOTE: Tipe `Task` saat ini TIDAK punya field durasi/timestamp klaim-selesai
+// eksplisit. Dibaca secara optional; kalau backend/mapper belum menyediakannya,
+// fallback ke `waktu` (jam) sebagai penanda, bukan durasi asli.
+function getDurasiTugas(task: Task): string {
+  const raw = (task as unknown as { durasi?: string; duration?: string }).durasi
+    ?? (task as unknown as { durasi?: string; duration?: string }).duration;
+  if (raw) return raw;
+  return task.waktu && task.waktu !== "-" ? task.waktu : "-";
+}
+
+// ---------- Action Menu (titik tiga) ----------
+function RowActionMenu({
+  onDetail,
+  onEdit,
+  onDelete,
+}: {
+  onDetail: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+        title="Aksi"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+        </svg>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -6 }}
+            transition={{ duration: 0.12 }}
+            className="absolute right-0 top-full mt-1 z-20 w-36 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden"
+          >
+            <button
+              onClick={() => { setOpen(false); onDetail(); }}
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Lihat Detail
+            </button>
+            <div className="h-px bg-gray-100" />
+            <button
+              onClick={() => { setOpen(false); onEdit(); }}
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-yellow-600 hover:bg-yellow-50 transition-colors cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </button>
+            <div className="h-px bg-gray-100" />
+            <button
+              onClick={() => { setOpen(false); onDelete(); }}
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Hapus
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PctBadge({ value }: { value: number | null }) {
+  if (value === null) return null;
+  const isPositive = value >= 0;
+  return (
+    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${isPositive ? "text-green-600 bg-green-50" : "text-red-500 bg-red-50"}`}>
+      {isPositive ? "↑" : "↓"} {Math.abs(value)}%
+    </span>
+  );
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const laporanFilters = useMemo(
@@ -98,6 +225,9 @@ const Dashboard = () => {
 
   const { laporanList, isLoading: isLaporanLoading, error: laporanError, fetchLaporan, getLaporanDetail, deleteLaporan } = useLaporan(laporanFilters);
   const { tasks: taskList, isLoading: isTasksLoading, error: tasksError, fetchTasks } = useTasks();
+  const { fetchOB } = useUsers();
+
+  const [obTotalCount, setObTotalCount] = useState<number | null>(null);
 
   // Modal state for detail
   const [detailTarget, setDetailTarget] = useState<Laporan | null>(null);
@@ -128,22 +258,48 @@ const Dashboard = () => {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<Tab>("Mingguan");
+  const [activeTab, setActiveTab] = useState<Tab>("Hari Ini");
   const [checklistDetail, setChecklistDetail] = useState<OBChecklistDetail | null>(null);
 
   useEffect(() => {
     fetchLaporan();
     fetchTasks();
-  }, [fetchLaporan, fetchTasks]);
+    fetchOB()
+      .then((list) => setObTotalCount(list.length))
+      .catch(() => setObTotalCount(null));
+  }, [fetchLaporan, fetchTasks, fetchOB]);
 
   // ---- Statistik kartu atas ----
   const totalLaporan = laporanList.length;
   const laporanSelesai = laporanList.filter((l) => l.status === "Selesai").length;
-  const laporanBerjalan = laporanList.filter((l) => l.status === "Ditugaskan").length;
-  const laporanDitolak = laporanList.filter((l) => l.status === "Ditolak").length;
+  const tugasUnassigned = taskList.filter((t) => t.status === "Belum").length;
+
+  const totalLaporanHariIni = laporanList.filter((l) => isToday(l.createdAt)).length;
+  const totalLaporanKemarin = laporanList.filter((l) => isYesterday(l.createdAt)).length;
+  const totalLaporanPct = pctChange(totalLaporanHariIni, totalLaporanKemarin);
+
+  const selesaiHariIni = laporanList.filter((l) => l.status === "Selesai" && isToday(l.createdAt)).length;
+  const selesaiKemarin = laporanList.filter((l) => l.status === "Selesai" && isYesterday(l.createdAt)).length;
+  const selesaiPct = pctChange(selesaiHariIni, selesaiKemarin);
+
+  const unassignedHariIni = taskList.filter((t) => t.status === "Belum" && isToday(t.tanggal)).length;
+  const unassignedKemarin = taskList.filter((t) => t.status === "Belum" && isYesterday(t.tanggal)).length;
+  const unassignedPct = pctChange(unassignedHariIni, unassignedKemarin);
+
+  // OB Active: OB unik yang punya minimal 1 tugas aktif (bukan "Belum") hari ini
+  const obActiveCount = useMemo(() => {
+    const activeNames = new Set(
+      taskList
+        .filter((t) => t.status !== "Belum" && isToday(t.tanggal))
+        .map((t) => t.petugas?.nama)
+        .filter(Boolean)
+    );
+    return activeNames.size;
+  }, [taskList]);
 
   // ---- Grafik batang ----
   const chartData = useMemo(() => {
+    if (activeTab === "Hari Ini") return getHarianData(laporanList);
     if (activeTab === "Mingguan") return getMingguanData(laporanList);
     if (activeTab === "Bulanan") return getBulananData(laporanList);
     return getTahunanData(laporanList);
@@ -179,45 +335,28 @@ const Dashboard = () => {
   const laporanKaryawanTerbaru = useMemo(() => {
     return [...laporanList]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5);
+      .slice(0, 4);
   }, [laporanList]);
 
-  // ---- Daily Checklist OB (dihitung dari taskList grouped by OB) ----
-  const checklistOB = useMemo(() => {
-    const map = new Map<string, typeof taskList>();
-    taskList.forEach((t) => {
-      const key = t.petugas?.nama || "Unknown";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(t);
-    });
-
-    const result = Array.from(map.entries()).map(([nama, items]) => {
-      const selesai = items.filter((t) => t.status === "Selesai").length;
-      const gedungLantai = Array.from(new Set(items.map((t) => `${t.gedung}: Lantai ${t.lantai.replace("Lantai", "").trim()}`)));
-      const fotoProfil = items.find((t) => t.petugas?.fotoProfil)?.petugas?.fotoProfil;
-      return {
-        nama,
-        area: gedungLantai.join(" & "),
-        gedung: items[0]?.gedung || "-",
-        lokasi: items[0]?.lantai || "-",
-        selesai,
-        total: items.length,
-        items,
-        fotoProfil,
-      };
-    });
-
-    return result;
+  // ---- Riwayat Tugas OB (dulu "Daily Checklist OB") ----
+  // Sekarang berbentuk daftar tugas individual terbaru (bukan lagi progress bar
+  // per-OB) — mengikuti desain baru "Riwayat Tugas OB".
+  const riwayatTugasOB = useMemo(() => {
+    return [...taskList]
+      .filter((t) => Boolean(t.petugas?.nama))
+      .sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1))
+      .slice(0, 5);
   }, [taskList]);
 
-  const openChecklistDetail = (ob: (typeof checklistOB)[number]) => {
+  const openTaskDetailFromRiwayat = (task: Task) => {
+    // Reuse modal detail checklist yang sudah ada, dibungkus jadi shape OBChecklistDetail
     setChecklistDetail({
-      nama: ob.nama,
-      fotoProfil: ob.fotoProfil,
-      gedung: ob.gedung,
-      lokasi: ob.lokasi,
-      tanggal: new Date().toISOString().slice(0, 10),
-      items: ob.items,
+      nama: task.petugas.nama,
+      fotoProfil: (task.petugas as unknown as { fotoProfil?: string }).fotoProfil,
+      gedung: task.gedung,
+      lokasi: task.lantai,
+      tanggal: task.tanggal,
+      items: [task],
     });
   };
 
@@ -256,7 +395,7 @@ const Dashboard = () => {
               {/* Tabs + Export */}
               <div className="flex items-center justify-between mb-6">
                 <div className="inline-flex bg-gray-100 rounded-full p-1">
-                  {(["Mingguan", "Bulanan", "Tahunan"] as Tab[]).map((tab) => (
+                  {(["Hari Ini", "Mingguan", "Bulanan", "Tahunan"] as Tab[]).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -281,70 +420,76 @@ const Dashboard = () => {
                 </motion.button>
               </div>
 
-              {/* Stat cards: satu grid 4 kolom, tinggi kartu disamakan dengan auto-rows-fr + h-full */}
+              {/* Stat Cards — lebih besar, dengan badge persentase */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4 auto-rows-fr">
                 <motion.div
                   whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}
-                  className="h-full border border-gray-200 rounded-xl p-4 flex items-center justify-between"
+                  className="h-full border border-gray-200 rounded-2xl p-6"
                 >
-                  <div>
-                    <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Laporan User</span>
-                    <span className="text-xl font-bold text-[#0F4C81]">{totalLaporan}</span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-11 w-11 bg-blue-100 rounded-xl flex items-center justify-center text-[#0F4C81] shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                      </svg>
+                    </div>
+                    <PctBadge value={totalLaporanPct} />
                   </div>
-                  <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-[#0F4C81] shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                    </svg>
-                  </div>
+                  <span className="block text-2xl font-bold text-gray-900">{totalLaporan}</span>
+                  <span className="block text-xs font-semibold text-gray-500 mt-1">Total Laporan Karyawan</span>
                 </motion.div>
 
                 <motion.div
                   whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}
-                  className="h-full border border-gray-200 rounded-xl p-4 flex items-center justify-between"
+                  className="h-full border border-gray-200 rounded-2xl p-6"
                 >
-                  <div>
-                    <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Laporan Selesai</span>
-                    <span className="text-xl font-bold text-green-600">{laporanSelesai}</span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-11 w-11 bg-green-100 rounded-xl flex items-center justify-center text-green-600 shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <PctBadge value={selesaiPct} />
                   </div>
-                  <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
+                  <span className="block text-2xl font-bold text-gray-900">{laporanSelesai}</span>
+                  <span className="block text-xs font-semibold text-gray-500 mt-1">Laporan Selesai</span>
                 </motion.div>
 
                 <motion.div
                   whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}
-                  className="h-full border border-gray-200 rounded-xl p-4 flex items-center justify-between"
+                  className="h-full border border-gray-200 rounded-2xl p-6"
                 >
-                  <div>
-                    <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Laporan Berjalan</span>
-                    <span className="text-xl font-bold text-blue-600">{laporanBerjalan}</span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-11 w-11 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                      </svg>
+                    </div>
+                    <PctBadge value={unassignedPct} />
                   </div>
-                  <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
+                  <span className="block text-2xl font-bold text-gray-900">{tugasUnassigned}</span>
+                  <span className="block text-xs font-semibold text-gray-500 mt-1">Tugas Unassigned</span>
                 </motion.div>
 
                 <motion.div
                   whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}
-                  className="h-full border border-gray-200 rounded-xl p-4 flex items-center justify-between"
+                  className="h-full border border-gray-200 rounded-2xl p-6"
                 >
-                  <div>
-                    <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Laporan Ditolak</span>
-                    <span className="text-xl font-bold text-red-500">{laporanDitolak}</span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-11 w-11 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Aktif</span>
                   </div>
-                  <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center text-red-500 shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </div>
+                  <span className="block text-2xl font-bold text-gray-900">
+                    {obActiveCount}{obTotalCount !== null ? `/${obTotalCount}` : ""}
+                  </span>
+                  <span className="block text-xs font-semibold text-gray-500 mt-1">OB Active</span>
                 </motion.div>
               </div>
 
-              {/* Baris 1: Laporan Masuk + Donut */}
+              {/* Laporan Masuk + Donut */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6">
                 <div className="lg:col-span-2 border border-gray-200 rounded-xl p-6 bg-white">
                   <h2 className="text-sm font-bold text-gray-700 mb-4">Laporan Masuk</h2>
@@ -378,8 +523,8 @@ const Dashboard = () => {
                       className="h-32 w-32 rounded-full flex items-center justify-center select-none"
                       style={{ background: donutTotal === 0 ? "#e5e7eb" : conicGradient }}
                     >
-                     <div className="h-20 w-20 bg-white rounded-full flex flex-col items-center justify-center">
-                      <span className="text-lg font-bold text-gray-800">{donutTotal}</span>
+                      <div className="h-20 w-20 bg-white rounded-full flex flex-col items-center justify-center">
+                        <span className="text-lg font-bold text-gray-800">{donutTotal}</span>
                         <span className="text-[10px] text-gray-400">Total Laporan</span>
                       </div>
                     </div>
@@ -396,6 +541,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
+              {/* Laporan Terbaru Karyawan + Riwayat Tugas OB */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-5">
                 {/* Laporan Terbaru Karyawan */}
                 <div className="lg:col-span-2 border border-gray-200 rounded-xl p-5 bg-white">
@@ -411,144 +557,139 @@ const Dashboard = () => {
                       Data belum tersedia
                     </div>
                   ) : (
-                    <>
-                      <table className="w-full text-[11px] bg-white">
-                        <thead>
-                          <tr className="text-[10px] font-bold text-gray-500 uppercase border-b border-gray-200">
-                            <th className="py-2 text-center">ID</th>
-                            <th className="py-2 text-center">KARYAWAN</th>
-                            <th className="py-2 text-center">LOKASI</th>
-                            <th className="py-2 text-center">LVL</th>
-                            <th className="py-2 text-center">STATUS</th>
-                            <th className="py-2 text-center">AKSI</th>
+                    <table className="w-full text-sm bg-white">
+                      <thead>
+                        <tr className="text-[10px] font-bold text-gray-500 uppercase border-b border-gray-200">
+                          <th className="py-2 text-left">ID Laporan</th>
+                          <th className="py-2 text-left">Nama Karyawan</th>
+                          <th className="py-2 text-left">Lokasi</th>
+                          <th className="py-2 text-left">Level</th>
+                          <th className="py-2 text-left">Status</th>
+                          <th className="py-2 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {laporanKaryawanTerbaru.map((l) => (
+                          <tr key={l.id} className="border-b border-gray-100 last:border-0 bg-white hover:bg-blue-50/30 transition-colors">
+                            <td className="py-3">
+                              <span className="font-semibold text-gray-700 text-xs">
+                                {l.id_laporan || `LPR-${String(l.id).padStart(3, "0")}`}
+                              </span>
+                            </td>
+                            <td className="py-3">
+                              <div className="flex items-center gap-2">
+                                <Avatar name={l.name} src={l.fotoProfil} size="sm" />
+                                <span className="font-medium text-gray-700 text-xs">{l.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              <span className="font-medium text-gray-600 text-xs">{l.loc}</span>
+                            </td>
+                            <td className="py-3">
+                              {l.level === "URGENT" ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 rounded-full text-[10px] font-bold text-red-600">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> URGENT
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 rounded-full text-[10px] font-bold text-orange-600">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-orange-500" /> STANDARD
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3">
+                              <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                l.status === "Menunggu" ? "bg-orange-100 text-orange-600" :
+                                l.status === "Ditugaskan" ? "bg-blue-100 text-blue-600" :
+                                l.status === "Selesai" ? "bg-green-100 text-green-600" :
+                                "bg-red-100 text-red-600"
+                              }`}>
+                                {l.status}
+                              </span>
+                            </td>
+                            <td className="py-3 text-right">
+                              <RowActionMenu
+                                onDetail={() => openDetailModal(l)}
+                                onEdit={() => navigate(`/reports?edit=${l.id}`)}
+                                onDelete={() => openDeleteConfirm(l)}
+                              />
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {laporanKaryawanTerbaru.map((l) => (
-                            <tr key={l.id} className="border-b border-gray-100 last:border-0 bg-white hover:bg-blue-50/30 transition-colors">
-                              <td className="py-1.5 text-center">
-                                <span className="font-semibold text-gray-700 text-[10px]">
-                                  {l.id_laporan || `LPR-${String(l.id).padStart(3, '0')}`}
-                                </span>
-                              </td>
-                              <td className="py-1.5 text-center">
-                                <div className="flex items-center justify-center gap-1 mx-auto">
-                                  <Avatar name={l.name} src={l.fotoProfil} size="sm" className="!h-5 !w-5 !text-[9px]" />
-                                  <span className="font-medium text-gray-700 truncate max-w-[60px]">{l.name}</span>
-                                </div>
-                              </td>
-                              <td className="py-1.5 text-center">
-                                <span className="font-medium text-gray-600 truncate max-w-[70px] block">{l.loc}</span>
-                              </td>
-                              <td className="py-1.5 text-center">
-                                {l.level === "URGENT" ? (
-                                  <span className="inline-flex px-1 py-0.5 bg-red-100 rounded text-[9px] font-bold text-red-600">URGENT</span>
-                                ) : (
-                                  <span className="inline-flex px-1 py-0.5 bg-orange-100 rounded text-[9px] font-bold text-orange-600">STD</span>
-                                )}
-                              </td>
-                              <td className="py-1.5 text-center">
-                                <span className={`inline-block px-1 py-0.5 rounded text-[9px] font-bold ${
-                                  l.status === "Menunggu" ? "bg-orange-100 text-orange-600" :
-                                  l.status === "Ditugaskan" ? "bg-blue-100 text-blue-600" :
-                                  l.status === "Selesai" ? "bg-green-100 text-green-600" :
-                                  "bg-red-100 text-red-600"
-                                }`}>
-                                  {l.status}
-                                </span>
-                              </td>
-                              <td className="py-1.5 text-center">
-                                <div className="flex items-center justify-center gap-0.5">
-                                  <button
-                                    onClick={() => openDetailModal(l)}
-                                    className="px-1.5 py-0.5 text-[10px] font-semibold text-[#0F4C81] border border-[#0F4C81] rounded hover:bg-blue-50 transition-colors cursor-pointer"
-                                  >
-                                    Detail
-                                  </button>
-                                  <button
-                                    onClick={() => navigate(`/reports?edit=${l.id}`)}
-                                    className="p-1 text-yellow-500 hover:bg-yellow-50 rounded transition-colors cursor-pointer"
-                                    title="Edit"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    onClick={() => openDeleteConfirm(l)}
-                                    className="p-1 text-red-400 hover:bg-red-50 hover:text-red-500 rounded transition-colors cursor-pointer"
-                                    title="Hapus"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
                 </div>
 
-                {/* Daily Checklist OB */}
-                <div className="border border-gray-200 rounded-xl p-6 bg-white">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-bold text-gray-700">Daily Checklist OB</h2>
+                {/* Riwayat Tugas OB (sebelumnya "Daily Checklist OB") */}
+                <div className="border border-gray-200 rounded-xl p-5 bg-white">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-bold text-gray-700">Riwayat Tugas OB</h2>
                     <button onClick={() => navigate("/tasks")} className="text-xs font-semibold text-[#0F4C81] hover:underline cursor-pointer">
                       Lihat Semua
                     </button>
                   </div>
 
-                  {checklistOB.length === 0 ? (
-                    <div className="h-40 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-sm">
+                  {riwayatTugasOB.length === 0 ? (
+                    <div className="h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-sm">
                       Data belum tersedia
                     </div>
                   ) : (
-                    <>
-                      <div className="grid grid-cols-1 gap-y-4">
-                        {checklistOB.map((ob) => {
-                          const pctProgress = ob.total === 0 ? 0 : Math.round((ob.selesai / ob.total) * 100);
-                          const barColor = pctProgress >= 70 ? "bg-green-500" : "bg-red-500";
-                          const textColor = pctProgress >= 70 ? "text-green-600" : "text-red-500";
-                          return (
-                            <div key={ob.nama} className="flex items-center gap-3">
-                              <Avatar name={ob.nama} src={ob.fotoProfil} size="sm" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-800 truncate">{ob.nama}</p>
-                                <p className="text-xs text-gray-400 truncate">{ob.area}</p>
-                                <div className="h-1.5 w-full bg-gray-100 rounded-full mt-1.5 overflow-hidden">
-                                  <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${pctProgress}%` }}
-                                    transition={{ type: "spring", stiffness: 120, damping: 18 }}
-                                    className={`h-full rounded-full ${barColor}`}
-                                  />
-                                </div>
-                              </div>
-                              <div className="text-right shrink-0 select-none">
-                                <p className="text-xs font-semibold text-gray-600">{ob.selesai}/{ob.total}</p>
-                                <p className={`text-[11px] font-bold ${textColor}`}>{pctProgress}%</p>
-                              </div>
+                    <table className="w-full text-sm bg-white">
+                      <thead>
+                        <tr className="text-[10px] font-bold text-gray-500 uppercase border-b border-gray-200">
+                          <th className="py-2 text-left">Tugas &amp; Pengerja</th>
+                          <th className="py-2 text-left">Durasi</th>
+                          <th className="py-2 text-left">Status</th>
+                          <th className="py-2 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {riwayatTugasOB.map((task) => (
+                          <tr key={task.id} className="border-b border-gray-100 last:border-0 hover:bg-blue-50/30 transition-colors">
+                            <td className="py-3">
+                              <p className="font-semibold text-gray-800 text-xs">{task.namaTugas}</p>
+                              <p className="text-[11px] text-gray-400">{task.petugas.nama}</p>
+                            </td>
+                            <td className="py-3 text-xs text-gray-500 whitespace-nowrap">
+                              {getDurasiTugas(task)}
+                            </td>
+                            <td className="py-3">
+                              {task.status === "Selesai" ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Completed
+                                </span>
+                              ) : task.status === "Proses" ? (
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-600">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> In Progress
+                                </span>
+                              ) : task.status === "Delayed" ? (
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-500">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> Delayed
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-gray-400">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-gray-400" /> Unassigned
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 text-right">
                               <button
-                                onClick={() => openChecklistDetail(ob)}
-                                className="text-gray-400 hover:text-[#0F4C81] transition-colors shrink-0 cursor-pointer"
+                                onClick={() => openTaskDetailFromRiwayat(task)}
+                                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                                title="Lihat detail tugas"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                                 </svg>
                               </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="text-[11px] text-gray-400 mt-4 pt-3 border-t border-gray-100 select-none">
-                        Terakhir diperbarui: {new Date().toLocaleString("id-ID")}
-                      </p>
-                    </>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
                 </div>
               </div>

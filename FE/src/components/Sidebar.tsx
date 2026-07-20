@@ -7,6 +7,7 @@ import {
   BarChart3,
   Building2,
   CircleUser,
+   TrendingUp,
   LogOut,
   ShieldCheck,
   Menu,
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { id: "reports", label: "Laporan Pengguna", href: '/reports', icon: BarChart3, roles: ["Admin", "HR"] },
   { id: "locations", label: "Lokasi", href: '/datalokasi', icon: Building2, roles: ["Admin", "HR"] },
   { id: "users", label: "Pengguna", href: '/users', icon: CircleUser, roles: ["Admin"] },
+  { id: "performa", label: "Performa", href: '/performa', icon: TrendingUp, roles: ["Admin", "HR"] },
 ];
 
 interface SidebarProps {

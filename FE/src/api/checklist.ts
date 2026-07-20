@@ -22,14 +22,30 @@ export interface ChecklistHarianResponse {
 
 const ENDPOINT = "/api/checklist-harian";
 
+// Extract raw array from response — tries multiple possible shapes the backend may send
+function extractRawItems(data: unknown): ChecklistRow[] {
+  if (Array.isArray(data)) return data as ChecklistRow[];
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    // Unwrap standard envelope { success, message, data: ... }
+    const unwrapped = d.data !== undefined ? d.data : d;
+    if (Array.isArray(unwrapped)) return unwrapped as ChecklistRow[];
+    if (unwrapped && typeof unwrapped === "object") {
+      const u = unwrapped as Record<string, unknown>;
+      // Shape: { checklist: { items: [...] } }
+      const chk = u.checklist as { items?: ChecklistRow[] } | undefined;
+      if (chk?.items) return chk.items;
+      // Shape: { items: [...] }
+      if (Array.isArray(u.items)) return u.items as ChecklistRow[];
+    }
+  }
+  return [];
+}
+
 export async function getChecklistHarian(params?: ChecklistParams): Promise<ChecklistHarianResponse> {
   const data = await apiClient.get<ChecklistHarianResponse>(ENDPOINT, { params });
-  const items = flattenChecklistItems<ChecklistRow>(
-    (data?.checklist as { items?: ChecklistRow[] } | undefined)?.items
-      ?? (data?.items as ChecklistRow[] | undefined)
-      ?? (data?.checklist as ChecklistRow[] | undefined)
-      ?? []
-  );
+  const raw = extractRawItems(data);
+  const items = flattenChecklistItems(raw);
   return { ...data, items };
 }
 

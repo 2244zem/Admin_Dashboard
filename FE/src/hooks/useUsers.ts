@@ -1,11 +1,21 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppUser } from "../types/user";
 import apiClient from "../services/apiClient";
-import { getAdminUsers, getUserDetail as getUserDetailApi, renewUserToken, ROLE_UUID_MAP, ROLE_NAME_MAP } from "../api/user";
+import { getAdminUsers, getAllOB, getAllKaryawan, getUserDetail as getUserDetailApi, renewUserToken, ROLE_UUID_MAP, ROLE_NAME_MAP } from "../api/user";
 import { getErrorMessage } from "../lib/utils";
 import { appUserSchema, validateList } from "../schemas";
 import type { ApiMutationResult } from "../types/api";
+
+// Separate async function so it can be called directly without useCallback dependency chain
+async function fetchUserDetail(id: string): Promise<AppUser | null> {
+  try {
+    const raw = await getUserDetailApi(id);
+    const data = (raw as Record<string, unknown>)?.data ?? raw;
+    return mapApiUser(data as Record<string, unknown>);
+  }
+  catch { return null; }
+}
 
 // Normalize role from backend response - aligned with spec
 const normalizeRole = (roleData: unknown): AppUser["role"] => {
@@ -40,9 +50,12 @@ const mapApiUser = (row: Record<string, unknown>): AppUser => {
   const stats = row.stats as { tasksCompleted?: unknown; tasks_completed?: unknown; avgResponseMinutes?: unknown; rejected?: unknown } | undefined;
   const roleId = row.role_id as unknown;
   const role = (row.role as unknown) ?? undefined;
+  const backendId = String(row.id ?? "");
+  // Generate consistent numeric ID from backend UUID (simple hash)
+  const id = backendId.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   return {
-    id: Number.parseInt(String(row.id ?? "").replace(/\D/g, ""), 10) || Date.now(),
-    backendId: String(row.id ?? ""),
+    id,
+    backendId,
     namaLengkap: String(row.nama_lengkap ?? row.name ?? row.username ?? "Pengguna"),
     username: String(row.username ?? "-"),
     email: String(row.email ?? ""),
@@ -66,15 +79,24 @@ const mapApiUser = (row: Record<string, unknown>): AppUser => {
 
 const USERS_KEY = ["users"] as const;
 const OB_KEY = ["ob"] as const;
+const KARYAWAN_KEY = ["karyawan"] as const;
 
 async function fetchUsers(): Promise<AppUser[]> {
-  // getAdminUsers already returns items array directly
   const rows = await getAdminUsers({ page: 1, limit: 100 });
-  return validateList(appUserSchema, (rows as Record<string, unknown>[]).map(mapApiUser));
+  const mapped = (rows as Record<string, unknown>[]).map(mapApiUser);
+  return validateList(appUserSchema, mapped);
 }
 
 async function fetchOB(): Promise<Array<{ id: string; nama: string }>> {
-  const rows = await getAdminUsers({ page: 1, limit: 200 });
+  const rows = await getAllOB();
+  return (rows as Record<string, unknown>[]).map((u) => ({
+    id: String(u.id ?? ""),
+    nama: String(u.nama_lengkap ?? u.username ?? "Pengguna"),
+  }));
+}
+
+async function fetchKaryawan(): Promise<Array<{ id: string; nama: string }>> {
+  const rows = await getAllKaryawan();
   return (rows as Record<string, unknown>[]).map((u) => ({
     id: String(u.id ?? ""),
     nama: String(u.nama_lengkap ?? u.username ?? "Pengguna"),
@@ -119,6 +141,7 @@ function useUsers() {
       body.role_id = ROLE_UUID_MAP[String(p.role)] || p.role;
     }
     if (p.password) body.password = p.password;
+    // is_active must be a proper boolean, not a string — backend expects boolean (true/false)
     if (p.status) body.is_active = p.status === "Aktif";
     return apiClient.patch<ApiMutationResult>(`/api/admin/user/${encodeURIComponent(id)}`, body);
   };
@@ -131,14 +154,14 @@ function useUsers() {
     error: mutationError ?? (query.error ? getErrorMessage(query.error) : null),
     fetchUsers: () => qc.invalidateQueries({ queryKey: USERS_KEY }),
     fetchOB: () => qc.fetchQuery({ queryKey: OB_KEY, queryFn: fetchOB, staleTime: 30_000 }).catch(() => []),
+    fetchKaryawan: () => qc.fetchQuery({ queryKey: KARYAWAN_KEY, queryFn: fetchKaryawan, staleTime: 30_000 }).catch(() => []),
     addUser: (p: { namaLengkap: string; email: string; role: string }) => runMutation(() => addUser(p)),
     updateUser: (id: string, p: Record<string, unknown>) => runMutation(() => updateUser(id, p)),
     deleteUser: (id: string) => runMutation(() => deleteUser(id)),
     renewToken: (id: string, h?: number) => runMutation(() => renewUserToken(id, h)),
     getUserById: (id: number) => query.data?.find((u) => u.id === id),
-    getUserDetail: async (id: string) => {
-      try { return mapApiUser(await getUserDetailApi(id) as Record<string, unknown>); }
-      catch { return query.data?.find((u) => u.backendId === id) ?? null; }
-    },
+    // ponytail: return stable ref (not a wrapping arrow) so consumers'
+    // useEffect([..., getUserDetail]) don't re-run every render → fetch/loading loop.
+    getUserDetail: fetchUserDetail,
   };
 }

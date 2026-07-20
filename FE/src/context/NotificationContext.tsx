@@ -10,6 +10,7 @@ import {
 } from "../api/notifikasi";
 import { connectNotificationSocket } from "../api/websocket";
 import { mapApiNotificationToAppNotification } from "../lib/notificationMapper";
+import { queryClient } from "../lib/queryClient";
 
 interface NotificationContextType {
   notifications: AppNotification[];
@@ -27,7 +28,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Fetch initial notifications
+  // Fetch initial notifications (also used by fetchNotifications for manual refresh)
   const fetchNotifications = useCallback(async () => {
     try {
       const [grouped, count] = await Promise.all([
@@ -46,7 +47,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setNotifications(merged);
       }
 
-      // Use API count if available, otherwise count from list
       setUnreadCount(count > 0 ? count : unreadFromList);
     } catch {
       // Silent fail - keep existing state
@@ -55,30 +55,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Initial fetch + WebSocket connection
   useEffect(() => {
-    void (async () => {
-      try {
-        const [grouped, count] = await Promise.all([
-          getNotifikasi(),
-          getUnreadNotificationCount(),
-        ]);
-
-        let unreadFromList = 0;
-        if (grouped) {
-          const merged: AppNotification[] = [
-            ...grouped.hari_ini.map(mapApiNotificationToAppNotification),
-            ...grouped.kemarin.map(mapApiNotificationToAppNotification),
-          ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-          unreadFromList = merged.filter((n) => !n.read).length;
-          setNotifications(merged);
-        }
-
-        setUnreadCount(count > 0 ? count : unreadFromList);
-      } catch {
-        // Silent fail - keep existing state
-      }
-    })();
-  }, []);
+    void fetchNotifications();
+  }, [fetchNotifications]);
 
   useEffect(() => {
     const cleanup = connectNotificationSocket({
@@ -101,6 +79,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           if (!notification.read) {
             setUnreadCount((prev) => prev + 1);
           }
+
+          // Real-time: invalidate relevant queries based on notification type
+          const tipe = (payload as { tipe?: string })?.tipe;
+          if (tipe === "LAPORAN_BARU" || tipe === "ADMIN_MENUGASKAN_OB") {
+            queryClient.invalidateQueries({ queryKey: ["laporan"] });
+          }
+          if (tipe === "PENUGASAN_CHECKLIST" || tipe === "LAPORAN_BERES" || tipe === "LAPORAN_DIBATALKAN") {
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
+          }
+          if (tipe === "ADMIN_MENUGASKAN_OB" || tipe === "LAPORAN_DIKERJAKAN" || tipe === "LAPORAN_BERES") {
+            queryClient.invalidateQueries({ queryKey: ["ob"] });
+          }
+          // Also invalidate users list for user creation/activation events
+          queryClient.invalidateQueries({ queryKey: ["users"] });
         } catch {
           // Silent fail
         }

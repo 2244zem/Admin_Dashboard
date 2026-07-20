@@ -175,7 +175,7 @@ const Tasks = () => {
   const belumCount = periodTasks.filter((t) => t.status === "Belum").length;
   const prosesCount = periodTasks.filter((t) => t.status === "Proses").length;
   const selesaiCount = periodTasks.filter((t) => t.status === "Selesai").length;
-  const prosesPct = periodTasks.length === 0 ? 0 : Math.round((prosesCount / periodTasks.length) * 100);
+  const prosesPct = Math.min(100, periodTasks.length === 0 ? 0 : Math.round((prosesCount / periodTasks.length) * 100));
 
   // --- Badge Kondisional ---
   const pctChangeHariIni = getPctChange(totalHariIni, totalKemarin);
@@ -241,6 +241,7 @@ const Tasks = () => {
       }
       push("success", "Tugas Berhasil Disimpan");
       setIsModalOpen(false);
+      fetchTasks();
     } catch (err: unknown) {
       push("error", err instanceof Error ? err.message : "Tugas Gagal Disimpan");
     }

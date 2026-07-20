@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ROLE_OPTIONS } from "../types/user";
+import { getAllRoles } from "../api/user";
 import type { AppUser, UserRole, UserStatus } from "../types/user";
 
 export interface EditUserPayload {
@@ -20,7 +21,8 @@ interface EditUserModalProps {
   onSave: (payload: EditUserPayload) => Promise<void>;
 }
 
-const STATUS_OPTIONS: UserStatus[] = ["Aktif", "Non-Aktif", "Menunggu", "Aktivasi Kadaluwarsa"];
+// Only Aktif/Non-Aktif map to is_active: true/false
+const STATUS_OPTIONS: UserStatus[] = ["Aktif", "Non-Aktif"];
 
 const buildForm = (user: AppUser | null): EditUserPayload | null =>
   user
@@ -36,10 +38,22 @@ const buildForm = (user: AppUser | null): EditUserPayload | null =>
 
 const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
   const [form, setForm] = useState<EditUserPayload | null>(() => buildForm(user));
+  const [roles, setRoles] = useState<{ id: string; label: string }[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      getAllRoles()
+        .then((data) => {
+          const raw = data as Array<{ id: string; nama_role: string }>;
+          setRoles(raw.map((r) => ({ id: r.id, label: r.nama_role.charAt(0).toUpperCase() + r.nama_role.slice(1) })));
+        })
+        .catch(() => setRoles(ROLE_OPTIONS));
+    }
+  }, [open]);
 
   const handleSubmit = async () => {
     if (!user || !form) return;
-    if (!form.namaLengkap.trim() || !form.username.trim() || !form.email.trim() || !form.noTelepon.trim()) {
+    if (!form.namaLengkap.trim() || !form.username.trim() || !form.email.trim()) {
       alert("Mohon lengkapi semua data pengguna.");
       return;
     }
@@ -139,8 +153,8 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
                   onChange={(e) => setForm((f) => f && { ...f, role: e.target.value as UserRole })}
                   className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
                 >
-                  {ROLE_OPTIONS.map((r) => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.label}>{r.label}</option>
                   ))}
                 </select>
               </div>
