@@ -3,6 +3,7 @@ import type { Laporan, StatusLaporan } from "../types/laporan";
 import { getAdminLaporan, getAdminLaporanDetail, updateAdminLaporan, deleteAdminLaporan, type AdminLaporanParams } from "../api/laporan";
 import { getErrorMessage, getInitials } from "../lib/utils";
 import { getPhotoMaps, resolveAssetUrl } from "../lib/assets";
+import { stripIdPrefix } from "../lib/response";
 
 // Status mappers - aligned with backend enum
 const mapStatus = (s: unknown): StatusLaporan => {
@@ -81,8 +82,8 @@ async function fetchLaporan(params: Record<string, unknown>): Promise<LaporanPag
     search: str(params.search),
     status: str(params.status),
     prioritas: str(params.prioritas),
-    lokasi_id: str(params.lokasi_id),
-    lantai_id: str(params.lantai_id),
+    lokasi_id: params.lokasi_id ? stripIdPrefix(str(params.lokasi_id)!) : undefined,
+    lantai_id: params.lantai_id ? stripIdPrefix(str(params.lantai_id)!) : undefined,
     start_date: str(params.start_date),
     end_date: str(params.end_date),
     sort_by: str(params.sort_by) as AdminLaporanParams["sort_by"],

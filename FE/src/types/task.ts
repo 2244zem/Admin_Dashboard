@@ -11,9 +11,6 @@ export interface Task {
   namaTugas: string;
   gedung: string;
   lantai: string;
-  // 🆕 ID mentah lokasi/lantai dari checklist response, dipakai Tasks.tsx untuk
-  // resolve nama asli lewat daftar lokasi/lantai yang di-fetch terpisah
-  // (endpoint checklist-harian ternyata tidak selalu mengembalikan nama, hanya FK).
   lokasiId?: string;
   lantaiId?: string;
   petugas: Petugas;

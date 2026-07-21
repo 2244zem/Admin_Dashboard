@@ -39,7 +39,8 @@ const navItems: NavItem[] = [
     icon: ListChecks,
     roles: ["Admin", "HR"],
     children: [
-      { id: "tasks-insidental", label: "Tugas Biasa", href: '/tugas-insidental', icon: ListChecks, roles: ["Admin", "HR"] },
+      { id: "tasks-rutin", label: "Tugas Rutin", href: '/tasks', icon: ListChecks, roles: ["Admin", "HR"] },
+      { id: "tasks-insidental", label: "Tugas Tidak Rutin", href: '/tugas-insidental', icon: ListChecks, roles: ["Admin", "HR"] },
     ],
   },
   { id: "reports", label: "Laporan Pengguna", href: '/reports', icon: BarChart3, roles: ["Admin", "HR"] },

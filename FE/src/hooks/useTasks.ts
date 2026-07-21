@@ -10,6 +10,7 @@ import {
   type ChecklistStatus,
 } from "../api/checklist";
 import { getErrorMessage } from "../lib/utils";
+import { stripIdPrefix } from "../lib/response";
 import { taskSchema, validateList } from "../schemas";
 
 // Status mappers
@@ -36,15 +37,24 @@ export function mapApiChecklistToTask(row: Record<string, unknown>): Task {
     keys.reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), v) ?? "";
   const tanggal = String(row.tanggal ?? row.created_at ?? new Date().toISOString());
 
-  const lantai = row.lantai as { nomor_lantai?: unknown } | undefined;
+  const lantai = row.lantai as { nomor_lantai?: unknown; nama_lantai?: unknown } | undefined;
+  const kategori = typeof row.kategori === "string" ? row.kategori : get(row, "kategori", "nama_kategori");
+  const lokasiId = row.lokasi_id ?? get(row, "lokasi", "id") ?? get(row, "lantai", "lokasi", "id");
+  const namaLokasi = row.nama_lokasi
+    ?? get(row, "lokasi", "nama")
+    ?? get(row, "lokasi", "nama_lokasi")
+    ?? get(row, "lantai", "lokasi", "nama")
+    ?? get(row, "lantai", "lokasi", "nama_lokasi");
 
   return {
     id: String(row.id ?? ""),
-    kategori: String(get(row, "kategori", "nama_kategori") || get(row, "tugas", "kategori", "nama_kategori") || "-"),
+    kategori: String(kategori || get(row, "tugas", "kategori", "nama_kategori") || "-"),
     namaTugas: String(get(row, "nama_tugas") || get(row, "tugas", "nama_tugas") || "-"),
-    gedung: String(get(row, "nama_lokasi") || get(row, "lokasi", "nama") || "-"),
-    lantai: String(get(row, "nama_lantai") || (lantai?.nomor_lantai ? `Lantai ${lantai.nomor_lantai}` : "-")),
-    petugas: { nama: String(get(row, "ob", "nama_lengkap") || get(row, "nama_ob") || "Belum ditugaskan") },
+    gedung: String(namaLokasi || "-"),
+    lantai: String(get(row, "nama_lantai") || lantai?.nama_lantai || (lantai?.nomor_lantai ? `Lantai ${lantai.nomor_lantai}` : "-")),
+    lokasiId: String(lokasiId || ""),
+    lantaiId: String(row.lantai_id ?? (get(row, "lantai", "id") || "")),
+    petugas: { nama: String(get(row, "ob", "nama_lengkap") || get(row, "_ob", "nama_lengkap") || get(row, "nama_ob") || "Belum ditugaskan") },
     waktu: String(tanggal).slice(11, 16) || "-",
     tanggal: String(tanggal).slice(0, 10),
     catatan: row.catatan != null ? String(row.catatan) : undefined,
@@ -57,8 +67,6 @@ export interface TaskFilters {
 }
 
 // Strip prefix (gd-, lt-, etc)
-const stripPrefix = (id: string) => id?.replace(/^[a-z]+-/, "");
-
 interface TaskPayload {
   nama_tugas?: string;
   kategori_id?: string;
@@ -72,10 +80,9 @@ interface TaskPayload {
 // Build payload for checklist API
 const toPayload = (p: TaskPayload) => ({
   ...(p.nama_tugas && { nama_tugas: p.nama_tugas }),
-  ...(p.kategori_id && { kategori_id: stripPrefix(p.kategori_id) }),
-  ...(p.lokasi_id && { lokasi_id: stripPrefix(p.lokasi_id) }),
-  ...(p.lantai_id && { lantai_id: stripPrefix(p.lantai_id) }),
-  ...(p.ob_id && { ob_id: stripPrefix(p.ob_id) }),
+  ...(p.kategori_id && { kategori_id: stripIdPrefix(p.kategori_id) }),
+  ...(p.lantai_id && { lantai_id: stripIdPrefix(p.lantai_id) }),
+  ...(p.ob_id && { ob_id: stripIdPrefix(p.ob_id) }),
   ...(p.status && { status: mapUiStatus(p.status) }),
   ...(p.catatan ? { catatan: p.catatan } : {}),
 });
@@ -83,7 +90,11 @@ const toPayload = (p: TaskPayload) => ({
 const TASKS_KEY = ["tasks"] as const;
 
 async function fetchTasks(filters?: TaskFilters): Promise<Task[]> {
-  const payload = await getChecklistHarian(filters);
+  const payload = await getChecklistHarian(filters && {
+    ...filters,
+    lokasi_id: filters.lokasi_id ? stripIdPrefix(filters.lokasi_id) : undefined,
+    lantai_id: filters.lantai_id ? stripIdPrefix(filters.lantai_id) : undefined,
+  });
   const items = Array.isArray(payload) ? payload : payload?.items ?? [];
   return validateList(taskSchema, items.map(mapApiChecklistToTask));
 }
@@ -127,8 +138,14 @@ function useTasks(filters?: TaskFilters) {
       await createChecklistHarian(toPayload(p));
       await qc.invalidateQueries({ queryKey: TASKS_KEY, refetchType: "all" });
     }),
-    updateTask: (id: string, p: TaskPayload) => runMutation(() => updateChecklistHarian(id, toPayload(p))),
-    deleteTask: (id: string) => runMutation(() => deleteChecklistHarian(id)),
+    updateTask: (id: string, p: TaskPayload) => runMutation(async () => {
+      await updateChecklistHarian(id, toPayload(p));
+      await qc.invalidateQueries({ queryKey: TASKS_KEY });
+    }),
+    deleteTask: (id: string) => runMutation(async () => {
+      await deleteChecklistHarian(id);
+      await qc.invalidateQueries({ queryKey: TASKS_KEY });
+    }),
     updateTaskStatus: async (id: string, status: StatusTask) => {
       await updateChecklistHarian(id, { status: mapUiStatus(status) });
       await qc.invalidateQueries({ queryKey: TASKS_KEY });

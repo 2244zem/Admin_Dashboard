@@ -5,6 +5,7 @@ import ErrorState from "../components/ui/ErrorState";
 import { Skeleton } from "../components/ui/Skeleton";
 import useUsers from "../hooks/useUsers";
 import { usePerformanceOb, type ObPerformanceRow } from "../hooks/usePerformance";
+import useLaporan from "../hooks/useLaporan";
 import type { PerformancePeriod } from "../api/performance";
 
 const AVATAR_COLORS = [
@@ -30,6 +31,11 @@ function getAvatarColor(name: string) {
 const Performa = () => {
   const { fetchOB } = useUsers();
   const { rows, isLoading, error, fetchAll } = usePerformanceOb();
+  const { meta: laporanMenungguMeta, isLoading: laporanMenungguLoading } = useLaporan({
+    status: "BELUM_DIKERJAKAN",
+    limit: 1,
+  });
+  const laporanMenunggu = laporanMenungguMeta.total_items;
   const [period, setPeriod] = useState<PerformancePeriod>("mingguan");
   const [obList, setObList] = useState<Array<{ id: string; nama: string }>>([]);
 
@@ -99,13 +105,12 @@ const Performa = () => {
 
               {/* KPI Cards */}
               {/*
-                NOTE: "Rata-rata Tingkat Keberhasilan", "Waktu Aktif Sistem", dan
-                perubahan persentase (+2.4%) TIDAK ADA di endpoint manapun yang
-                terdokumentasi. Ini butuh backend menyediakan metrik agregat
-                terpisah. Ditampilkan "Belum tersedia" sampai ada sumber data.
-                "Laporan Menunggu" BISA diambil dari GET /api/admin/laporan
-                dengan filter status=BELUM_DIKERJAKAN — belum disambungkan di
-                sini, tinggal tambahkan hook useLaporan kalau mau data real.
+                NOTE: "Rata-rata Tingkat Keberhasilan" dan "Waktu Aktif Sistem"
+                TIDAK ADA di endpoint manapun yang terdokumentasi. Ini butuh
+                backend menyediakan metrik agregat terpisah. Ditampilkan
+                "Belum tersedia" sampai ada sumber data.
+                "Laporan Menunggu" diambil dari GET /api/admin/laporan dengan
+                filter status=BELUM_DIKERJAKAN via useLaporan (hook di atas).
               */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="border border-gray-200 rounded-xl p-4">
@@ -138,9 +143,11 @@ const Performa = () => {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500">Laporan Menunggu</span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">-</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {laporanMenungguLoading ? "..." : laporanMenunggu}
+                  </p>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    Sambungkan ke <code className="text-[10px]">useLaporan</code> filter status BELUM_DIKERJAKAN
+                    Laporan status BELUM_DIKERJAKAN (via <code className="text-[10px]">useLaporan</code>)
                   </p>
                 </div>
               </div>

@@ -23,7 +23,6 @@ import { useAuth } from "./hooks/useAuth";
 import LupaPassword from "./pages/LupaPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Performa from "./pages/Performa";
-import TasksInsidental from "./pages/TasksInsidental";
 
 function UnauthorizedPage() {
   const navigate = useNavigate();
@@ -129,10 +128,10 @@ function AnimatedRoutes() {
           <Route path="/lupa-password" element={<LupaPassword />} />
 <Route path="/reset-password" element={<ResetPassword />} />
           <Route
-            path="/tasks"
+            path="/tasks/*"
             element={
               <ProtectedRoute>
-                <PageHeader title="Manajemen Tugas" />
+                <PageHeader title="Tugas" />
                 <Tasks />
               </ProtectedRoute>
             }
@@ -149,8 +148,8 @@ function AnimatedRoutes() {
             path="/tugas-insidental"
             element={
               <ProtectedRoute>
-                <PageHeader title="Tugas Biasa" />
-                <TasksInsidental />
+                <PageHeader title="Tugas" />
+                <Tasks />
               </ProtectedRoute>
             }
           />
