@@ -2,11 +2,35 @@ import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppUser } from "../types/user";
 import apiClient from "../services/apiClient";
-import { getAdminUsers, getAllOB, getAllKaryawan, getUserDetail as getUserDetailApi, renewUserToken, ROLE_UUID_MAP, ROLE_NAME_MAP } from "../api/user";
+import { getAdminUsers, getAllOB, getAllKaryawan, getUserDetail as getUserDetailApi, renewUserToken, getAllRoles } from "../api/user";
 import { getErrorMessage } from "../lib/utils";
 import { resolveAssetUrl } from "../lib/assets";
 import { appUserSchema, validateList } from "../schemas";
 import type { ApiMutationResult } from "../types/api";
+
+// Dynamic role mapping from API per CLAUDE.md - fetch from GET /api/admin/role
+const roleCache = { map: new Map<string, string>(), reverse: new Map<string, string>(), loaded: false };
+export function getRoleId(roleName: string) {
+  if (roleCache.loaded) return roleCache.map.get(roleName) ?? roleName;
+  return roleName; // fallback to name if not loaded yet
+}
+export function getRoleName(roleId: string) {
+  if (roleCache.reverse.has(roleId)) return roleCache.reverse.get(roleId)!;
+  return roleId;
+}
+export async function loadRoleMapping() {
+  if (roleCache.loaded) return;
+  try {
+    const roles = await getAllRoles();
+    roles.forEach((r) => {
+      if (r.id && r.nama_role) {
+        roleCache.map.set(r.nama_role, r.id);
+        roleCache.reverse.set(r.id, r.nama_role);
+      }
+    });
+    roleCache.loaded = true;
+  } catch { /* ignore */ }
+}
 
 // Separate async function so it can be called directly without useCallback dependency chain
 async function fetchUserDetail(id: string): Promise<AppUser | null> {
@@ -21,20 +45,17 @@ async function fetchUserDetail(id: string): Promise<AppUser | null> {
 // Normalize role from backend response - aligned with spec
 const normalizeRole = (roleData: unknown): AppUser["role"] => {
   const r = roleData as { role_id?: unknown; role?: { id?: unknown }; nama_role?: unknown; name?: unknown } | string | null | undefined;
-  // Check for UUID in role_id
-  if (r && typeof r !== "string" && r.role_id && ROLE_NAME_MAP[String(r.role_id)]) {
-    return ROLE_NAME_MAP[String(r.role_id)] as AppUser["role"];
-  }
-  // Check for UUID directly
-  if (typeof r === "string" && ROLE_NAME_MAP[r]) {
-    return ROLE_NAME_MAP[r] as AppUser["role"];
+  // Check for UUID in role_id (try dynamic mapping first, fallback to name-based)
+  const tryId = typeof r === "string" ? r : r?.role_id != null ? String(r.role_id) : null;
+  if (tryId) {
+    const name = getRoleName(tryId);
+    if (name !== tryId) return name as AppUser["role"];
   }
   // Check nested role object
   if (r && typeof r !== "string" && r.role && typeof r.role === "object" && "id" in r.role) {
-    const nestedId = (r.role as { id?: unknown }).id;
-    if (nestedId && ROLE_NAME_MAP[String(nestedId)]) {
-      return ROLE_NAME_MAP[String(nestedId)] as AppUser["role"];
-    }
+    const nestedId = String((r.role as { id?: unknown }).id ?? "");
+    const nestedName = getRoleName(nestedId);
+    if (nestedName !== nestedId) return nestedName as AppUser["role"];
   }
   // Fallback to name-based matching
   const value = String(
@@ -140,9 +161,9 @@ function useUsers(filters?: { search?: string; role_id?: string }) {
     if (p.username) body.username = p.username;
     if (p.email) body.email = p.email;
     if (p.namaLengkap) body.nama_lengkap = p.namaLengkap;
-    // Map role name to UUID if needed
+    // Map role name to UUID per CLAUDE.md (fetched from GET /api/admin/role)
     if (p.role) {
-      body.role_id = ROLE_UUID_MAP[String(p.role)] || p.role;
+      body.role_id = getRoleId(String(p.role)) || p.role;
     }
     if (p.password) body.password = p.password;
     // is_active must be a proper boolean, not a string — backend expects boolean (true/false)

@@ -70,14 +70,13 @@ export interface TaskFilters {
 interface TaskPayload {
   nama_tugas?: string;
   kategori_id?: string;
-  lokasi_id?: string;
   lantai_id?: string;
   ob_id?: string;
   status?: StatusTask;
   catatan?: string;
 }
 
-// Build payload for checklist API
+// Build payload for checklist API - per CLAUDE.md: lokasi_id sudah dihapus dari body
 const toPayload = (p: TaskPayload) => ({
   ...(p.nama_tugas && { nama_tugas: p.nama_tugas }),
   ...(p.kategori_id && { kategori_id: stripIdPrefix(p.kategori_id) }),

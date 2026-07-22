@@ -9,7 +9,18 @@ function useTugasKatalog(filters?: GetTugasParams) {
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ["tugas-katalog", filters ?? {}],
-    queryFn: async () => extractArray<Tugas>(await getAllTugas(filters)),
+    queryFn: async () => {
+      try {
+        const raw = await getAllTugas(filters);
+        if (import.meta.env.DEV) console.log("[useTugasKatalog raw]", JSON.stringify(raw));
+        const result = extractArray<Tugas>(raw);
+        if (import.meta.env.DEV) console.log("[useTugasKatalog extracted]", result.length, "items");
+        return result;
+      } catch (e) {
+        if (import.meta.env.DEV) console.log("[useTugasKatalog error]", e);
+        throw e;
+      }
+    },
   });
 
   // ponytail: invalidate after every write so list stays in sync

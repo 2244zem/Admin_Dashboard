@@ -1,19 +1,6 @@
 import apiClient from "../services/apiClient";
 import type { ApiMutationResult } from "../types/api";
 
-// Role UUID mapping - aligned with backend database
-export const ROLE_UUID_MAP: Record<string, string> = {
-  Admin: "dda2c23a-732c-41c5-80ee-b0818345fa25",
-  HR: "eb89b4f9-635f-4e1e-8916-3a96af4e0c72",
-  OB: "62c0a9d8-afd7-45f5-9cb3-6dc6e8a9b8da",
-  Karyawan: "d25542e0-93ad-4513-87ca-c567319f6187",
-};
-
-// Reverse map for converting role name to UUID
-export const ROLE_NAME_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(ROLE_UUID_MAP).map(([name, id]) => [id, name])
-);
-
 // Admin Users - spec: GET /api/admin/user returns paginated { items: [...] }
 export interface AdminUsersResponse {
   success: boolean;
@@ -46,9 +33,14 @@ export async function getAllKaryawan() {
   return response?.data ?? [];
 }
 
+// Per CLAUDE.md: GET /api/admin/role returns all roles
 export async function getAllRoles() {
-  const response = await apiClient.get<{ success: boolean; data: { id: string; nama_role: string }[] }>("/api/admin/role");
-  return response?.data ?? [];
+  const response = await apiClient.get<{ success: boolean; data: { id: string; nama_role: string; created_at?: string }[] }>("/api/admin/role");
+  // Try unwrapping from various response shapes
+  const data = response?.data ?? response;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray((data as Record<string, unknown>)?.items)) return (data as Record<string, unknown>).items;
+  return [];
 }
 
 export async function createUser(payload: { username: string; email: string; nama_lengkap: string; role_id: string }) {

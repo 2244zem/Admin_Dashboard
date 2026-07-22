@@ -9,15 +9,15 @@ import { stripIdPrefix } from "../lib/response";
 const mapStatus = (s: unknown): StatusLaporan => {
   const v = String(s || "").toUpperCase().replace(/-/g, "_").replace(/ /g, "_");
   if (["BELUM_DIKERJAKAN", "BELUM", "TODO"].includes(v)) return "Menunggu";
-  if (["DITUGASKAN", "PENDING", "PROSES", "ASSIGNED", "IN_PROGRESS"].includes(v)) return "Ditugaskan";
+  if (["DITUGASKAN", "PENDING", "PROSES", "ASSIGNED", "IN_PROGRESS"].includes(v)) return "Dalam Proses";
   if (["SELESAI", "DONE", "COMPLETED"].includes(v)) return "Selesai";
-  if (["DITOLAK", "DIBATALKAN", "REJECTED", "CANCELLED"].includes(v)) return "Ditolak";
+  if (["DITOLAK", "DIBATALKAN", "REJECTED", "CANCELLED"].includes(v)) return "Menunggu Persetujuan Admin";
   return "Menunggu";
 };
 
 // Backend expects: BELUM_DIKERJAKAN | PENDING | SELESAI | DIBATALKAN
 export const statusToBackend = (s: StatusLaporan): string =>
-  ({ Menunggu: "BELUM_DIKERJAKAN", Ditugaskan: "PENDING", Selesai: "SELESAI", Ditolak: "DIBATALKAN" }[s] ?? "BELUM_DIKERJAKAN");
+  ({ Menunggu: "BELUM_DIKERJAKAN", "Dalam Proses": "PENDING", Selesai: "SELESAI", "Menunggu Persetujuan Admin": "DIBATALKAN" }[s] ?? "BELUM_DIKERJAKAN");
 
 // Map API row to Laporan - aligned with spec fields
 export const mapApiLaporanToLaporan = (row: Record<string, unknown>): Laporan => {

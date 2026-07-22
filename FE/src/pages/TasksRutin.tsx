@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import useTugasKatalog from "../hooks/useTugasKatalog";
 import useLokasi from "../hooks/useLokasi";
@@ -9,7 +9,10 @@ import type { Option } from "../components/tasks/TaskFormModal";
 import { getErrorMessage } from "../lib/utils";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
+import { TableSkeleton } from "../components/ui/Skeleton";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
+import RowActionMenu from "../components/ui/RowActionMenu";
+import TugasDetailModal from "../components/tasks/TugasDetailModal";
 
 type Tab = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
 
@@ -65,8 +68,7 @@ const TasksRutin = () => {
 
   const [gedungFilter, setGedungFilter] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>("Hari Ini");
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [rowToView, setRowToView] = useState<Row | null>(null);
 
   const { tugasList, isLoading, error, refetch, createTugas, updateTugas, deleteTugas } = useTugasKatalog();
 
@@ -115,6 +117,9 @@ const TasksRutin = () => {
     [rows, gedungFilter, activeTab, lantaiToGedung]
   );
 
+  // Debug log - remove after verifying data flow
+  if (import.meta.env.DEV) console.log("[TasksRutin]", { tugasList: tugasList.length, isLoading, error, filteredRows: filteredRows.length, activeTab });
+
   const prefill = (location.state as { prefill?: { nama_tugas: string; kategori_id: string; lantai_id: string } } | null)?.prefill;
 
   const [isModalOpen, setIsModalOpen] = useState(Boolean(prefill));
@@ -123,16 +128,6 @@ const TasksRutin = () => {
   const [modalInitial, setModalInitial] = useState<Record<string, unknown> | null>(
     prefill ? { kategori_id: prefill.kategori_id, namaTugas: prefill.nama_tugas, lantai_id: prefill.lantai_id, catatan: "" } : null
   );
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setActiveDropdown(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const openCreate = () => {
     setModalMode("create");
@@ -163,16 +158,6 @@ const TasksRutin = () => {
     } catch (e) {
       push("error", getErrorMessage(e) || "Gagal menyimpan tugas");
     }
-  };
-
-  const handleSetujui = async (row: Row) => {
-    try {
-      await updateTugas(row.id, { status: "SELESAI" });
-      push("success", "Tugas disetujui");
-    } catch (e) {
-      push("error", getErrorMessage(e) || "Gagal menyetujui tugas");
-    }
-    setActiveDropdown(null);
   };
 
   const [rowToDelete, setRowToDelete] = useState<Row | null>(null);
@@ -303,7 +288,7 @@ const TasksRutin = () => {
                 onAction={openCreate}
               />
             ) : (
-              <div className="overflow-x-auto" ref={dropdownRef}>
+              <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-gray-600">
                   <thead className="text-[11px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50 dark:bg-surface">
                     <tr>
@@ -317,7 +302,6 @@ const TasksRutin = () => {
                   <tbody className="divide-y divide-gray-50">
                     {filteredRows.map((row) => {
                       const st = getStatusStyle(row.status);
-                      const isMenuOpen = activeDropdown === row.id;
 
                       return (
                         <tr key={row.id} className="hover:bg-gray-50/50 transition-colors dark:bg-surface">
@@ -345,54 +329,12 @@ const TasksRutin = () => {
                               <span className="text-xs text-gray-400 italic">Waiting for OB...</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right relative">
-                            <button
-                              onClick={() => setActiveDropdown(isMenuOpen ? null : row.id)}
-                              className="text-gray-400 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer dark:bg-elevated"
-                              title="Aksi"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 6a2 2 0 110-4 2 2 0 010 4zm0 8a2 2 0 110-4 2 2 0 010 4zm0 8a2 2 0 110-4 2 2 0 010 4z" />
-                              </svg>
-                            </button>
-
-                            {isMenuOpen && (
-                              <div
-                                ref={dropdownRef}
-                                className="absolute right-6 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-20 text-left dark:bg-surface"
-                              >
-                                <button
-                                  onClick={() => { setActiveDropdown(null); openEdit(row); }}
-                                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                  Edit
-                                </button>
-                                {row.status !== "SELESAI" && (
-                                  <button
-                                    onClick={() => { setActiveDropdown(null); handleSetujui(row); }}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors cursor-pointer"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    Setujui Selesai
-                                  </button>
-                                )}
-                                <div className="my-1 border-t border-gray-100" />
-                                <button
-                                  onClick={() => { setActiveDropdown(null); setRowToDelete(row); }}
-                                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                  Hapus
-                                </button>
-                              </div>
-                            )}
+                          <td className="px-6 py-4 text-right">
+                            <RowActionMenu
+                              onDetail={() => setRowToView(row)}
+                              onEdit={() => openEdit(row)}
+                              onDelete={() => setRowToDelete(row)}
+                            />
                           </td>
                         </tr>
                       );
@@ -424,6 +366,8 @@ const TasksRutin = () => {
           lantaiOptions={lantaiOptions}
           kategoriOptions={kategoriOptions}
         />
+
+        <TugasDetailModal row={rowToView} onClose={() => setRowToView(null)} />
 
         <ConfirmDialog
           open={!!rowToDelete}

@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import type { Task } from "../../types/task";
+import apiClient from "../../services/apiClient";
 
 // NOTE: fotoSebelum/fotoSesudah/claimedAt/completedAt/catatanOb TIDAK ada di
 // mapApiChecklistToTask saat ini. Diakses optional; tampil "Belum tersedia"
@@ -11,6 +12,11 @@ interface ExtendedTask extends Task {
   claimedAt?: string;
   completedAt?: string;
   catatanOb?: string;
+}
+
+// Approve checklist harian via dedicated endpoint per CLAUDE.md
+async function approveChecklistHarian(id: string) {
+  return apiClient.patch(`/api/admin/checklist-harian/${id}/approve`);
 }
 
 function formatJam(iso?: string) {
@@ -47,6 +53,8 @@ export default function TaskDetailModal({ task, detailData, isLoading, onClose, 
   const handleApprove = async () => {
     setIsApproving(true);
     try {
+      // Use dedicated approval endpoint per CLAUDE.md
+      await approveChecklistHarian(task.id);
       await onApprove(task);
     } finally {
       setIsApproving(false);

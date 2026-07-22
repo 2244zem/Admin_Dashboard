@@ -1,41 +1,37 @@
-/**
- * Status display styles for laporan (report) UI.
- * Enum <-> display mapping lives in a single place: src/hooks/useLaporan.ts
- * (statusToBackend / mapStatus). Do NOT re-add a mapper here.
- */
-
-export type DisplayStatus = "Menunggu" | "Ditugaskan" | "Selesai" | "Ditolak";
+// Laporan status: backend → UI display
+// Values: menunggu (#3F4852), dalam proses (#FF8D28), menunggu persetujuan admin (#00629E), selesai (#22C55E)
+export type DisplayStatus = "Menunggu" | "Dalam Proses" | "Menunggu Persetujuan Admin" | "Selesai";
 
 export const STATUS_COLOR: Record<DisplayStatus, { bg: string; text: string }> = {
-  Menunggu: { bg: "bg-amber-50", text: "text-amber-700" },
-  Ditugaskan: { bg: "bg-blue-50", text: "text-blue-700" },
-  Selesai: { bg: "bg-green-50", text: "text-green-700" },
-  Ditolak: { bg: "bg-red-50", text: "text-red-700" },
+  "Menunggu": { bg: "bg-[#3F4852]/10", text: "text-[#3F4852]" },
+  "Dalam Proses": { bg: "bg-[#FF8D28]/10", text: "text-[#FF8D28]" },
+  "Menunggu Persetujuan Admin": { bg: "bg-[#00629E]/10", text: "text-[#00629E]" },
+  "Selesai": { bg: "bg-[#22C55E]/10", text: "text-[#22C55E]" },
 };
 
 export const STATUS_BANNER_STYLE: Record<DisplayStatus, { bg: string; border: string; text: string; label: string }> = {
-  Menunggu: {
-    bg: "bg-amber-50",
-    border: "border-amber-100",
-    text: "text-amber-700",
-    label: "Menunggu Konfirmasi",
+  "Menunggu": {
+    bg: "bg-[#3F4852]/10",
+    border: "border-[#3F4852]/20",
+    text: "text-[#3F4852]",
+    label: "Menunggu",
   },
-  Ditugaskan: {
-    bg: "bg-blue-50",
-    border: "border-blue-100",
-    text: "text-blue-700",
-    label: "Sedang Dikerjakan",
+  "Dalam Proses": {
+    bg: "bg-[#FF8D28]/10",
+    border: "border-[#FF8D28]/20",
+    text: "text-[#FF8D28]",
+    label: "Dalam Proses",
   },
-  Selesai: {
-    bg: "bg-green-50",
-    border: "border-green-100",
-    text: "text-green-700",
-    label: "Selesai Dikerjakan",
+  "Menunggu Persetujuan Admin": {
+    bg: "bg-[#00629E]/10",
+    border: "border-[#00629E]/20",
+    text: "text-[#00629E]",
+    label: "Menunggu Persetujuan Admin",
   },
-  Ditolak: {
-    bg: "bg-red-50",
-    border: "border-red-100",
-    text: "text-red-700",
-    label: "Ditolak",
+  "Selesai": {
+    bg: "bg-[#22C55E]/10",
+    border: "border-[#22C55E]/20",
+    text: "text-[#22C55E]",
+    label: "Selesai",
   },
 };

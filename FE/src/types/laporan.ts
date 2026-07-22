@@ -1,4 +1,4 @@
-export type StatusLaporan = "Menunggu" | "Ditugaskan" | "Selesai" | "Ditolak";
+export type StatusLaporan = "Menunggu" | "Dalam Proses" | "Menunggu Persetujuan Admin" | "Selesai";
 export type AreaLaporan = "Toilet" | "Lobi" | "Area Kantor" | "Parkir";
 export type LevelLaporan = "URGENT" | "STANDARD";
 
@@ -26,8 +26,8 @@ export interface Laporan {
 }
 
 export const STATUS_COLOR: Record<StatusLaporan, string> = {
-  Menunggu: "bg-orange-100 text-orange-600",
-  Ditugaskan: "bg-blue-100 text-blue-600",
-  Selesai: "bg-green-100 text-green-600",
-  Ditolak: "bg-red-100 text-red-600",
+  Menunggu: "bg-[#3F4852]/10 text-[#3F4852]",
+  "Dalam Proses": "bg-[#FF8D28]/10 text-[#FF8D28]",
+  "Menunggu Persetujuan Admin": "bg-[#00629E]/10 text-[#00629E]",
+  Selesai: "bg-[#22C55E]/10 text-[#22C55E]",
 };

@@ -318,10 +318,10 @@ const Dashboard = () => {
   const donutData = useMemo(() => {
     const total = laporanList.length;
     const items = [
-      { key: "Ditugaskan", label: "Masuk", color: "#1d4ed8", count: laporanList.filter((l) => l.status === "Ditugaskan").length },
-      { key: "Selesai", label: "Selesai", color: "#22c55e", count: laporanList.filter((l) => l.status === "Selesai").length },
-      { key: "Menunggu", label: "Menunggu", color: "#f59e0b", count: laporanList.filter((l) => l.status === "Menunggu").length },
-      { key: "Ditolak", label: "Ditolak", color: "#ef4444", count: laporanList.filter((l) => l.status === "Ditolak").length },
+      { key: "Dalam Proses", label: "Dalam Proses", color: "#FF8D28", count: laporanList.filter((l) => l.status === "Dalam Proses").length },
+      { key: "Selesai", label: "Selesai", color: "#22C55E", count: laporanList.filter((l) => l.status === "Selesai").length },
+      { key: "Menunggu", label: "Menunggu", color: "#3F4852", count: laporanList.filter((l) => l.status === "Menunggu").length },
+      { key: "Menunggu Persetujuan Admin", label: "Menunggu Persetujuan Admin", color: "#00629E", count: laporanList.filter((l) => l.status === "Menunggu Persetujuan Admin").length },
     ];
     return items.map((item) => ({ ...item, pct: total === 0 ? 0 : Math.round((item.count / total) * 100) }));
   }, [laporanList]);
@@ -452,10 +452,10 @@ const Dashboard = () => {
                               </td>
                               <td className="py-3.5">
                                 <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
-                                  l.status === "Menunggu" ? "bg-orange-50 text-orange-500 border border-orange-100" :
-                                  l.status === "Ditugaskan" ? "bg-blue-50 text-blue-500 border border-blue-100" :
-                                  l.status === "Selesai" ? "bg-green-50 text-green-500 border border-green-100" :
-                                  "bg-red-50 text-red-500 border border-red-100"
+                                  l.status === "Menunggu" ? "bg-[#3F4852]/10 text-[#3F4852] border border-[#3F4852]/20" :
+                                  l.status === "Dalam Proses" ? "bg-[#FF8D28]/10 text-[#FF8D28] border border-[#FF8D28]/20" :
+                                  l.status === "Selesai" ? "bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20" :
+                                  "bg-[#00629E]/10 text-[#00629E] border border-[#00629E]/20"
                                 }`}>
                                   {l.status}
                                 </span>

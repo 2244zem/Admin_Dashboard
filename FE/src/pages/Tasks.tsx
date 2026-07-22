@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/useToast";
 import type { Task, StatusTask } from "../types/task";
 import useTasks, { type TaskFilters } from "../hooks/useTasks";
 import useLokasi from "../hooks/useLokasi";
 import useUsers from "../hooks/useUsers";
 import useKategori from "../hooks/useKategori";
+import apiClient from "../services/apiClient";
 import Can from "../components/auth/Can";
 import { StatCardsSkeleton, CardListSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
@@ -13,6 +15,15 @@ import ConfirmDialog from "../components/ui/ConfirmDialog";
 import TaskFormModal from "../components/tasks/TaskFormModal";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import Avatar from "../components/ui/Avatar";
+
+// Fetch stats from dedicated endpoint per CLAUDE.md
+interface TaskStats { total: number; diproses_ob: number; menunggu_persetujuan: number }
+async function fetchTaskStats(period: string = "harian", lokasi_id?: string) {
+  const params: Record<string, string> = { period };
+  if (lokasi_id) params.lokasi_id = lokasi_id;
+  const res = await apiClient.get<{ data: TaskStats }>("/api/admin/tugas/stats", { params });
+  return (res?.data ?? { total: 0, diproses_ob: 0, menunggu_persetujuan: 0 }) as TaskStats;
+}
 
 type Periode = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
 
@@ -41,15 +52,6 @@ const URGENCY_STYLE: Record<Urgency, string> = {
 
 function isToday(tanggal: string) {
   return tanggal === new Date().toISOString().slice(0, 10);
-}
-function isYesterday(tanggal: string) {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return tanggal === d.toISOString().slice(0, 10);
-}
-function getPctChange(today: number, yesterday: number): number | null {
-  if (yesterday === 0) return null;
-  return Math.round(((today - yesterday) / yesterday) * 100);
 }
 function isInPeriod(tanggal: string, periode: Periode): boolean {
   if (!tanggal) return false;
@@ -92,11 +94,20 @@ const Tasks = () => {
   const [selectedGedung, setSelectedGedung] = useState<string>("Semua Gedung");
   const [selectedLantai, setSelectedLantai] = useState<string>("Semua Lantai");
 
-  // Resolve lokasi_id dari gedung yang dipilih
+  // Resolve lokasi_id dari gedung yang dipilih (must be before useQuery)
   const selectedGedungObj = useMemo(
     () => gedungList.find((g) => g.nama === selectedGedung),
     [gedungList, selectedGedung]
   );
+
+  // Fetch stats from API per CLAUDE.md
+  const [periode, setPeriode] = useState<Periode>("Hari Ini");
+  const periodMap: Record<Periode, string> = { "Hari Ini": "harian", Mingguan: "mingguan", Bulanan: "bulanan", Tahunan: "tahunan" };
+  const { data: stats } = useQuery({
+    queryKey: ["admin-tugas-stats", periodMap[periode], selectedGedungObj?.id],
+    queryFn: () => fetchTaskStats(periodMap[periode], selectedGedungObj?.id),
+    refetchInterval: 30_000,
+  });
 
   // Build API filter params
   const taskFilters = useMemo((): TaskFilters => {
@@ -155,22 +166,18 @@ const Tasks = () => {
   );
 
   // --- Tab periode ---
-  const [periode, setPeriode] = useState<Periode>("Hari Ini");
   const periodTasks = useMemo(
     () => resolvedTasks.filter((t) => isInPeriod(t.tanggal, periode)),
     [resolvedTasks, periode]
   );
 
-  // --- Statistik ---
-  const totalHariIni = useMemo(() => resolvedTasks.filter((t) => isToday(t.tanggal)).length, [resolvedTasks]);
-  const totalKemarin = useMemo(() => resolvedTasks.filter((t) => isYesterday(t.tanggal)).length, [resolvedTasks]);
-  const belumCount = periodTasks.filter((t) => t.status === "Belum").length;
-  const prosesCount = periodTasks.filter((t) => t.status === "Proses").length;
-  const selesaiCount = periodTasks.filter((t) => t.status === "Selesai").length;
-  const prosesPct = periodTasks.length === 0 ? 0 : Math.round((prosesCount / periodTasks.length) * 100);
+  // --- Statistik from API (per CLAUDE.md) ---
+  const totalHariIni = stats?.total ?? 0;
+  const prosesCount = stats?.diproses_ob ?? 0;
+  const selesaiCount = stats?.menunggu_persetujuan ?? 0;
+  const prosesPct = totalHariIni === 0 ? 0 : Math.round((prosesCount / totalHariIni) * 100);
 
   // --- Badge Kondisional ---
-  const pctChangeHariIni = getPctChange(totalHariIni, totalKemarin);
   const hasUrgentBelum = periodTasks.some((t) => t.status === "Belum" && getUrgency(t) === "URGENT");
   const needsReview = selesaiCount > 0;
 
@@ -199,7 +206,6 @@ const Tasks = () => {
 
   const openEditModal = (task: Task) => {
     const selectedKategori = kategoriOptions.find((k) => k.nama === task.kategori);
-    const selectedGedungOpt = gedungOptions.find((g) => g.nama === task.gedung);
     const selectedLantai = lantaiOptions.find((l) => l.nama === task.lantai);
 
     setModalMode("edit");
@@ -207,7 +213,6 @@ const Tasks = () => {
     setTaskToEditData({
       kategori_id: selectedKategori?.id || "",
       namaTugas: task.namaTugas,
-      lokasi_id: selectedGedungOpt?.id || "",
       lantai_id: selectedLantai?.id || "",
       catatan: task.catatan || "",
     });
@@ -215,14 +220,14 @@ const Tasks = () => {
   };
 
   const handleSimpanTugas = async (form: any) => {
-    if (!form.kategori_id || !form.nama_tugas || !form.lokasi_id || !form.lantai_id) {
-      push("error", "Tugas Gagal Disimpan: Mohon lengkapi Kategori, Nama Tugas, Lokasi Gedung, dan Lokasi Lantai.");
+    // Per CLAUDE.md: lokasi_id sudah dihapus dari body API, cukup lantai_id
+    if (!form.kategori_id || !form.nama_tugas || !form.lantai_id) {
+      push("error", "Tugas Gagal Disimpan: Mohon lengkapi Kategori, Nama Tugas, dan Lokasi Lantai.");
       return;
     }
     const payload = {
       kategori_id: form.kategori_id,
       nama_tugas: form.nama_tugas,
-      lokasi_id: form.lokasi_id,
       lantai_id: form.lantai_id,
       catatan: form.catatan || "",
     };
@@ -369,13 +374,9 @@ const Tasks = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
                       </svg>
                     </div>
-                    {pctChangeHariIni !== null && pctChangeHariIni > 0 && (
-                      <span className="text-[11px] font-bold text-green-600">↗ +{pctChangeHariIni}%</span>
-                    )}
                   </div>
-                  <span className="block text-xs font-semibold text-gray-500 mb-1">Total Tugas Hari Ini</span>
+                  <span className="block text-xs font-semibold text-gray-500 mb-1">Total Tugas</span>
                   <span className="text-2xl font-bold text-gray-900">{totalHariIni} Tugas</span>
-                  <p className="text-[11px] text-gray-400 mt-1">vs {totalKemarin} kemarin</p>
                 </div>
 
                 <div className="border border-gray-200 rounded-xl p-4">
@@ -389,9 +390,9 @@ const Tasks = () => {
                       <span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded-full">HIGH PRIORITY</span>
                     )}
                   </div>
-                  <span className="block text-xs font-semibold text-gray-500 mb-1">Belum Diklaim / In Pool</span>
-                  <span className="text-2xl font-bold text-gray-900">{String(belumCount).padStart(2, "0")} Tugas</span>
-                  <p className="text-[11px] text-gray-400 mt-1">Menunggu dialokasikan</p>
+                  <span className="block text-xs font-semibold text-gray-500 mb-1">Menunggu Approval</span>
+                  <span className="text-2xl font-bold text-gray-900">{String(selesaiCount).padStart(2, "0")} Tugas</span>
+                  <p className="text-[11px] text-gray-400 mt-1">Menunggu disetujui admin</p>
                 </div>
 
                 <div className="border border-gray-200 rounded-xl p-4">

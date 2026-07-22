@@ -1,1039 +1,311 @@
-<CLAUDE_DOCUMENTATION>
-
-<DOCUMENT_INFO>
-Title: CLAUDE.md
-Purpose: System guidance for AI assistants working on the WGS Admin Page Frontend repository.
-</DOCUMENT_INFO>
-
-<PROJECT_OVERVIEW>
-Name: WGS Admin Page Frontend
-Description: React-based admin dashboard for building management operations. Manages reports (laporan), ad-hoc tasks (tugas), daily checklists (checklist harian), users (OB, HR, Admin, Karyawan), and locations (gedung/lantai/ruangan).
-</PROJECT_OVERVIEW>
-
-<TECH_STACK>
-Framework: React 19 + TypeScript
-Routing: React Router DOM v7
-State/Data: TanStack Query (React Query) v5
-HTTP Client: Axios
-Styling: Tailwind CSS v4
-Animations: Framer Motion
-Validation: Zod
-Build Tool: Vite
-</TECH_STACK>
-
-<DATA_FLOW_PATTERN>
-All API calls go through src/api/*.ts modules -> src/hooks/*.ts (TanStack Query) -> React components.
-Rule: Never call apiClient directly from components. Always use hooks.
-</DATA_FLOW_PATTERN>
-
-<API_STRUCTURE>
-src/api/       : API function definitions
-src/hooks/      : TanStack Query hooks (data + mutations)
-src/types/      : TypeScript interfaces
-src/services/   : apiClient singleton
-src/config/     : Endpoint URLs
-</API_STRUCTURE>
-
-<KEY_API_ENDPOINTS_SUMMARY>
-Feature | Endpoint
-Auth (login/logout/activation/password) | /api/auth/*
-User profile (self) | /api/user/profile
-Karyawan | /api/karyawan/*
-OB - laporan (ambil/submit/batalkan/kolaborasi) | /api/ob/laporan/*
-OB - dashboard | /api/ob/dashboard
-OB - tugas ad-hoc (claim/selesai) | /api/ob/tugas/*
-Users (Admin) | /api/admin/user
-Roles (Admin) | /api/admin/role
-Reports (Admin) | /api/admin/laporan
-Locations / Floors / Rooms | /api/lokasi, /api/lantai, /api/ruangan
-Kategori | /api/kategori
-Tugas (katalog master data, Admin) | /api/tugas
-Checklist Harian | /api/checklist-harian
-Notifications | /api/notifikasi
-WebSocket | /ws
-</KEY_API_ENDPOINTS_SUMMARY>
-
-<THREE_ASSIGNABLE_WORK_RESOURCES>
-This system has three separate "work item" resources that all get assigned to an OB. Do not conflate them.
-
-Resource 1: Laporan (report)
-
-* Created by: Karyawan via POST /api/karyawan/laporan
-* Assignment model: OB self-claims from open pool via PATCH /api/ob/laporan/{id}, or joins as collaborator (gabung)
-* Collaboration support: Yes - full gabung (join-request) system with approve/reject/kick
-* Status enum: BELUM_DIKERJAKAN | PENDING | SELESAI | DIBATALKAN
-* Completion path: OB submits directly via POST /api/ob/laporan/{id} (status -> SELESAI), or Admin approves via PATCH /api/admin/laporan/{id} (status -> SELESAI) - two independent writers.
-* Endpoints (OB side): /api/ob/laporan/*
-* Endpoints (Admin side): /api/admin/laporan/*
-
-Resource 2: Checklist Harian
-
-* Created by: Admin via POST /api/checklist-harian
-* Assignment model: Admin pushes directly to a specific OB (ob_id set at creation)
-* Collaboration support: No
-* Status enum: BELUM_DIKERJAKAN | SEDANG_DIKERJAKAN | SELESAI | TERLEWAT
-* Completion path: Admin edits status via PATCH /api/checklist-harian/{id}
-* Endpoints (OB side): Read-only, surfaced via /api/ob/dashboard
-* Endpoints (Admin side): /api/checklist-harian/*
-
-Resource 3: Tugas (ad-hoc katalog)
-
-* Created by: Admin via POST /api/tugas
-* Assignment model: OB self-claims from an unclaimed pool via PATCH /api/ob/tugas/{id}/claim, or admin force-assigns via PATCH /api/tugas/{id} with ob_id
-* Collaboration support: No
-* Status enum: BELUM_DIKERJAKAN | SEDANG_DIKERJAKAN | SELESAI (TERLEWAT not confirmed for this resource - verify)
-* Completion path: OB marks done via PATCH /api/ob/tugas/{id}/selesai or Admin force-sets status via PATCH /api/tugas/{id}
-* Endpoints (OB side): /api/ob/tugas/*
-* Endpoints (Admin side): /api/tugas/*
-
-Note: /api/tugas (Admin katalog CRUD) and /api/ob/tugas (OB claim/selesai) read/write the same underlying table - they are two role-scoped views of one resource, not two resources.
-</THREE_ASSIGNABLE_WORK_RESOURCES>
-
-<TANSTACK_QUERY_HOOKS>
-
-* useAuth() (or equivalent) - login, logout, forgot/reset/change password
-* useTasks(filters?) - Checklist Harian, server-side filter params
-* useObTugas() - ad-hoc Tugas pool (OB side: list/claim/selesai)
-* useTugasKatalog() / useTugas() (Admin) - Tugas master data CRUD
-* useLokasi() - Location hierarchy (gedung -> lantai -> ruangan)
-* useUsers() - User management
-* useKategori() - Task categories
-* useLaporan() - Reports (talks to /api/admin/laporan, page-based pagination)
-* useRoles() - populate role_id dropdown (backed by GET /api/admin/role, don't hardcode role IDs)
-* useNotifikasi() - notification list + unread count + WebSocket sync
-</TANSTACK_QUERY_HOOKS>
-
-<LOCATION_DATA_MODEL>
-The useLokasi hook fetches from 3 endpoints and normalizes into a nested hierarchy:
-
-```json
-gedungList: [{
-  "id": "string",
-  "nama": "string",
-  "kapasitas": "number",
-  "lantai": [{
-    "id": "string",
-    "label": "string",
-    "nama": "string",
-    "ruangan": [{ "id": "string", "nama": "string" }]
-  }]
-}]
-
-```
-
-</LOCATION_DATA_MODEL>
-
-<AUTH_AND_PERMISSIONS>
-AuthContext decodes JWT and assigns permissions based on role:
-
-Role | Permissions
-Admin | Full access
-HR | tasks:create, tasks:edit, lokasi:read
-OB | tasks:read, lokasi:read
+CLAUDE.md
 
-Components: Use  or <Can roles="{["Admin"]}"> components to gate UI elements.
+Catatan ini adalah panduan lengkap untuk siapa saja atau AI mana saja yang mengerjakan kode di repository WGS Admin Page Frontend. Sifatnya seperti notulen rapat, semua endpoint API yang pernah disampaikan dicatat di sini apa adanya, lengkap dengan cara mengimplementasikannya di frontend dan kode respons yang harus ditangani, supaya tidak ada satupun endpoint yang terlewat saat membangun fitur.
 
-Backend roles across the API surface: Admin, HR, OB, Karyawan.
-Role IDs needed for POST/PATCH /api/admin/user's role_id field should come from GET /api/admin/role - don't hardcode UUIDs for roles anywhere in the FE.
-
-Users carry an is_active boolean, editable via PATCH /api/admin/user/{user_id}.
-</AUTH_AND_PERMISSIONS>
+GAMBARAN PROYEK
 
-<STATUS_MAPPING>
-There are four separate status vocabularies in this system. Do not treat them as interchangeable.
-
-1. Laporan (Report) status - backend enum:
-BELUM_DIKERJAKAN | PENDING | SELESAI | DIBATALKAN
-2. Laporan status - UI labels (observed in StatusBadge on dashboard/report pages):
-Menunggu | Ditugaskan | Selesai | Ditolak
+WGS Admin Page Frontend adalah dashboard admin berbasis React untuk operasional manajemen gedung. Aplikasi ini mengelola laporan masalah dari karyawan, tugas ad hoc untuk OB, checklist harian rutin untuk OB, jadwal otomatis untuk checklist harian, data pengguna dengan berbagai peran seperti OB, HR, Admin, dan Karyawan, serta data lokasi berupa gedung, lantai, dan ruangan.
 
-Mapping:
-BELUM_DIKERJAKAN -> Menunggu
-PENDING -> Ditugaskan
-SELESAI -> Selesai
-DIBATALKAN -> Ditolak
+TEKNOLOGI YANG DIPAKAI
 
-3. Checklist Harian status:
-BELUM_DIKERJAKAN | SEDANG_DIKERJAKAN | SELESAI | TERLEWAT
-UI Labels: Belum / Proses / Selesai / Delayed
-Mapper functions in useTasks.ts: mapApiStatus() (API -> UI), mapUiStatus() (UI -> API).
-4. Tugas (ad-hoc katalog) status:
-BELUM_DIKERJAKAN (default on create) -> SEDANG_DIKERJAKAN (after OB claims) -> SELESAI (after OB finishes).
-Same literal strings as #3 for the first three values, but this is a separate resource/table from Checklist Harian - don't reuse a Checklist mapper/badge component for Tugas rows without checking it handles this resource's own value set (TERLEWAT is unconfirmed here).
+Framework yang dipakai adalah React versi 19 dengan TypeScript. Routing memakai React Router DOM versi 7. Untuk pengambilan dan pengelolaan data dipakai TanStack Query alias React Query versi 5. HTTP client yang dipakai adalah Axios. Untuk styling dipakai Tailwind CSS versi 4. Untuk animasi dipakai Framer Motion. Untuk validasi dipakai Zod. Build tool yang dipakai adalah Vite.
 
-Prioritas (report priority, Laporan only): STANDARD | URGENT.
-</STATUS_MAPPING>
+ALUR DATA DAN STRUKTUR KODE
 
-<ID_HANDLING>
-Backend UUIDs may come with prefixes (e.g., gd-, lt-). The stripIdPrefix() utility removes these when sending to API. Frontend components should NOT strip IDs - let hooks handle it.
-</ID_HANDLING>
+Semua pemanggilan API harus melalui modul di src/api lalu diteruskan ke hook di src/hooks yang dibangun dengan TanStack Query, baru kemudian dipakai oleh komponen React. Komponen tidak boleh memanggil apiClient secara langsung, harus selalu lewat hook.
 
-<RESPONSE_WRAPPING>
-Backend returns wrapped responses:
-Success shape: { "success": true, "message": "string", "data": {...} }
-Error shape: { "success": false, "message": "string", "errors": {} }
+Struktur foldernya begini, src/api berisi definisi fungsi API, src/hooks berisi hook TanStack Query untuk data dan mutasi, src/types berisi interface TypeScript, src/services berisi singleton apiClient, dan src/config berisi URL endpoint.
 
-The apiClient unwraps to response.data, but hooks like useTasks.extractArray() handle multiple possible structures:
+TIGA JENIS RESOURCE PEKERJAAN YANG BISA DITUGASKAN KE OB
 
-* response.checklist.items
-* response.data
-* response.items
-* Direct array
+Sistem ini punya tiga resource pekerjaan yang berbeda dan semuanya bisa ditugaskan ke OB, jangan sampai tertukar karena nama dan field-nya banyak yang mirip.
 
-Two pagination styles exist:
+Yang pertama adalah Laporan, yaitu laporan masalah yang dibuat oleh Karyawan lewat POST /api/karyawan/laporan. Cara penugasannya adalah OB mengambil sendiri dari antrean terbuka lewat PATCH /api/ob/laporan/{id}, atau OB lain bisa bergabung sebagai kolaborator lewat sistem gabung. Laporan punya sistem kolaborasi penuh dengan alur ajukan, setujui, tolak, dan keluarkan anggota. Status laporan ada empat yaitu BELUM_DIKERJAKAN, PENDING, SELESAI, dan DIBATALKAN. Jalur penyelesaiannya ada dua, OB bisa submit langsung lewat POST /api/ob/laporan/{id} yang membuat status jadi SELESAI, atau Admin yang approve lewat PATCH /api/admin/laporan/{id} yang juga membuat status jadi SELESAI. Jadi ada dua penulis independen ke field status yang sama, ini penting untuk diperhatikan.
 
-* Offset/page-based (page, limit, meta: { total_items, current_page, limit, total_pages }) - used by all /api/admin/* list endpoints and /api/checklist-harian.
-* Cursor-based (cursor, next_cursor) - used only by GET /api/user/profile (the logged-in user's own report history).
-</RESPONSE_WRAPPING>
+Yang kedua adalah Checklist Harian, yaitu tugas rutin yang dibuat oleh Admin lewat POST /api/checklist-harian, atau bisa juga dibuat otomatis dari Jadwal Checklist kalau jadwalnya cocok dengan hari ini. Penugasannya langsung didorong ke satu OB tertentu lewat field ob_id saat dibuat, tidak ada sistem klaim sendiri untuk OB dan tidak ada sistem kolaborasi. Status checklist harian ada empat yaitu BELUM_DIKERJAKAN, SEDANG_DIKERJAKAN, SELESAI, dan TERLEWAT. Setelah OB menyelesaikan tugas checklist harian, tugas itu masuk daftar menunggu persetujuan admin lewat GET /api/admin/checklist-harian/approval-list dan baru benar-benar disetujui lewat PATCH /api/admin/checklist-harian/{checklist_harian_id}/approve. Ini adalah endpoint baru yang menjelaskan kenapa ada tampilan Menunggu Approval Admin di halaman Manajemen Tugas, sebelumnya belum jelas endpoint mana yang dipakai untuk approval ini, sekarang sudah ketemu.
 
-<ROUTE_STRUCTURE>
-/login             : Login page
-/forgot-password    : Request password reset link
-/reset-password     : Set new password from email token
-/activate-account   : Account activation
-/dashboard          : Main dashboard
-/tasks              : Task management (CRUD + filter by lokasi/lantai)
-/users              : User management
-/datalokasi         : Location management (gedung/lantai/ruangan)
-/reports            : Reports view
-/performance/:userId : OB/Karyawan performance analytics
-</ROUTE_STRUCTURE>
+Yang ketiga adalah Tugas katalog atau disebut juga tugas ad hoc atau tugas insidental, dibuat oleh Admin lewat POST /api/tugas. Cara penugasannya OB mengklaim sendiri dari kumpulan tugas yang belum diambil lewat PATCH /api/ob/tugas/{id}/claim, atau admin bisa memaksa menugaskan lewat PATCH /api/tugas/{id} dengan mengisi field ob_id secara langsung. Tidak ada sistem kolaborasi di sini. Status tugas ada tiga yang terkonfirmasi yaitu BELUM_DIKERJAKAN, SEDANG_DIKERJAKAN, dan SELESAI, status TERLEWAT belum terkonfirmasi ada di resource ini jadi perlu diverifikasi lagi. Setelah OB menyelesaikan tugas ad hoc, sama seperti checklist harian, tugas itu masuk daftar menunggu persetujuan admin lewat GET /api/admin/tugas/approval-list dan baru disetujui lewat PATCH /api/admin/tugas/{tugas_id}/approve. Endpoint /api/tugas yang dipakai Admin untuk kelola katalog dan endpoint /api/ob/tugas yang dipakai OB untuk klaim dan selesaikan tugas sebenarnya membaca dan menulis ke tabel yang sama, jadi keduanya adalah dua sudut pandang berbeda dari satu resource yang sama, bukan dua resource terpisah.
 
-<API_REFERENCE_FULL>
+DAFTAR HOOK TANSTACK QUERY YANG SEHARUSNYA ADA
 
-Base response envelope for all endpoints below:
-Success: { "success": true, "message": "string", "data": { } }
-Error: { "success": false, "message": "string", "errors": { } }
+useAuth untuk login, logout, lupa password, reset password, dan ubah password. useTasks untuk Checklist Harian dengan filter di sisi server. useObTugas untuk kumpulan Tugas ad hoc di sisi OB yaitu daftar, klaim, dan selesaikan. useTugasKatalog atau useTugas di sisi Admin untuk CRUD data master Tugas. useLokasi untuk hierarki lokasi dari gedung ke lantai ke ruangan. useUsers untuk manajemen pengguna. useKategori untuk kategori tugas. useLaporan untuk laporan yang bicara ke /api/admin/laporan dengan pagination berbasis halaman. useRoles untuk mengisi dropdown role_id, didukung oleh GET /api/admin/role, jangan hardcode ID role. useNotifikasi untuk daftar notifikasi, jumlah belum dibaca, dan sinkronisasi lewat WebSocket. Sekarang perlu ditambah lagi useJadwalChecklist untuk CRUD jadwal checklist otomatis, useConstants untuk mengambil daftar konstanta dari GET /api/constants supaya dropdown status, prioritas, hari, dan role tidak di-hardcode di frontend, dan useTugasApproval serta useChecklistApproval untuk dua daftar approval yang baru.
 
-<SECTION_AUTH>
+MODEL DATA LOKASI
 
-POST /api/auth/login
-Access: Public
-Description: Login user
-Request:
+Hook useLokasi mengambil data dari tiga endpoint berbeda lalu menormalkannya menjadi struktur bersarang. Bentuknya adalah gedungList berupa array objek yang masing masing punya id, nama, kapasitas, dan lantai. Lantai sendiri berupa array objek yang masing masing punya id, label, nama, dan ruangan. Ruangan berupa array objek yang masing masing punya id dan nama.
 
-```json
-{ "identifier": "string", "password": "string" }
+AUTENTIKASI DAN HAK AKSES
 
-```
+AuthContext mendekode JWT dan menentukan hak akses berdasarkan role. Role Admin mendapat akses penuh. Role HR mendapat akses tasks:create, tasks:edit, dan lokasi:read. Role OB mendapat akses tasks:read dan lokasi:read. Untuk membatasi tampilan komponen berdasarkan hak akses dipakai komponen Can dengan prop permission atau roles.
 
-Response 200:
+Role yang ada di backend adalah Admin, HR, OB, dan Karyawan. ID role yang dibutuhkan untuk field role_id di POST dan PATCH /api/admin/user harus diambil dari GET /api/admin/role, jangan pernah hardcode UUID role di manapun di frontend.
 
-```json
-{ "success": true, "message": "string", "data": { "jwt_token": "string" } }
+Pengguna sekarang juga punya field is_active berupa boolean yang bisa diubah lewat PATCH /api/admin/user/{user_id}.
 
-```
+PEMETAAN STATUS
 
-Response 401: Login gagal
+Ada empat kosakata status yang berbeda di sistem ini dan jangan dianggap bisa saling dipertukarkan.
 
-Note: FE error copy for failed login is "Username atau password salah. Silakan coba lagi." - identifier accepts either username or email (field labeled "Email/Username" in the UI), keep label/behavior consistent with what this field actually validates.
+Yang pertama adalah status Laporan di level backend, nilainya BELUM_DIKERJAKAN, PENDING, SELESAI, dan DIBATALKAN. Di level tampilan, label yang dipakai adalah Menunggu, Ditugaskan, Selesai, dan Ditolak. Pemetaannya, BELUM_DIKERJAKAN menjadi Menunggu, PENDING menjadi Ditugaskan, SELESAI menjadi Selesai, dan DIBATALKAN menjadi Ditolak.
 
-Note on "Ingat Saya": The login mockup shows an "Ingat Saya" (remember me) checkbox with no corresponding field in LoginRequest (only identifier/password). Either client-side decision (localStorage vs sessionStorage for JWT) with no backend involvement, or backend needs a param added. Confirm with backend before wiring checkbox.
+Yang kedua adalah status Checklist Harian, nilainya BELUM_DIKERJAKAN, SEDANG_DIKERJAKAN, SELESAI, dan TERLEWAT. Label tampilannya Belum, Proses, Selesai, dan Delayed. Fungsi pemetaannya ada di useTasks.ts yaitu mapApiStatus untuk dari API ke tampilan dan mapUiStatus untuk dari tampilan ke API.
 
-GET /api/auth/check-token
-Access: Public
-Description: Verifikasi token aktivasi
-Query: token (string, required) - token aktivasi dari link email.
-Response 200: Token valid
+Yang ketiga adalah status Tugas ad hoc atau katalog, urutannya BELUM_DIKERJAKAN sebagai nilai awal saat dibuat, lalu berubah jadi SEDANG_DIKERJAKAN setelah OB mengklaim, lalu berubah jadi SELESAI setelah OB menyelesaikan. Walaupun tiga nilai pertama sama persis penulisannya dengan status Checklist Harian, ini adalah resource dan tabel yang benar benar terpisah, jadi jangan memakai ulang komponen badge atau fungsi pemetaan Checklist Harian untuk baris data Tugas tanpa memastikan dulu bahwa komponen itu memang menangani kumpulan nilai milik resource ini.
 
-POST /api/auth/activate-account
-Access: Public
-Description: Aktivasi akun & set password pertama kali
-Query: token (string, required)
-Request:
+Field Prioritas hanya dipakai di resource Laporan, nilainya STANDARD dan URGENT.
 
-```json
-{ "password": "string", "confirmPassword": "string" }
+Sekarang ada endpoint baru yaitu GET /api/constants yang mengembalikan daftar nilai resmi untuk hari, checklist_status, tugas_status, laporan_status, laporan_priority, kolaborasi_status, dan user_role. Endpoint ini sebaiknya dipakai sebagai sumber kebenaran untuk mengisi semua dropdown status, prioritas, hari, dan role di frontend, jadi tidak perlu lagi menebak atau hardcode nilai string enum manapun, tinggal panggil endpoint ini saat aplikasi dimuat lalu simpan hasilnya di cache lewat useConstants.
 
-```
+PENANGANAN ID
 
-Response 200:
+UUID dari backend kadang punya prefiks seperti gd- atau lt-. Utilitas stripIdPrefix menghapus prefiks ini sebelum dikirim ke API. Komponen di frontend tidak boleh menghapus prefiks sendiri, biarkan hook yang menangani ini.
 
-```json
-{ "success": true, "message": "Akun berhasil diaktivasi, silahkan login" }
+PEMBUNGKUSAN RESPONS
 
-```
+Backend selalu mengembalikan respons dalam bentuk terbungkus, untuk yang berhasil bentuknya success bernilai true, message berupa string, dan data berisi payload. Untuk yang gagal bentuknya success bernilai false, message berupa string, dan errors berupa objek. apiClient membongkar bungkusan ini menjadi response.data, tapi beberapa hook seperti fungsi extractArray di useTasks.ts perlu menangani beberapa kemungkinan bentuk seperti response.checklist.items, response.data, response.items, atau langsung berupa array.
 
-Response 400: Token tidak valid / Validation Failed / Password tidak cocok
+Ada dua gaya pagination yang berbeda dan jangan dicampur di satu hook yang sama. Yang pertama pagination berbasis halaman dengan field page, limit, dan meta berisi total_items, current_page, limit, dan total_pages, dipakai oleh semua endpoint daftar di bawah /api/admin dan sebelumnya juga dipakai oleh /api/checklist-harian. Yang kedua pagination berbasis cursor dengan field cursor dan next_cursor, hanya dipakai oleh GET /api/user/profile untuk riwayat laporan milik pengguna yang sedang login.
 
-POST /api/auth/logout
-Access: Terautentikasi
-Description: Logout & revoke session (token becomes unusable immediately after this call).
-Response 200:
+STRUKTUR RUTE HALAMAN
 
-```json
-{ "success": true, "message": "Logout berhasil" }
+Rute login di /login. Rute lupa password di /forgot-password. Rute reset password di /reset-password. Rute aktivasi akun di /activate-account. Rute dashboard utama di /dashboard. Rute manajemen tugas di /tasks yang mencakup CRUD dan filter berdasarkan lokasi dan lantai, dengan sub halaman Tugas Insidental. Rute manajemen pengguna di /users. Rute manajemen lokasi di /datalokasi. Rute laporan di /reports. Rute performa di /performance dengan parameter userId, perlu diverifikasi lagi karena tampilan performa yang sebenarnya berupa papan peringkat banyak staf sedangkan endpoint yang didokumentasikan hanya untuk satu user.
 
-```
+Sekarang mulai bagian paling penting yaitu catatan lengkap tiap endpoint, cara implementasinya, dan semua kode respons yang harus ditangani di frontend, supaya tidak ada satupun yang terlewat.
 
-Response 401: Session tidak valid / Token expired
+BAGIAN AUTH
 
-POST /api/auth/forgot-password
-Access: Public
-Description: Request reset link password
-Request:
+Endpoint pertama adalah POST /api/auth/login, sifatnya publik jadi tidak butuh token, dipakai untuk login pengguna. Body permintaan berisi identifier berupa string yang bisa diisi username atau email, dan password berupa string. Kalau berhasil server mengembalikan kode 200 dengan body success true, message string, dan data berisi jwt_token. Kalau gagal server mengembalikan kode 401 yang artinya login gagal, frontend harus menampilkan pesan error, dan berdasarkan mockup pesan yang dipakai adalah Username atau password salah, Silakan coba lagi. Perlu dicatat juga bahwa di mockup ada checkbox Ingat Saya tapi tidak ada field untuk itu di body permintaan, jadi perlu dikonfirmasi ke backend apakah ini murni keputusan di sisi frontend soal penyimpanan token di localStorage atau sessionStorage, atau memang backend perlu diberi tambahan parameter.
 
-```json
-{ "email": "user@example.com" }
+Endpoint kedua adalah GET /api/auth/check-token, sifatnya publik, dipakai untuk memverifikasi token aktivasi yang didapat dari link email. Parameternya berupa query token yang wajib diisi berupa string. Kalau valid server mengembalikan kode 200 yang artinya token valid.
 
-```
+Endpoint ketiga adalah POST /api/auth/activate-account, sifatnya publik, dipakai untuk mengaktivasi akun dan mengatur password pertama kali setelah admin membuat akun lewat link dari email. Parameternya berupa query token yang wajib diisi. Body permintaan berisi password dan confirmPassword, keduanya berupa string. Kalau berhasil server mengembalikan kode 200 dengan pesan Akun berhasil diaktivasi, silahkan login. Kalau gagal server mengembalikan kode 400 yang artinya token tidak valid, atau validasi gagal, atau password tidak cocok.
 
-Response 200:
+Endpoint keempat adalah POST /api/auth/logout, butuh token karena sifatnya untuk pengguna yang sudah login, dipakai untuk mencabut sesi aktif sehingga token yang lama tidak bisa dipakai lagi. Tidak ada body permintaan. Kalau berhasil server mengembalikan kode 200 dengan pesan Logout berhasil. Kalau gagal server mengembalikan kode 401 yang artinya sesi tidak valid atau token sudah kedaluwarsa.
 
-```json
-{ "success": true, "message": "Link reset password telah dikirim ke email Anda" }
+Endpoint kelima adalah POST /api/auth/forgot-password, sifatnya publik, dipakai untuk meminta link reset password. Body permintaan berisi email berupa string. Kalau berhasil server mengembalikan kode 200 dengan pesan Link reset password telah dikirim ke email Anda. Kalau email tidak terdaftar server mengembalikan kode 404. Kalau ada kesalahan di server, server mengembalikan kode 500 dengan pesan gagal memproses permintaan reset password.
 
-```
+Endpoint keenam adalah POST /api/auth/reset-password, sifatnya publik, dipakai untuk mengubah password lama dengan password baru memakai token dari email. Parameternya berupa query token yang wajib diisi. Body permintaan berisi password dan confirmPassword. Kalau berhasil server mengembalikan kode 200 dengan pesan Password berhasil diubah, silakan login. Kalau validasi gagal karena password tidak cocok atau kurang dari enam karakter, server mengembalikan kode 400. Kalau token tidak valid, sudah kedaluwarsa, atau sudah pernah dipakai, server mengembalikan kode 401.
 
-Response 404: Email tidak terdaftar
-Response 500: Gagal memproses permintaan reset password
+Endpoint ketujuh adalah POST /api/auth/change-password, butuh token karena untuk pengguna yang sudah login, dipakai untuk mengubah password sendiri. Tidak ada parameter query, tokennya lewat header seperti biasa. Body permintaan berisi oldPassword, newPassword, dan confirmNewPassword, semuanya string. Kalau berhasil server mengembalikan kode 200 dengan pesan Password berhasil diubah. Kalau password lama salah atau validasi gagal, server mengembalikan kode 400. Kalau token tidak valid, server mengembalikan kode 401.
 
-POST /api/auth/reset-password
-Access: Public
-Description: Reset password pakai token dari email
-Query: token (string, required) - token reset dari email.
-Request:
+Perlu dicatat, ada tiga alur ganti password yang benar benar terpisah dan jangan sampai satu sama lain saling ketuker saat memperbaiki bug. Yang pertama alur aktivasi pertama kali lewat activate-account yang tidak butuh password lama dan memakai token aktivasi. Yang kedua alur lupa password lewat forgot-password lalu reset-password yang juga tidak butuh password lama, memakai token reset, dan sifatnya publik. Yang ketiga alur ganti password saat sudah login lewat change-password yang wajib mengisi password lama, wajib sudah login, dan tidak memakai parameter token sama sekali.
 
-```json
-{ "password": "string", "confirmPassword": "string" }
+BAGIAN USER
 
-```
+Endpoint pertama adalah GET /api/user/profile, bisa dipakai semua role asal sudah login, dipakai untuk mengambil profil sendiri beserta riwayat laporan. Parameternya berupa query search untuk mencari laporan, status untuk memfilter status laporan, cursor untuk pagination berbasis cursor, dan limit dengan nilai default 10. Kalau berhasil server mengembalikan kode 200 dengan data berisi objek user yang punya id, nama_lengkap, username, email, role, profile_picture, total_laporan, tasksCompleted, dan rejected, serta objek laporan yang punya items berupa array laporan dengan field id, kategori, deskripsi_kendala, status, prioritas, foto_masalah, lokasi, nomor_lantai, nama_ob, created_at, updated_at, lalu next_cursor untuk pagination selanjutnya, dan meta berisi total_items, current_page, limit, total_pages.
 
-Response 200:
+Endpoint kedua adalah PATCH /api/user/profile, butuh token, dipakai untuk mengubah profil sendiri. Kontennya berbentuk multipart/form-data berisi field nama_lengkap berupa string dan profile_picture berupa file biner. Kalau berhasil server mengembalikan kode 200 dengan pesan berhasil mengubah profile. Kalau validasi gagal server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Kalau user tidak ditemukan server mengembalikan kode 404.
 
-```json
-{ "success": true, "message": "Password berhasil diubah, silakan login" }
+Endpoint ketiga adalah GET /api/user/profile/laporan/{laporan_id}, dipakai OB maupun Karyawan untuk melihat detail satu laporan milik sendiri. Parameternya path laporan_id berupa uuid. Kalau berhasil server mengembalikan kode 200.
 
-```
+BAGIAN KARYAWAN
 
-Response 400: Validation Failed (password tidak cocok atau kurang dari 6 karakter)
-Response 401: Token tidak valid / kadaluwarsa / sudah digunakan
+Endpoint pertama adalah GET /api/karyawan/dashboard, khusus role Karyawan, dipakai untuk menampilkan ringkasan dashboard karyawan. Kalau berhasil server mengembalikan kode 200.
 
-POST /api/auth/change-password
-Access: Terautentikasi
-Description: Ubah password (sudah login)
-Request:
+Endpoint kedua adalah POST /api/karyawan/laporan, khusus role Karyawan, dipakai untuk membuat laporan masalah baru. Kontennya multipart/form-data berisi field lantai_id berupa uuid wajib diisi, ruangan_id berupa uuid wajib diisi, kategori_id berupa uuid wajib diisi, deskripsi_kendala berupa string wajib diisi, prioritas berupa string wajib diisi, dan foto_masalah berupa array file dengan maksimal lima foto. Kalau berhasil server mengembalikan kode 201 dengan pesan laporan berhasil dibuat. Saat laporan berhasil dibuat, server mengirim notifikasi real time lewat WebSocket dengan tipe ADMIN_MENUGASKAN_OB ke semua OB dan semua admin, jadi frontend di sisi OB dan Admin harus mendengarkan tipe notifikasi ini supaya daftar laporan baru langsung terlihat tanpa perlu refresh manual.
 
-```json
-{ "oldPassword": "string", "newPassword": "string", "confirmNewPassword": "string" }
+BAGIAN OB LAPORAN
 
-```
+Bagian ini penting sekali diperhatikan karena ada dua endpoint dengan path yang sama persis tapi metode HTTP berbeda dan efeknya sama sekali berbeda, yaitu PATCH /api/ob/laporan/{laporan_id} untuk mengambil laporan, dan POST /api/ob/laporan/{laporan_id} untuk mengirim hasil pekerjaan. Kalau salah menulis metode HTTP di kode, permintaan itu tidak akan gagal dengan error yang jelas seperti 404, tapi malah diam diam menjalankan aksi yang salah. Jadi setiap kali menyentuh kode yang memanggil path ini, wajib dicek dulu metodenya PATCH atau POST sebelum melanjutkan.
 
-Response 200:
+Endpoint GET /api/ob/dashboard, khusus role OB, dipakai untuk menampilkan ringkasan dashboard OB yang sedang login. Responsnya kalau berhasil kode 200 dengan data berisi objek ob yang punya nama_lengkap, objek tugas_harian_stats yang punya total, resolved, dan pending, array tugas_harian yang masing masing punya id, nama_tugas, kategori, lokasi, nomor_lantai, status, dan tanggal, serta array laporan yang masing masing punya id, kategori, deskripsi_kendala, status, foto_masalah, lokasi, nomor_lantai, priority, is_kolaborasi_open, dan created_at. Laporan yang ditampilkan mencakup semua laporan yang sudah ditugaskan ke OB ini, ditambah laporan yang belum ditugaskan ke siapapun tapi statusnya bukan PENDING. Perlu dicatat, nama field tugas_harian di sini bentuknya lebih mirip data Checklist Harian bukan data Tugas ad hoc, jadi sebelum menyambungkan hook ke sini harus dipastikan dulu resource mana sebenarnya yang diquery, jangan asumsi dari namanya saja karena kata tugas dipakai untuk tiga resource berbeda di sistem ini.
 
-```json
-{ "success": true, "message": "Password berhasil diubah" }
+Endpoint PATCH /api/ob/laporan/{laporan_id}, untuk mengambil laporan yang tersedia. Efek otomatis di server, status berubah jadi PENDING, ob_id diisi dengan OB yang sedang login, dan dikerjakan_at diisi waktu saat ini. Kalau berhasil server mengembalikan kode 200 dengan pesan laporan berhasil diambil. Kalau format laporan_id tidak valid server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Kalau yang login bukan OB server mengembalikan kode 403. Kalau laporan tidak ditemukan server mengembalikan kode 404. Kalau laporan sudah diambil OB lain lebih dulu server mengembalikan kode 409, ini harus ditangani secara khusus di frontend sebagai bentuk penjagaan race condition, jangan diperlakukan sebagai error umum biasa, tampilkan pesan bahwa laporan sudah diambil OB lain dan minta pengguna refresh daftar. Kalau terjadi kesalahan di server sehingga laporan gagal diambil, server mengembalikan kode 500. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe LAPORAN_DIKERJAKAN ke pelapor.
 
-```
+Endpoint POST /api/ob/laporan/{laporan_id}, untuk mengirim hasil pekerjaan atau submit bukti penyelesaian. Kontennya multipart/form-data berisi catatan berupa string wajib diisi dan foto_selesai berupa array file wajib diisi sebagai bukti penyelesaian pekerjaan. Efek otomatis di server, status berubah jadi SELESAI dan selesai_at diisi waktu saat ini. Kalau berhasil server mengembalikan kode 200 dengan pesan histori berhasil ditambahkan. Kalau yang mengakses bukan OB pemilik laporan server mengembalikan kode 403. Kalau laporan tidak ditemukan server mengembalikan kode 404. Kalau terjadi kesalahan server mengembalikan kode 500. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe LAPORAN_BERES ke pelapor, pesan notifikasinya berisi catatan yang dikirim OB. Perlu diperhatikan, ini artinya OB bisa menandai laporan selesai secara langsung tanpa perlu persetujuan admin, jadi ada dua penulis independen ke field status dan selesai_at yang sama yaitu dari sisi OB lewat endpoint ini dan dari sisi Admin lewat PATCH /api/admin/laporan/{laporan_id}, kalau produk sebenarnya mengharapkan admin yang punya kata akhir soal laporan selesai, ini perlu didiskusikan lagi karena secara teknis endpoint ini membuka jalan bagi OB untuk langsung menyelesaikan tanpa approval.
 
-Response 400: Password lama salah / validation failed
-Response 401: Unauthorized
-
-Note on Password Flows: There are three separate password-change flows:
-
-1. First-time activation (activate-account, no old password, uses activation token)
-2. Forgot-password (forgot-password -> reset-password, no old password, uses reset token, public)
-3. Change-password while logged in (change-password, requires oldPassword, requires auth, no token param)
+Endpoint POST /api/ob/laporan/{laporan_id}/batalkan, untuk membatalkan laporan yang sudah diambil sehingga dikembalikan ke antrean. Kontennya multipart/form-data berisi catatan berupa string minimal lima karakter wajib diisi sebagai alasan pembatalan, dan foto_selesai berupa array file yang sifatnya sekarang opsional sebagai bukti pembatalan, sebelumnya field ini wajib diisi jadi kalau ada validasi lama di frontend yang masih mewajibkan foto ini harus dilonggarkan. Efek otomatis di server, status berubah jadi DIBATALKAN, ob_id dikosongkan jadi null supaya laporan bisa diambil OB lain, dibatalkan_at diisi waktu saat ini, dan alasan_gagal diisi dari catatan yang dikirim. Kalau berhasil server mengembalikan kode 200 dengan pesan laporan dibatalkan. Kalau yang mengakses bukan OB pemilik laporan server mengembalikan kode 403. Kalau laporan tidak ditemukan server mengembalikan kode 404. Kalau terjadi kesalahan server mengembalikan kode 500. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe LAPORAN_DIBATALKAN ke pelapor, pesan notifikasinya berisi alasan pembatalan.
 
-</SECTION_AUTH>
-
-<SECTION_USER>
+Endpoint GET /api/ob/laporan/{laporan_id}/gabung, untuk melihat daftar permintaan gabung pada satu laporan. Kalau berhasil server mengembalikan kode 200 dengan data berupa array yang masing masing punya id, objek ob berisi id dan nama_lengkap, status, dan created_at. Kalau validasi gagal server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401.
 
-GET /api/user/profile
-Access: Terautentikasi (Semua role)
-Description: Ambil profil + riwayat laporan
-Query: search, status, cursor, limit (default 10).
-Response 200:
-
-```json
-{
-  "success": true,
-  "message": "string",
-  "data": {
-    "user": {
-      "id": "uuid",
-      "nama_lengkap": "string",
-      "username": "string",
-      "email": "string",
-      "role": "string",
-      "profile_picture": "string",
-      "total_laporan": 0,
-      "tasksCompleted": 0,
-      "rejected": 0
-    },
-    "laporan": {
-      "items": [{
-        "id": "uuid",
-        "kategori": "string",
-        "deskripsi_kendala": "string",
-        "status": "BELUM_DIKERJAKAN",
-        "prioritas": "STANDARD",
-        "foto_masalah": ["string"],
-        "lokasi": "string",
-        "nomor_lantai": 0,
-        "nama_ob": "string",
-        "created_at": "ISO date",
-        "updated_at": "ISO date"
-      }],
-      "next_cursor": "string",
-      "meta": { "total_items": 0, "current_page": 0, "limit": 0, "total_pages": 0 }
-    }
-  }
-}
-
-```
-
-PATCH /api/user/profile
-Access: Terautentikasi
-Description: Update profile sendiri
-Content-Type: multipart/form-data
-Fields: nama_lengkap (string), profile_picture (binary file)
-Response 200: Berhasil mengubah profile
-Response 400: Validation Failed
-Response 401: Unauthorized
-Response 404: User tidak ditemukan
-
-GET /api/user/profile/laporan/{laporan_id}
-Access: Terautentikasi
-Description: Detail laporan user (OB & Karyawan)
-Response 200: Berhasil
-
-</SECTION_USER>
-
-<SECTION_KARYAWAN>
-
-GET /api/karyawan/dashboard
-Access: Karyawan
-Description: Dashboard karyawan
-
-POST /api/karyawan/laporan
-Access: Karyawan
-Description: Buat laporan baru
-Content-Type: multipart/form-data
-Fields (all required): lantai_id (uuid), ruangan_id (uuid), kategori_id (uuid), deskripsi_kendala (string), prioritas (string), foto_masalah (array of files, max 5)
-Response 201: Laporan berhasil dibuat
-WebSocket: Sends ADMIN_MENUGASKAN_OB to all OB + all admin.
-
-</SECTION_KARYAWAN>
-
-<SECTION_OB_LAPORAN>
-
-Overview Endpoints:
-GET /api/ob/dashboard : Ringkasan tugas harian + laporan OB
-PATCH /api/ob/laporan/{laporan_id} : Ambil laporan
-POST /api/ob/laporan/{laporan_id} : Submit hasil pekerjaan (same path as PATCH above, different verb)
-POST /api/ob/laporan/{laporan_id}/batalkan : Batalkan laporan
-GET /api/ob/laporan/{laporan_id}/gabung : Daftar permintaan gabung
-POST /api/ob/laporan/{laporan_id}/gabung : Kirim permintaan gabung
-PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/setujui : Setujui permintaan gabung
-PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/tolak : Tolak permintaan gabung
-POST /api/ob/laporan/{laporan_id}/gabung/keluar : Keluar dari kolaborasi (anggota)
-PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/keluarkan : Keluarkan anggota (pemilik)
-PATCH /api/ob/laporan/{laporan_id}/kolaborasi : Buka/tutup kolaborasi laporan
-
-Warning: PATCH /api/ob/laporan/{laporan_id} and POST /api/ob/laporan/{laporan_id} are the exact same URL with different HTTP verbs and completely different effects ("ambil laporan" vs "submit hasil pekerjaan"). A wrong verb will not 404 - it will silently perform the wrong action. Double-check HTTP method on every call site in useLaporan/useObLaporan.
-
-GET /api/ob/dashboard
-Description: Returns a summary for the logged-in OB.
-Response 200:
-
-```json
-{
-  "success": true,
-  "data": {
-    "ob": { "nama_lengkap": "string" },
-    "tugas_harian_stats": { "total": 0, "resolved": 0, "pending": 0 },
-    "tugas_harian": [{
-      "id": "uuid",
-      "nama_tugas": "string",
-      "kategori": "string",
-      "lokasi": "string",
-      "nomor_lantai": 0,
-      "status": "string",
-      "tanggal": "YYYY-MM-DD"
-    }],
-    "laporan": [{
-      "id": "uuid",
-      "kategori": "string",
-      "deskripsi_kendala": "string",
-      "status": "string",
-      "foto_masalah": ["string"],
-      "lokasi": "string",
-      "nomor_lantai": 0,
-      "priority": "string",
-      "is_kolaborasi_open": true,
-      "created_at": "ISO date"
-    }]
-  }
-}
-
-```
-
-Laporan shown: (a) all laporan assigned to this OB (ob_id = self), plus (b) unassigned laporan (ob_id null) with status other than PENDING.
-Note on tugas_harian field: Shape reads like Checklist Harian items, not ad-hoc Tugas katalog resource. Verify resource before wiring hook.
-
-PATCH /api/ob/laporan/{laporan_id}
-Description: Ambil laporan
-Side effects: status -> PENDING, ob_id -> OB yang login, dikerjakan_at -> now.
-Response 200: { "success": true, "message": "Laporan berhasil diambil" }
-Response 400: Validation Failed (format laporan_id tidak valid)
-Response 401: Unauthorized
-Response 403: Forbidden (bukan OB)
-Response 404: Laporan tidak ditemukan
-Response 409: Laporan sudah diambil oleh OB lain - handle explicitly (race-condition guard), do not treat as generic error.
-Response 500: Terjadi kesalahan, tidak bisa mengambil laporan
-WebSocket: LAPORAN_DIKERJAKAN -> pelapor.
-
-POST /api/ob/laporan/{laporan_id}
-Description: Submit hasil pekerjaan
-Content-Type: multipart/form-data
-Fields: catatan (string, required), foto_selesai (array of files, required)
-Side effects: status -> SELESAI, selesai_at -> now.
-Response 200: Histori berhasil ditambahkan
-Response 403: Anda tidak memiliki akses ke laporan ini (bukan OB pemilik)
-Response 404: Laporan tidak ditemukan
-Response 500: Terjadi kesalahan
-WebSocket: LAPORAN_BERES -> pelapor, message includes catatan.
-
-Note: OB can mark a laporan SELESAI directly without admin approval. This is a second independent writer to the same status/selesai_at fields that PATCH /api/admin/laporan/{id} also writes.
-
-POST /api/ob/laporan/{laporan_id}/batalkan
-Description: Batalkan laporan
-Content-Type: multipart/form-data
-Fields: catatan (string, min 5 chars, required), foto_selesai (array of files, optional)
-Side effects: status -> DIBATALKAN, ob_id -> null, dibatalkan_at -> now, alasan_gagal <- catatan.
-Response 200: Laporan dibatalkan
-Response 403: Bukan OB pemilik
-Response 404: Laporan tidak ditemukan
-Response 500: Terjadi kesalahan
-WebSocket: LAPORAN_DIBATALKAN -> pelapor, with cancellation reason.
-
-GET /api/ob/laporan/{laporan_id}/gabung
-Response 200:
-
-```json
-{
-  "success": true,
-  "message": "string",
-  "data": [{
-    "id": "uuid",
-    "ob": { "id": "uuid", "nama_lengkap": "string" },
-    "status": "PENDING",
-    "created_at": "ISO date"
-  }]
-}
-
-```
-
-Response 400 / 401
-
-POST /api/ob/laporan/{laporan_id}/gabung
-Response 201:
-
-```json
-{
-  "success": true,
-  "message": "string",
-  "data": {
-    "id": "uuid",
-    "laporan_id": "uuid",
-    "ob_id": "uuid",
-    "status": "PENDING",
-    "created_at": "ISO date"
-  }
-}
-
-```
-
-Response 400 / 401
-WebSocket: GABUNG_LAPORAN -> OB pemilik laporan.
-
-PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/setujui
-Response 200 / 400 / 401
-WebSocket: GABUNG_DISETUJUI -> OB peminta.
-
-PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/tolak
-Response 200 / 400 / 401
-WebSocket: GABUNG_DIBATALKAN -> OB peminta.
-
-POST /api/ob/laporan/{laporan_id}/gabung/keluar
-Description: anggota only (not OB utama)
-Response 200 / 400 / 401
-WebSocket: KELUAR_KOLABORASI -> OB utama.
-
-PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/keluarkan
-Description: OB pemilik mengeluarkan anggota
-Response 200 / 400 / 401
-WebSocket: DIKELUARKAN_KOLABORASI -> OB yang dikeluarkan.
-
-PATCH /api/ob/laporan/{laporan_id}/kolaborasi
-Request: { "is_open": true }
-Response 200 / 400 / 401
-Response 403: Hanya OB pemilik
-Response 404: Laporan tidak ditemukan
-WebSocket: KOLABORASI_DIBUKA -> semua OB lain.
-
-</SECTION_OB_LAPORAN>
-
-<SECTION_OB_TUGAS>
-
-GET /api/ob/tugas
-Description: Daftar tugas ad-hoc (belum diklaim + yang sudah diklaim OB ini)
-Response 200:
-
-```json
-{
-  "success": true,
-  "message": "string",
-  "data": [{
-    "id": "uuid",
-    "nama_tugas": "string",
-    "kategori": "string",
-    "lantai_id": "uuid",
-    "lokasi": "string",
-    "nomor_lantai": 0,
-    "status": "BELUM_DIKERJAKAN",
-    "catatan": "string",
-    "created_at": "ISO date"
-  }]
-}
-
-```
-
-Response 401 / 403: Forbidden
-
-PATCH /api/ob/tugas/{tugas_id}/claim
-Description: Klaim tugas
-Side effect: status -> SEDANG_DIKERJAKAN, records claim time.
-Response 200: { "success": true, "message": "Tugas berhasil diklaim" }
-Response 400: Gagal mengklaim tugas
-Response 401 / 403 / 404: Tugas tidak ditemukan
-
-PATCH /api/ob/tugas/{tugas_id}/selesai
-Description: Selesaikan tugas
-Side effect: status -> SELESAI, records completion time.
-Response 200: { "success": true, "message": "Tugas berhasil diselesaikan" }
-Response 400: Gagal menyelesaikan tugas
-Response 401 / 403 / 404
-
-</SECTION_OB_TUGAS>
-
-<SECTION_ADMIN_USERS_AND_ROLES>
-
-Overview Endpoints:
-GET /api/admin/role : List semua role
-GET /api/admin/user : List semua user
-POST /api/admin/user : Buat user baru
-GET /api/admin/user/all-ob : List semua OB
-GET /api/admin/user/all-karyawan : List semua karyawan
-GET /api/admin/dashboard : Dashboard admin + KPI
-GET /api/admin/user-stats : Statistik user
-GET /api/admin/user/{user_id} : Detail user
-PATCH /api/admin/user/{user_id} : Update user (includes is_active)
-DELETE /api/admin/user/{user_id} : Hapus user
-POST /api/admin/user/{user_id}/renew-token : Perpanjang token aktivasi
-GET /api/admin/user/{user_id}/performance/ob : Statistik performa OB
-GET /api/admin/user/{user_id}/performance/karyawan : Statistik performa Karyawan
-
-GET /api/admin/role
-Response 200:
-
-```json
-{
-  "success": true,
-  "message": "Berhasil mendapatkan data role",
-  "data": [{ "id": "uuid", "nama_role": "admin", "created_at": "ISO date" }]
-}
-
-```
-
-Use to populate role_id dropdown in create/edit user forms - do not hardcode role UUIDs in FE.
-
-GET /api/admin/user
-Query: page (default 1), limit (default 10), search, role_id (uuid)
-Response 200: Daftar user
-
-POST /api/admin/user
-Request:
-
-```json
-{ "username": "string", "email": "user@example.com", "nama_lengkap": "string", "role_id": "uuid" }
-
-```
-
-Response 201: { "success": true, "message": "Berhasil menambahkan data user, link aktivasi sudah dikirim ke email user." }
-Note: Account created with no password - admin creates account -> activation email sent -> user hits check-token/activate-account to set password.
-
-GET /api/admin/user/all-ob
-Response 200 (no query params)
-
-GET /api/admin/user/all-karyawan
-Response 200 (no query params)
-
-GET /api/admin/dashboard
-Query: period (harian | mingguan | bulanan | tahunan, default mingguan)
-Response 200: Data dashboard
-
-GET /api/admin/user-stats
-Response 200: Statistik user
-
-GET /api/admin/user/{user_id}
-Response 200: Data user
-
-PATCH /api/admin/user/{user_id}
-Content-Type: multipart/form-data
-Fields (all optional, partial update): username, email, password, nama_lengkap, role_id, profile_picture (binary), is_active (boolean)
-Response 200: User berhasil diupdate
-
-Note on Status/Active Bug: If "status tidak berubah" bug is open, verify FE active/inactive toggle sends is_active in this exact request (as a real boolean, not string "true"/"false" inside multipart/form-data) and row refetches from 200 response rather than relying on stale local state.
-
-DELETE /api/admin/user/{user_id}
-Response 200: User berhasil dihapus
-
-POST /api/admin/user/{user_id}/renew-token
-Description: Issues a new activation token and re-sends activation email (when link expired or lost).
-Response 200: { "success": true, "message": "Berhasil memperbarui token aktivasi, link aktivasi baru sudah dikirim ke email user." }
-Response 400: Akun sudah diaktivasi
-Response 404: User tidak ditemukan
-Response 500: Gagal memperbarui token aktivasi
-
-GET /api/admin/user/{user_id}/performance/ob
-Query: period (mingguan | bulanan | tahunan, default mingguan)
-Response 200: { "success": true, "message": "Berhasil mendapatkan statistik performa OB", "data": {} } (data shape unspecified in spec)
-Response 400 / 401
-Response 403: bukan admin
-Response 404: OB tidak ditemukan
-Response 500
-
-GET /api/admin/user/{user_id}/performance/karyawan
-Query: period (mingguan | bulanan | tahunan, default mingguan)
-Response 200: { "success": true, "message": "...", "data": { "laporan_terkirim": 15 } }
-Response 400 / 401
-Response 403: bukan admin
-Response 404: Karyawan tidak ditemukan
-Response 500
-
-Note on Performa OB Page Mismatch:
-The endpoint above is scoped to one user_id and data is undocumented empty {}. But the actual Performa OB page is a multi-staff leaderboard/analytics dashboard displaying:
-
-* Aggregate stats: tingkat_keberhasilan (success rate %, + delta vs last period), waktu_aktif_sistem (uptime %, + status label like "Stabil"), laporan_menunggu (pending-review count, link to list)
-* perbandingan_penyelesaian_tugas: bar chart comparing task completion across multiple staff (x-axis = staff names)
-* tren_keluhan: monthly line chart of complaint volume
-* Leaderboard table: per-OB rank, name, role tags, tasks claimed count, average speed (minutes), badge earned ("Speedy Cleaner", "High Reliability", "Hygiene Expert", or "Belum memperoleh badge")
-
-Before building this page:
-
-1. Check if separate aggregate endpoint exists (e.g. GET /api/admin/ob-performance or period-only query without user_id).
-2. If non-existent, data requirement should go to backend team as a new endpoint spec.
-3. Confirm actual response shape with backend before rendering.
-
-</SECTION_ADMIN_USERS_AND_ROLES>
-
-<SECTION_ADMIN_LAPORAN>
-
-Overview Endpoints:
-GET /api/admin/laporan : List laporan dengan filter
-GET /api/admin/laporan/{laporan_id} : Detail laporan
-PATCH /api/admin/laporan/{laporan_id} : Update status/prioritas/catatan/OB laporan
-DELETE /api/admin/laporan/{laporan_id} : Hapus laporan beserta histori & kolaborasi (cascade, permanen)
-
-GET /api/admin/laporan
-Query: page, limit, search, status, prioritas, lokasi_id, lantai_id, start_date, end_date, sort_by (created_at | updated_at | prioritas | status | nama_karyawan | lokasi), sort_order (asc | desc, default desc)
-Response 200: Contains laporan (paginated + meta), ruangan_terpopuler (array of { ruangan_id, nama_ruangan, nama_lantai, nama_lokasi, total_laporan }), laporan_aktif (total active count)
-
-GET /api/admin/laporan/{laporan_id}
-Response 200:
-
-```json
-{
-  "success": true,
-  "message": "Berhasil mendapatkan detail laporan",
-  "data": {
-    "id": "uuid",
-    "status": "BELUM_DIKERJAKAN",
-    "prioritas": "STANDARD",
-    "nama_karyawan": "string",
-    "lokasi": "string",
-    "kategori": "string",
-    "ob_ditugaskan": "string",
-    "waktu_laporan": "ISO date",
-    "waktu_selesai": "ISO date",
-    "dikerjakan_at": "ISO date",
-    "selesai_at": "ISO date",
-    "dibatalkan_at": "ISO date",
-    "admin_catatan": "string",
-    "deskripsi_kendala": "string",
-    "bukti_foto": { "urls": ["string"], "diupload_oleh": "string", "jam_upload": "string" }
-  }
-}
-
-```
-
-Response 400 / 401
-Response 403: bukan admin
-Response 404 / 500
-
-PATCH /api/admin/laporan/{laporan_id}
-Description: Partial update - at least one field must be non-null ("" treated as null, does not satisfy rule).
-Request example:
-
-```json
-{ "status": "SELESAI", "admin_catatan": "Sudah dikonfirmasi selesai oleh admin" }
-
-```
-
-Status transition side-effects (server-side, automatic):
-New status | Automatic side-effect
-BELUM_DIKERJAKAN | Re-open: ob_id -> null, dikerjakan_at -> cleared
-PENDING | dikerjakan_at -> now (requires ob_id already set)
-SELESAI | selesai_at -> now
-DIBATALKAN | dibatalkan_at -> now, ob_id -> null
-
-Response 200: { "success": true, "message": "Laporan berhasil diperbarui" }
-Response 400: no non-null field / invalid enum / invalid UUID / PENDING without ob_id
-Response 401
-Response 403: bukan admin
-Response 404 / 500
-
-Debug checklist for "status tidak berubah":
-
-1. Exact enum string, not UI label
-2. status: "" silently fails non-null rule -> expect 400
-3. PENDING needs ob_id or 400
-4. FE refetches after 200
-5. Check if value is stale because OB used POST /api/ob/laporan/{id} (submit hasil) to set SELESAI directly. Both write the same field.
-
-DELETE /api/admin/laporan/{laporan_id}
-Description: Hard delete, no undo. Menghapus laporan permanen; histori & kolaborasi ikut terhapus via cascade.
-Response 200: { "success": true, "message": "Laporan berhasil dihapus" }
-Response 401
-Response 403: bukan admin
-Response 404 / 500
-
-Note: Permanent hard delete, no soft-delete flag, no restore path. Cascade includes kolaborasi/gabung records. OB with open gabung modal will get 404 on next action; handle gracefully. Invalidate both admin-side and OB-side cached queries.
-
-</SECTION_ADMIN_LAPORAN>
-
-<SECTION_LOKASI_LANTAI_RUANGAN_KATEGORI>
-
-Standard CRUD Table:
-Resource | List | Create | Detail | Edit | Delete
-Lokasi | GET /api/lokasi | POST /api/lokasi { nama_lokasi, jumlah_lantai } | GET /api/lokasi/{id} | PATCH /api/lokasi/{id} | DELETE /api/lokasi/{id}
-Lantai | GET /api/lantai?lokasi_id= | POST /api/lantai { lokasi_id, nomor_lantai } | GET /api/lantai/{id}?lokasi_id= | PATCH /api/lantai/{id}?lokasi_id= { nomor_lantai } | DELETE /api/lantai/{id}?lokasi_id=
-Ruangan | GET /api/ruangan?lantai_id= | POST /api/ruangan { lantai_id, nama } | GET /api/ruangan/{id}?lantai_id= | PATCH /api/ruangan/{id}?lantai_id= { nama } | DELETE /api/ruangan/{id}?lantai_id=
-Kategori | GET /api/kategori | POST /api/kategori { nama_kategori } | GET /api/kategori/{id} | PUT (not PATCH) /api/kategori/{id} { nama_kategori } | DELETE /api/kategori/{id}
-
-Warning: Kategori edit uses PUT, everything else uses PATCH. Copy-pasted hook calling .patch() will silently fail.
-
-</SECTION_LOKASI_LANTAI_RUANGAN_KATEGORI>
-
-<SECTION_ADMIN_TUGAS_KATALOG>
-
-Overview Endpoints:
-GET /api/tugas?kategori_id= : List tugas (katalog)
-POST /api/tugas : Tambah tugas
-GET /api/tugas/{tugas_id} : Detail tugas
-PATCH /api/tugas/{tugas_id} : Edit tugas
-DELETE /api/tugas/{tugas_id} : Hapus tugas
-
-GET /api/tugas / GET /api/tugas/{tugas_id}
-Response 200 item shape:
-
-```json
-{
-  "id": "uuid",
-  "kategori_id": "uuid",
-  "nama_tugas": "string",
-  "lantai_id": "uuid",
-  "ob_id": "uuid",
-  "status": "BELUM_DIKERJAKAN",
-  "catatan": "string",
-  "is_active": true,
-  "dikerjakan_at": "ISO date",
-  "selesai_at": "ISO date",
-  "created_at": "ISO date",
-  "updated_at": "ISO date"
-}
-
-```
-
-POST /api/tugas
-Request:
-
-```json
-{ "kategori_id": "uuid", "nama_tugas": "string", "lantai_id": "uuid", "catatan": "string" }
-
-```
-
-Response 201: Tugas berhasil dibuat (ob_id/status default to null/BELUM_DIKERJAKAN)
-
-PATCH /api/tugas/{tugas_id}
-Request (partial):
-
-```json
-{
-  "kategori_id": "uuid",
-  "nama_tugas": "string",
-  "lantai_id": "uuid",
-  "catatan": "string",
-  "is_active": true,
-  "status": "BELUM_DIKERJAKAN",
-  "ob_id": "uuid"
-}
-
-```
-
-Response 200: Tugas berhasil diupdate
-
-Note: Admin can directly set status and ob_id here (force-assign or force-complete a tugas, bypassing OB claim/selesai flow).
-
-DELETE /api/tugas/{tugas_id}
-Response 200: Tugas berhasil dihapus
-
-</SECTION_ADMIN_TUGAS_KATALOG>
-
-<SECTION_CHECKLIST_HARIAN>
-
-Request body change: no tugas_id reference - nama_tugas is now a free-text string sent directly, and lokasi_id was removed (only lantai_id remains). Ensure forms and mutation hooks bind nama_tugas as free-text string.
-
-Overview Endpoints:
-GET /api/checklist-harian : List checklist harian (OB, HR, Admin)
-POST /api/checklist-harian : Buat checklist harian (Admin)
-GET /api/checklist-harian/{id} : Detail checklist
-PATCH /api/checklist-harian/{id} : Edit checklist (Admin)
-DELETE /api/checklist-harian/{id} : Hapus checklist (Admin)
-
-GET /api/checklist-harian
-Query: page, limit, search (by nama tugas), lokasi_id, lantai_id, status (BELUM_DIKERJAKAN | SEDANG_DIKERJAKAN | SELESAI | TERLEWAT)
-Response 200: Daftar checklist
-
-POST /api/checklist-harian (Admin)
-Request:
-
-```json
-{ "nama_tugas": "string", "kategori_id": "uuid", "lantai_id": "uuid", "ob_id": "uuid" }
-
-```
-
-Response 201: Checklist berhasil dibuat
-WebSocket: PENUGASAN_CHECKLIST -> all OB.
-
-PATCH /api/checklist-harian/{id} (Admin)
-Request:
-
-```json
-{ "nama_tugas": "string", "kategori_id": "uuid", "lantai_id": "uuid", "ob_id": "uuid", "status": "string", "catatan": "string" }
-
-```
-
-Response 200: Checklist berhasil diupdate
-Note: Send raw enum for status, not UI label, and refetch after update.
-
-DELETE /api/checklist-harian/{id}
-Response 200: Checklist berhasil dihapus
-
-</SECTION_CHECKLIST_HARIAN>
-
-<SECTION_NOTIFIKASI>
-
-Schema gained ref_id and ref_tipe fields - use these to deep-link a notification click to the right detail view.
-
-Overview Endpoints:
-GET /api/notifikasi : Ambil notifikasi hari ini & kemarin
-GET /api/notifikasi/unread-count : Hitung notifikasi belum dibaca
-PATCH /api/notifikasi/read-all : Tandai semua sudah dibaca
-PATCH /api/notifikasi/{notification_id}/read : Tandai satu sudah dibaca
-
-GET /api/notifikasi
-Response 200:
-
-```json
-{
-  "success": true,
-  "message": "Berhasil mendapatkan notifikasi",
-  "data": {
-    "hari_ini": [{
-      "id": "uuid",
-      "penerima_id": "uuid",
-      "pengirim_id": "uuid",
-      "tipe": "string",
-      "judul": "string",
-      "pesan": "string",
-      "is_read": true,
-      "read_at": "ISO date",
-      "ref_id": "uuid",
-      "ref_tipe": "string",
-      "created_at": "ISO date",
-      "pengirim": { "id": "uuid", "nama_lengkap": "string" }
-    }],
-    "kemarin": []
-  }
-}
-
-```
-
-GET /api/notifikasi/unread-count
-Response 200: { "success": true, "message": "...", "data": 5 } (data is raw number)
-
-PATCH /api/notifikasi/read-all
-PATCH /api/notifikasi/{notification_id}/read
-Response 200: Success
-
-Known tipe values:
-ADMIN_MENUGASKAN_OB | LAPORAN_DIKERJAKAN | LAPORAN_BERES | LAPORAN_DIBATALKAN | LAPORAN_BARU | GABUNG_LAPORAN | GABUNG_DISETUJUI | GABUNG_DIBATALKAN | KELUAR_KOLABORASI | DIKELUARKAN_KOLABORASI | KOLABORASI_DIBUKA | PENUGASAN_CHECKLIST
-
-</SECTION_NOTIFIKASI>
-
-<SECTION_WEBSOCKET>
-
-Connection URL: GET /ws?token=xxx (same JWT as Bearer auth)
-On connect:
-
-```json
-{ "type": "CONNECTED" }
-
-```
-
-Real-time push payload:
-
-```json
-{
-  "id": "uuid",
-  "penerima_id": "uuid",
-  "pengirim_id": "uuid",
-  "tipe": "LAPORAN_BARU",
-  "judul": "Laporan baru",
-  "pesan": "string",
-  "is_read": false,
-  "read_at": null,
-  "created_at": "ISO date"
-}
-
-```
-
-Response status: 101 Switching Protocols / 400 Token invalid/kosong
-Standard pattern: Fetch /api/notifikasi/unread-count + /api/notifikasi on mount for initial state, apply socket pushes incrementally.
-
-</SECTION_WEBSOCKET>
-
-</API_REFERENCE_FULL>
-
-<KNOWN_DOMAIN_GOTCHAS>
-
-1. PATCH vs POST on identical path /api/ob/laporan/{laporan_id} do two unrelated things (ambil vs submit-hasil). Verify HTTP verb at every call site - wrong verb silently does wrong action instead of 404ing.
-2. Laporan status: SELESAI has two independent writers: OB (POST /api/ob/laporan/{id}) and Admin (PATCH /api/admin/laporan/{id}).
-3. Three "tugas"-named things exist (Laporan, Checklist Harian, ad-hoc Tugas katalog) with overlapping status enums and field names (nama_tugas, status, ob_id, dikerjakan_at, selesai_at). Confirm table/hook before reusing component or mapper.
-4. is_active is an explicit field on PATCH /api/admin/user/{user_id}. Confirm toggle sends real boolean (not stringified) and row refetches after 200.
-5. POST /api/admin/user/{user_id}/renew-token is the fix for stuck activation tokens. Check if endpoint is wired to UI action.
-6. Checklist Harian request body dropped tugas_id and lokasi_id in favor of free-text nama_tugas and lantai_id only.
-7. /api/tugas (Admin) and /api/ob/tugas (OB) are two views of the same table - status/ob_id change from either side should invalidate both sides' cached queries.
-8. The "Performa OB" page mockup does not match documented per-user_id performance endpoint. It is a multi-staff leaderboard/analytics view, while endpoint is single-user with undocumented empty data: {}. Confirm response shape first.
-9. Kategori edit uses PUT, everything else uses PATCH.
-10. PENDING on /api/admin/laporan/{id} requires ob_id already set, or 400.
-11. Empty string "" is not "no value" for Laporan PATCH's "at least one non-null field" rule.
-12. Login "Ingat Saya" checkbox has no backing field in LoginRequest. Confirm whether client-side session persistence or needs backend param.
-13. DELETE /api/admin/laporan/{id} is a permanent, cascading hard-delete. Confirm before calling, refetch/invalidate OB-side queries touching that laporan afterward.
-14. Concurrent-session / stale-state pattern applies to ob_id ownership. Both "ambil laporan" (409 if taken) and "batalkan"/"kolaborasi keluarkan" (403 if not owner) guard against race conditions - server is source of truth, always refetch after state-changing action, surface conflict errors.
-</KNOWN_DOMAIN_GOTCHAS>
-
-</CLAUDE_DOCUMENTATION>
+Endpoint POST /api/ob/laporan/{laporan_id}/gabung, dipakai OB lain untuk mengirim permintaan bergabung pada laporan yang sudah ada. Kalau berhasil server mengembalikan kode 201 dengan data berisi id, laporan_id, ob_id, status, dan created_at. Kalau validasi gagal server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe GABUNG_LAPORAN ke OB pemilik laporan.
+
+Endpoint PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/setujui, dipakai OB pemilik laporan untuk menyetujui permintaan gabung dari OB lain. Kalau berhasil server mengembalikan kode 200. Kalau validasi gagal server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe GABUNG_DISETUJUI ke OB yang meminta gabung.
+
+Endpoint PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/tolak, dipakai OB pemilik laporan untuk menolak permintaan gabung. Kalau berhasil server mengembalikan kode 200. Kalau validasi gagal server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe GABUNG_DIBATALKAN ke OB yang meminta gabung.
+
+Endpoint POST /api/ob/laporan/{laporan_id}/gabung/keluar, dipakai OB anggota yang sudah tergabung untuk keluar dari kolaborasi, hanya OB anggota yang bisa melakukan ini bukan OB utama pemilik laporan. Kalau berhasil server mengembalikan kode 200. Kalau validasi gagal server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe KELUAR_KOLABORASI ke OB utama.
+
+Endpoint PATCH /api/ob/laporan/{laporan_id}/gabung/{kolaborasi_id}/keluarkan, dipakai OB pemilik laporan untuk mengeluarkan OB anggota dari kolaborasi. Kalau berhasil server mengembalikan kode 200. Kalau validasi gagal server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe DIKELUARKAN_KOLABORASI ke OB yang dikeluarkan.
+
+Endpoint PATCH /api/ob/laporan/{laporan_id}/kolaborasi, dipakai OB pemilik laporan untuk membuka atau menutup fitur kolaborasi pada laporannya. Body permintaan berisi is_open berupa boolean. Kalau berhasil server mengembalikan kode 200. Kalau validasi gagal server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Kalau yang mengakses bukan OB pemilik laporan server mengembalikan kode 403. Kalau laporan tidak ditemukan server mengembalikan kode 404. Saat berhasil, server mengirim notifikasi WebSocket dengan tipe KOLABORASI_DIBUKA ke semua OB lain.
+
+BAGIAN OB TUGAS
+
+Endpoint GET /api/ob/tugas, dipakai untuk menampilkan daftar tugas ad hoc yang tersedia atau belum diklaim siapapun, digabung dengan tugas yang sudah diklaim oleh OB yang sedang login. Kalau berhasil server mengembalikan kode 200 dengan data berupa array yang masing masing punya id, nama_tugas, kategori, lantai_id, lokasi, nomor_lantai, status, catatan, dan created_at. Kalau tidak berwenang server mengembalikan kode 401. Kalau ditolak karena bukan peran yang sesuai server mengembalikan kode 403.
+
+Endpoint PATCH /api/ob/tugas/{tugas_id}/claim, dipakai OB untuk mengklaim satu tugas ad hoc supaya dikerjakan. Efeknya status berubah jadi SEDANG_DIKERJAKAN dan waktu klaim tercatat. Kalau berhasil server mengembalikan kode 200 dengan pesan tugas berhasil diklaim. Kalau gagal mengklaim server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Kalau ditolak server mengembalikan kode 403. Kalau tugas tidak ditemukan server mengembalikan kode 404.
+
+Endpoint PATCH /api/ob/tugas/{tugas_id}/selesai, dipakai OB untuk menyelesaikan tugas yang sudah diklaim sebelumnya. Efeknya status berubah jadi SELESAI dan waktu selesai tercatat. Kalau berhasil server mengembalikan kode 200 dengan pesan tugas berhasil diselesaikan. Kalau gagal menyelesaikan server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Kalau ditolak server mengembalikan kode 403. Kalau tugas tidak ditemukan server mengembalikan kode 404. Perlu dicatat, setelah OB menandai tugas ad hoc ini selesai lewat endpoint ini, statusnya baru SELESAI di sisi data, tapi berdasarkan endpoint approval yang baru ditemukan, tugas ini masih perlu disetujui admin lewat PATCH /api/admin/tugas/{tugas_id}/approve sebelum benar benar dianggap tuntas di mata admin, jadi frontend perlu membedakan tampilan antara SELESAI yang belum disetujui dan yang sudah disetujui admin.
+
+BAGIAN ADMIN PENGGUNA DAN ROLE
+
+Endpoint GET /api/admin/role, khusus Admin, dipakai untuk mengambil daftar semua role yang ada. Kalau berhasil server mengembalikan kode 200 dengan data berupa array yang masing masing punya id, nama_role, dan created_at. Endpoint ini harus dipakai untuk mengisi dropdown role_id di form buat dan edit pengguna, jangan hardcode UUID role di manapun.
+
+Endpoint GET /api/admin/user, khusus Admin, dipakai untuk mengambil daftar semua pengguna. Parameternya berupa query page dengan nilai default 1, limit dengan nilai default 10, search berupa string, dan role_id berupa uuid untuk memfilter berdasarkan role. Kalau berhasil server mengembalikan kode 200 dengan daftar pengguna.
+
+Endpoint POST /api/admin/user, khusus Admin, dipakai untuk membuat pengguna baru. Body permintaan berisi username, email, nama_lengkap, dan role_id. Kalau berhasil server mengembalikan kode 201 dengan pesan berhasil menambahkan data user, link aktivasi sudah dikirim ke email user. Perlu dicatat, pengguna dibuat tanpa password sama sekali, alurnya admin membuat akun lalu email aktivasi terkirim lalu pengguna sendiri yang mengisi password lewat check-token dan activate-account.
+
+Endpoint GET /api/admin/user/all-ob, khusus Admin, dipakai untuk mengambil daftar semua OB tanpa parameter apapun. Kalau berhasil server mengembalikan kode 200.
+
+Endpoint GET /api/admin/user/all-karyawan, khusus Admin, dipakai untuk mengambil daftar semua karyawan tanpa parameter apapun. Kalau berhasil server mengembalikan kode 200.
+
+Endpoint GET /api/admin/dashboard, khusus Admin, dipakai untuk mengambil data dashboard beserta KPI. Parameternya berupa query period dengan pilihan harian, mingguan, bulanan, tahunan, dan nilai default mingguan. Kalau berhasil server mengembalikan kode 200 dengan data dashboard.
+
+Endpoint GET /api/admin/user-stats, khusus Admin, dipakai untuk mengambil statistik pengguna. Kalau berhasil server mengembalikan kode 200.
+
+Endpoint GET /api/admin/user/{user_id}, khusus Admin, dipakai untuk mengambil detail satu pengguna. Kalau berhasil server mengembalikan kode 200 dengan data pengguna.
+
+Endpoint PATCH /api/admin/user/{user_id}, khusus Admin, dipakai untuk memperbarui data pengguna. Kontennya multipart/form-data, semua field sifatnya opsional untuk pembaruan sebagian, terdiri dari username, email, password, nama_lengkap, role_id, profile_picture berupa file biner, dan is_active berupa boolean. Kalau berhasil server mengembalikan kode 200 dengan pesan user berhasil diupdate. Kalau sebelumnya ada laporan bug status pengguna tidak berubah, ini kemungkinan besar titik yang harus diperiksa, pastikan toggle aktif nonaktif di tabel pengguna benar benar mengirim field is_active sebagai boolean asli bukan string true atau false di dalam multipart/form-data, dan pastikan baris tabelnya di-refetch ulang setelah menerima respons berhasil bukan hanya mengandalkan state lokal yang bisa jadi basi.
+
+Endpoint DELETE /api/admin/user/{user_id}, khusus Admin, dipakai untuk menghapus pengguna. Kalau berhasil server mengembalikan kode 200 dengan pesan user berhasil dihapus.
+
+Endpoint POST /api/admin/user/{user_id}/renew-token, khusus Admin, dipakai untuk memperpanjang atau mengirim ulang token aktivasi pengguna yang linknya sudah kedaluwarsa atau hilang. Kalau berhasil server mengembalikan kode 200 dengan pesan berhasil memperbarui token aktivasi, link aktivasi baru sudah dikirim ke email user. Kalau akun sudah diaktivasi sebelumnya server mengembalikan kode 400. Kalau pengguna tidak ditemukan server mengembalikan kode 404. Kalau terjadi kesalahan server mengembalikan kode 500. Kalau sebelumnya ada laporan bug soal token aktivasi bermasalah, harus dicek dulu apakah tombol untuk memanggil endpoint ini sudah benar benar ada dan tersambung di halaman manajemen pengguna, sebelum menyimpulkan bahwa masalahnya ada di logika token itu sendiri.
+
+Endpoint GET /api/admin/user/{user_id}/performance/ob, khusus Admin, dipakai untuk mengambil statistik performa satu OB tertentu. Parameternya path user_id berupa uuid dan query period dengan pilihan mingguan, bulanan, tahunan, nilai default mingguan. Kalau berhasil server mengembalikan kode 200 dengan pesan berhasil mendapatkan statistik performa OB dan data yang bentuknya masih objek kosong di dalam dokumentasi, jadi bentuk sebenarnya belum ditentukan. Kalau validasi gagal karena format user_id atau period tidak valid server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Kalau bukan admin server mengembalikan kode 403. Kalau OB tidak ditemukan server mengembalikan kode 404. Kalau terjadi kesalahan di server server mengembalikan kode 500.
+
+Perlu dicatat dengan jelas, ada ketidakcocokan antara endpoint ini dengan tampilan halaman Performa OB yang sebenarnya. Endpoint ini dirancang untuk satu user_id saja dan bentuk datanya masih kosong belum ditentukan. Tapi tampilan halaman Performa OB yang sebenarnya adalah papan peringkat gabungan banyak staf sekaligus, menampilkan rata rata tingkat keberhasilan berupa persentase dengan perubahan dibanding periode sebelumnya, waktu aktif sistem berupa persentase dengan label status seperti stabil, jumlah laporan menunggu berikut tautan ke daftarnya, grafik batang perbandingan penyelesaian tugas antar staf, grafik garis tren keluhan bulanan, dan tabel papan peringkat berisi peringkat, nama, tag peran, jumlah tugas diklaim, kecepatan rata rata dalam menit, dan lencana yang diperoleh seperti Speedy Cleaner, High Reliability, Hygiene Expert, atau Belum memperoleh badge. Sebelum membangun halaman ini harus dipastikan dulu apakah ada endpoint agregat terpisah yang belum tercatat di dokumentasi, atau memang perlu meminta backend membuat endpoint baru untuk kebutuhan ini, jangan langsung menebak bentuk data dan membangun tampilan berdasarkan tebakan.
+
+Endpoint GET /api/admin/user/{user_id}/performance/karyawan, khusus Admin, dipakai untuk mengambil statistik performa satu karyawan tertentu. Parameternya sama seperti di atas. Kalau berhasil server mengembalikan kode 200 dengan data berisi laporan_terkirim sebagai contoh nilai lima belas. Kode kegagalannya sama seperti endpoint performa OB, yaitu 400 untuk validasi gagal, 401 untuk tidak berwenang, 403 untuk bukan admin, 404 untuk karyawan tidak ditemukan, dan 500 untuk kesalahan server.
+
+BAGIAN ADMIN STATISTIK DAN PERSETUJUAN TUGAS SERTA CHECKLIST HARIAN
+
+Bagian ini seluruhnya baru dan menjawab pertanyaan yang sebelumnya belum jelas soal alur persetujuan tugas dan checklist harian oleh admin.
+
+Endpoint GET /api/admin/tugas/stats, khusus Admin, dipakai untuk mengambil statistik gabungan antara tugas non rutin atau tugas ad hoc dan checklist harian atau tugas rutin. Cakupannya meliputi total keseluruhan, jumlah yang sedang diproses OB, dan jumlah yang sedang menunggu persetujuan admin. Parameternya berupa query period dengan pilihan harian, mingguan, bulanan, tahunan, nilai default harian, dan lokasi_id berupa uuid untuk memfilter berdasarkan gedung. Kalau berhasil server mengembalikan kode 200 dengan data berisi total, diproses_ob, dan menunggu_persetujuan. Endpoint inilah yang seharusnya dipakai untuk mengisi tiga kartu statistik di bagian atas halaman Manajemen Tugas, yaitu kartu total tugas, kartu diproses OB, dan kartu menunggu approval admin.
+
+Endpoint GET /api/admin/tugas/approval-list, khusus Admin, dipakai untuk mengambil daftar tugas non rutin yang sedang menunggu persetujuan admin. Parameternya sama seperti di atas, period dan lokasi_id. Kalau berhasil server mengembalikan kode 200 dengan data berupa array yang masing masing punya id, nama_tugas, nama_ob, lokasi, kategori, dan selesai_at.
+
+Endpoint PATCH /api/admin/tugas/{tugas_id}/approve, khusus Admin, dipakai untuk menyetujui satu tugas non rutin yang sudah diselesaikan OB. Kalau berhasil server mengembalikan kode 200 dengan pesan tugas berhasil disetujui. Endpoint inilah jawaban dari pertanyaan sebelumnya soal bagaimana caranya admin menyetujui tugas ad hoc yang sudah selesai dikerjakan OB, jadi tombol approve di halaman Manajemen Tugas untuk baris tugas ad hoc yang berstatus menunggu review harus memanggil endpoint ini.
+
+Endpoint GET /api/admin/checklist-harian/approval-list, khusus Admin, dipakai untuk mengambil daftar checklist harian yang sedang menunggu persetujuan admin. Parameternya sama, period dan lokasi_id. Kalau berhasil server mengembalikan kode 200 dengan data berupa array yang masing masing punya id, nama_tugas, nama_ob, lokasi, kategori, dan selesai_at, bentuknya sama persis dengan daftar approval tugas non rutin di atas.
+
+Endpoint PATCH /api/admin/checklist-harian/{checklist_harian_id}/approve, khusus Admin, dipakai untuk menyetujui satu checklist harian yang sudah diselesaikan OB. Kalau berhasil server mengembalikan kode 200 dengan pesan checklist berhasil disetujui. Sama seperti approval tugas, tombol approve untuk baris checklist harian yang berstatus SELESAI tapi belum disetujui admin harus memanggil endpoint ini.
+
+BAGIAN ADMIN LAPORAN
+
+Endpoint GET /api/admin/laporan/history, khusus Admin, endpoint baru, dipakai untuk mengambil riwayat laporan dengan filter pencarian dan filter berdasarkan user_id tertentu. Parameternya berupa query page dengan nilai default 1, limit dengan nilai default 10, search berupa string, dan user_id berupa uuid. Kalau berhasil server mengembalikan kode 200 dengan daftar riwayat laporan yang sudah dipaginasi, berisi laporan lengkap dengan kategori, lantai, dan lokasi. Endpoint ini kelihatannya dipakai untuk menampilkan riwayat laporan milik satu pengguna tertentu dari sudut pandang admin, misalnya saat admin membuka detail satu pengguna dan ingin melihat semua laporan yang pernah dia buat atau kerjakan, ini berbeda dengan GET /api/user/profile yang hanya untuk pengguna melihat riwayat laporan miliknya sendiri.
+
+Endpoint GET /api/admin/laporan, khusus Admin, dipakai untuk mengambil daftar laporan dengan berbagai filter. Parameternya berupa query page, limit, search, status, prioritas, lokasi_id, lantai_id, start_date, end_date, sort_by dengan pilihan created_at, updated_at, prioritas, status, nama_karyawan, lokasi, dan sort_order dengan pilihan asc atau desc, nilai default desc. Kalau berhasil server mengembalikan kode 200 dengan body berisi laporan yang sudah dipaginasi lengkap dengan meta, lalu ruangan_terpopuler berupa array ruangan dengan laporan terbanyak yang masing masing punya ruangan_id, nama_ruangan, nama_lantai, nama_lokasi, total_laporan, dan laporan_aktif berupa total laporan yang sedang aktif.
+
+Endpoint GET /api/admin/laporan/{laporan_id}, khusus Admin, dipakai untuk mengambil detail satu laporan. Kalau berhasil server mengembalikan kode 200 dengan data berisi id, status, prioritas, nama_karyawan, lokasi, kategori, ob_ditugaskan, waktu_laporan, waktu_selesai, dikerjakan_at, selesai_at, dibatalkan_at, admin_catatan, deskripsi_kendala, dan bukti_foto yang berisi urls, diupload_oleh, dan jam_upload. Kalau format laporan_id tidak valid server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Kalau bukan admin server mengembalikan kode 403. Kalau laporan tidak ditemukan server mengembalikan kode 404. Kalau terjadi kesalahan server mengembalikan kode 500.
+
+Endpoint PATCH /api/admin/laporan/{laporan_id}, khusus Admin, dipakai untuk memperbarui status, prioritas, catatan, atau OB pada satu laporan secara sebagian. Setidaknya satu field harus berisi nilai yang tidak kosong, string kosong dianggap sama dengan tidak diisi sama sekali sehingga tidak memenuhi syarat ini. Ada aturan status dan pencatatan waktu otomatis, kalau status diubah jadi BELUM_DIKERJAKAN maka laporan dibuka kembali, ob_id dikosongkan dan dikerjakan_at dihapus. Kalau status diubah jadi PENDING maka dikerjakan_at diisi waktu saat ini, ini menandakan OB sedang mengerjakan, dan aturannya field ini butuh ob_id sudah terisi lebih dulu. Kalau status diubah jadi SELESAI maka selesai_at diisi waktu saat ini sebagai tanda persetujuan admin. Kalau status diubah jadi DIBATALKAN maka dibatalkan_at diisi waktu saat ini dan ob_id dikosongkan supaya laporan kembali ke antrean. Field admin_catatan disimpan sebagai catatan internal admin. Kalau berhasil server mengembalikan kode 200 dengan pesan laporan berhasil diperbarui. Kalau tidak ada field yang berisi nilai, atau nilai enum tidak valid, atau format UUID salah, atau status PENDING dikirim tanpa ob_id, server mengembalikan kode 400. Kalau tidak berwenang server mengembalikan kode 401. Kalau bukan admin server mengembalikan kode 403. Kalau laporan atau OB tidak ditemukan server mengembalikan kode 404. Kalau terjadi kesalahan server mengembalikan kode 500.
+
+Kalau sebelumnya ada laporan bug status laporan tidak berubah, urutan pemeriksaannya begini, pertama pastikan yang dikirim adalah nilai enum yang persis bukan label tampilan, kedua kalau status dikirim sebagai string kosong maka syarat tidak boleh kosong tidak terpenuhi sehingga wajarnya server membalas kode 400 bukan diam saja, ketiga status PENDING butuh ob_id atau server membalas 400, keempat pastikan frontend mengambil ulang data setelah menerima kode 200, dan kelima yang baru diketahui sekarang, cek juga apakah nilainya jadi basi karena OB memakai endpoint POST /api/ob/laporan/{laporan_id} untuk menandai selesai secara langsung, karena kedua endpoint ini menulis ke field yang sama.
+
+Endpoint DELETE /api/admin/laporan/{laporan_id}, khusus Admin, dipakai untuk menghapus laporan secara permanen beserta histori pekerjaan dan data kolaborasi terkait secara cascade. Kalau berhasil server mengembalikan kode 200 dengan pesan laporan berhasil dihapus. Kalau tidak berwenang server mengembalikan kode 401. Kalau bukan admin server mengembalikan kode 403. Kalau laporan tidak ditemukan server mengembalikan kode 404. Kalau terjadi kesalahan server mengembalikan kode 500. Ini adalah penghapusan permanen tanpa ada flag hapus lunak dan tanpa jalur pemulihan, jadi wajib ada dialog konfirmasi sebelum memanggil endpoint ini. Karena cascade mencakup data kolaborasi, kalau ada OB yang sedang membuka modal gabung untuk laporan yang dihapus ini, aksi selanjutnya dari OB itu akan mendapat kode 404, jadi harus ditangani dengan baik bukan malah membuat aplikasi error. Setelah berhasil menghapus, cache query di sisi admin maupun di sisi OB yang menyentuh laporan ini harus diperbarui.
+
+BAGIAN LOKASI, LANTAI, RUANGAN, KATEGORI
+
+Untuk Lokasi, endpoint GET /api/lokasi mengambil daftar semua lokasi tanpa parameter, kalau berhasil kode 200. Endpoint POST /api/lokasi membuat lokasi baru dengan body nama_lokasi berupa string dan jumlah_lantai berupa angka, kalau berhasil kode 201. Endpoint GET /api/lokasi/{lokasi_id} mengambil detail satu lokasi, kalau berhasil kode 200. Endpoint PATCH /api/lokasi/{lokasi_id} mengubah data lokasi dengan body yang sama seperti pembuatan, kalau berhasil kode 200. Endpoint DELETE /api/lokasi/{lokasi_id} menghapus lokasi, kalau berhasil kode 200.
+
+Untuk Lantai, endpoint GET /api/lantai mengambil daftar lantai dengan query opsional lokasi_id untuk memfilter, kalau berhasil kode 200. Endpoint POST /api/lantai membuat lantai baru dengan body lokasi_id dan nomor_lantai, kalau berhasil kode 201. Endpoint GET /api/lantai/{lantai_id} mengambil detail satu lantai dengan query opsional lokasi_id, kalau berhasil kode 200. Endpoint PATCH /api/lantai/{lantai_id} mengubah nomor_lantai dengan query opsional lokasi_id, kalau berhasil kode 200. Endpoint DELETE /api/lantai/{lantai_id} menghapus lantai dengan query opsional lokasi_id, kalau berhasil kode 200.
+
+Untuk Ruangan, endpoint GET /api/ruangan mengambil daftar ruangan dengan query opsional lantai_id, kalau berhasil kode 200. Endpoint POST /api/ruangan membuat ruangan baru dengan body lantai_id dan nama, kalau berhasil kode 201. Endpoint GET /api/ruangan/{ruangan_id} mengambil detail satu ruangan dengan query opsional lantai_id, kalau berhasil kode 200. Endpoint PATCH /api/ruangan/{ruangan_id} mengubah nama ruangan dengan query opsional lantai_id, kalau berhasil kode 200. Endpoint DELETE /api/ruangan/{ruangan_id} menghapus ruangan dengan query opsional lantai_id, kalau berhasil kode 200.
+
+Untuk Kategori, endpoint GET /api/kategori mengambil daftar kategori tanpa parameter, kalau berhasil kode 200. Endpoint POST /api/kategori membuat kategori baru dengan body nama_kategori, kalau berhasil kode 201. Endpoint GET /api/kategori/{kategori_id} mengambil detail satu kategori, kalau berhasil kode 200. Endpoint untuk mengubah kategori memakai metode PUT bukan PATCH, jadi PUT /api/kategori/{kategori_id} dengan body nama_kategori, kalau berhasil kode 200, ini satu satunya resource CRUD yang memakai PUT bukan PATCH, kalau ada hook yang salin tempel dari resource lain dan masih memanggil metode patch untuk kategori maka pembaruan akan gagal secara diam diam. Endpoint DELETE /api/kategori/{kategori_id} menghapus kategori, kalau berhasil kode 200.
+
+BAGIAN ADMIN TUGAS KATALOG
+
+Endpoint GET /api/tugas, khusus Admin, dipakai untuk mengambil daftar tugas katalog. Parameternya berupa query opsional kategori_id untuk memfilter. Kalau berhasil server mengembalikan kode 200 dengan data berupa array yang masing masing punya id, kategori_id, nama_tugas, lantai_id, ob_id, status, catatan, is_active, dikerjakan_at, selesai_at, created_at, dan updated_at.
+
+Endpoint POST /api/tugas, khusus Admin, dipakai untuk membuat tugas baru. Body permintaan berisi kategori_id, nama_tugas, lantai_id, catatan, dan sekarang ada field baru yaitu tanggal_selesai yang belum ada di versi dokumentasi sebelumnya, kemungkinan besar ini adalah tenggat waktu target penyelesaian tugas yang diinput saat pembuatan. Kalau berhasil server mengembalikan kode 201 dengan pesan tugas berhasil dibuat beserta data lengkap tugas yang baru dibuat, field ob_id dan status kemungkinan diisi otomatis dengan null dan BELUM_DIKERJAKAN.
+
+Endpoint GET /api/tugas/{tugas_id}, khusus Admin, dipakai untuk mengambil detail satu tugas. Kalau berhasil server mengembalikan kode 200 dengan bentuk data yang sama seperti daftar.
+
+Endpoint PATCH /api/tugas/{tugas_id}, khusus Admin, dipakai untuk mengubah data tugas secara sebagian. Body permintaan bisa berisi kategori_id, nama_tugas, lantai_id, catatan, is_active, status, dan ob_id. Kalau berhasil server mengembalikan kode 200 dengan pesan tugas berhasil diupdate beserta data lengkap. Perlu dicatat, admin bisa langsung mengisi status dan ob_id lewat endpoint ini, artinya admin bisa memaksa menugaskan atau memaksa menyelesaikan sebuah tugas tanpa melalui alur klaim dan selesaikan yang biasa dilakukan OB, jadi kalau ada dua sisi yang sama sama bisa mengubah data yang sama ini, yaitu sisi admin lewat endpoint ini dan sisi OB lewat klaim atau selesaikan, keduanya harus memperbarui cache query yang sama supaya tidak terjadi tampilan yang tidak sinkron antara sisi admin dan sisi OB.
+
+Endpoint DELETE /api/tugas/{tugas_id}, khusus Admin, dipakai untuk menghapus tugas. Kalau berhasil server mengembalikan kode 200 dengan pesan tugas berhasil dihapus.
+
+BAGIAN JADWAL CHECKLIST
+
+Ini adalah resource yang benar benar baru dan belum pernah tercatat sebelumnya. Fungsinya sebagai template jadwal yang menghasilkan instance Checklist Harian secara otomatis berdasarkan aturan pengulangan.
+
+Endpoint GET /api/jadwal-checklist, khusus Admin, dipakai untuk mengambil daftar semua jadwal checklist. Kalau berhasil server mengembalikan kode 200 dengan data langsung berupa array, bukan dibungkus objek success dan data seperti kebanyakan endpoint lain, jadi frontend harus hati hati saat membongkar responsnya karena bentuknya berbeda dari konvensi pembungkusan yang biasa dipakai di seluruh API ini. Setiap item punya id, nama_tugas, kategori_id, lantai_id, ob_id, hari berupa array string yang kemungkinan berisi nama hari, tanggal_ulang berupa angka yang kemungkinan berarti interval pengulangan dalam hari, tanggal_spesifik berupa array tanggal untuk jadwal yang tidak berulang tapi ditentukan tanggal pastinya, tanggal_mulai dan tanggal_selesai sebagai rentang waktu berlakunya jadwal, created_at, dan updated_at.
+
+Endpoint POST /api/jadwal-checklist, khusus Admin, dipakai untuk membuat jadwal checklist baru sebagai template. Body permintaan berisi nama_tugas, kategori_id, lantai_id, ob_id, hari berupa array string, tanggal_ulang berupa angka, tanggal_spesifik berupa array tanggal, tanggal_mulai, dan tanggal_selesai. Kalau berhasil server mengembalikan kode 201 dengan pesan jadwal checklist berhasil dibuat. Perlu diperhatikan baik baik, kalau jadwal yang baru dibuat ini kebetulan cocok dengan hari ini, maka instance nyata langsung dibuat otomatis di Checklist Harian pada saat itu juga, dan notifikasi WebSocket dengan tipe PENUGASAN_CHECKLIST langsung dikirim ke semua OB. Jadi kalau ada bug soal checklist harian muncul tiba tiba padahal tidak ada yang membuatnya secara manual, salah satu kemungkinan penyebabnya adalah jadwal checklist ini yang baru saja cocok dengan tanggal hari ini.
+
+Endpoint GET /api/jadwal-checklist/{jadwal_checklist_id}, khusus Admin, dipakai untuk mengambil detail satu jadwal checklist. Kalau berhasil server mengembalikan kode 200 dengan bentuk data yang sama seperti daftar tapi kali ini objek tunggal bukan array, dan juga tidak dibungkus dalam objek success dan data.
+
+Endpoint PATCH /api/jadwal-checklist/{jadwal_checklist_id}, khusus Admin, dipakai untuk mengubah jadwal checklist yang sudah ada. Body permintaannya sama seperti pembuatan. Kalau berhasil server mengembalikan kode 200 dengan pesan jadwal checklist berhasil diupdate.
+
+Endpoint DELETE /api/jadwal-checklist/{jadwal_checklist_id}, khusus Admin, dipakai untuk menghapus jadwal checklist. Kalau berhasil server mengembalikan kode 200 dengan pesan jadwal checklist berhasil dihapus. Perlu dipastikan juga apakah menghapus jadwal ini akan ikut menghapus instance Checklist Harian yang sudah pernah dihasilkan sebelumnya, atau hanya menghentikan pembuatan instance baru ke depannya, ini tidak dijelaskan di dokumentasi jadi harus dikonfirmasi ke backend sebelum tombol hapus jadwal ditampilkan ke pengguna dengan asumsi yang salah.
+
+BAGIAN CONSTANTS
+
+Endpoint GET /api/constants, wajib sudah login tapi tidak dibatasi role tertentu, dipakai untuk mengambil daftar nilai konstanta yang dipakai frontend untuk merender form dan dropdown secara dinamis. Kalau berhasil server mengembalikan kode 200 dengan data berisi hari sebagai array string, checklist_status sebagai array string, tugas_status sebagai array string, laporan_status sebagai array string, laporan_priority sebagai array string, kolaborasi_status sebagai array string, dan user_role sebagai array string. Perlu dicatat, deskripsi endpoint ini menyebutkan bahwa cakupannya juga termasuk ref_tipe, tapi contoh skema responsnya tidak menampilkan field ref_tipe sama sekali, jadi ada ketidakcocokan antara deskripsi dan contoh respons yang perlu dikonfirmasi ke backend, apakah field ref_tipe memang ada di respons sungguhan tapi lupa dicontohkan, atau memang belum diimplementasikan.
+
+Endpoint ini sangat penting dan sebaiknya dipanggil sekali saat aplikasi dimuat lalu disimpan di cache lewat hook useConstants, supaya semua dropdown status laporan, status checklist, status tugas, prioritas laporan, status kolaborasi, hari, dan role di seluruh aplikasi mengambil pilihannya dari sini, bukan dari nilai string yang ditulis manual di kode. Ini juga menjawab beberapa catatan sebelumnya yang meminta supaya nilai enum tertentu diverifikasi dulu ke backend sebelum dipakai, sekarang caranya tinggal memanggil endpoint ini.
+
+BAGIAN CHECKLIST HARIAN
+
+Perlu dicatat di awal, ada dua versi berbeda dari endpoint GET /api/checklist-harian yang pernah disampaikan dan keduanya tidak cocok satu sama lain, jadi harus dikonfirmasi ke backend versi mana yang sebenarnya sedang berjalan sebelum menyesuaikan kode frontend. Versi yang lebih lama menyebutkan endpoint ini punya parameter query page, limit, search berdasarkan nama tugas, lokasi_id, lantai_id, dan status dengan pilihan BELUM_DIKERJAKAN, SEDANG_DIKERJAKAN, SELESAI, TERLEWAT, dengan respons yang dipaginasi. Versi yang lebih baru menyebutkan endpoint ini tidak punya parameter sama sekali, artinya mengambil semua data checklist harian sekaligus, dan bentuk datanya langsung berupa array datar tanpa meta pagination, dengan setiap item sekarang membawa field tanggal, ob_id, lantai_id, kategori_id, nama_tugas, status, catatan, dikerjakan_at, selesai_at, dan field baru yaitu terlewat_at sebagai waktu tercatatnya status terlewat, ditambah objek kategori bersarang berisi id dan nama_kategori, objek lantai bersarang berisi id, nomor_lantai, dan lokasi_id, serta objek ob bersarang berisi id, nama_lengkap, dan username. Kalau memang versi terbaru ini yang benar dan parameter filter sungguh sungguh dihapus dari backend, maka semua fitur pencarian dan filter di halaman checklist harian di frontend, seperti filter gedung dan filter lantai yang sekarang ada di halaman Manajemen Tugas, harus dipindahkan supaya dilakukan di sisi frontend saja dari data yang sudah diambil penuh, atau kalau datanya terlalu banyak untuk diambil sekaligus, ini harus dikembalikan lagi ke backend sebagai permintaan supaya parameter filter dan pagination dikembalikan.
+
+Endpoint GET /api/checklist-harian/{checklist_harian_id}, dipakai OB, HR, dan Admin, untuk mengambil detail satu checklist harian. Kalau berhasil server mengembalikan kode 200 dengan data checklist.
+
+Endpoint PATCH /api/checklist-harian/{checklist_harian_id}, khusus Admin, dipakai untuk mengubah data checklist harian. Body permintaan berisi nama_tugas sebagai teks bebas bukan lagi merujuk ke tugas_id, kategori_id, lantai_id tanpa lokasi_id karena field lokasi_id sudah dihapus dari body ini, ob_id, status, dan catatan. Kalau berhasil server mengembalikan kode 200 dengan pesan checklist berhasil diupdate. Field status di sini bertipe string bebas di skema tapi nilai yang benar benar valid tetap harus salah satu dari empat nilai enum checklist harian, kirim nilai enum yang persis bukan label tampilan, dan ambil ulang data setelah pembaruan berhasil.
+
+Endpoint DELETE /api/checklist-harian/{checklist_harian_id}, khusus Admin, dipakai untuk menghapus checklist harian. Kalau berhasil server mengembalikan kode 200 dengan pesan checklist berhasil dihapus.
+
+Endpoint POST /api/checklist-harian untuk membuat checklist harian baru secara langsung juga tercatat di versi sebelumnya, body permintaannya berisi nama_tugas, kategori_id, lantai_id, dan ob_id, kalau berhasil server mengembalikan kode 201 dengan pesan checklist berhasil dibuat, dan server mengirim notifikasi WebSocket dengan tipe PENUGASAN_CHECKLIST ke semua OB. Endpoint ini kemungkinan masih berlaku berdampingan dengan Jadwal Checklist, jadi ada dua cara membuat checklist harian, yang pertama langsung sekali pakai lewat endpoint ini, yang kedua otomatis berulang lewat template Jadwal Checklist.
+
+BAGIAN NOTIFIKASI
+
+Endpoint GET /api/notifikasi, bisa dipakai semua role asal sudah login, dipakai untuk mengambil notifikasi hari ini dan kemarin. Kalau berhasil server mengembalikan kode 200 dengan data berisi hari_ini dan kemarin, masing masing berupa array notifikasi yang punya id, penerima_id, pengirim_id, tipe, judul, pesan, is_read, read_at, ref_id, ref_tipe, created_at, dan objek pengirim berisi id dan nama_lengkap. Field ref_id dan ref_tipe ini dipakai untuk mengarahkan pengguna ke halaman detail yang tepat saat notifikasi diklik, misalnya langsung membuka detail laporan, tugas, atau checklist yang bersangkutan. Nilai yang valid untuk ref_tipe belum disebutkan secara eksplisit di manapun, kemungkinan sekarang bisa diambil dari endpoint constants yang baru, ini perlu dicek ulang karena skema constants yang diberikan juga tidak menampilkan field ref_tipe secara eksplisit.
+
+Endpoint GET /api/notifikasi/unread-count, bisa dipakai semua role, dipakai untuk menghitung jumlah notifikasi yang belum dibaca. Kalau berhasil server mengembalikan kode 200 dengan data berupa angka mentah bukan objek, contohnya angka lima.
+
+Endpoint PATCH /api/notifikasi/read-all, bisa dipakai semua role, dipakai untuk menandai semua notifikasi sebagai sudah dibaca. Kalau berhasil server mengembalikan kode 200.
+
+Endpoint PATCH /api/notifikasi/{notification_id}/read, bisa dipakai semua role, dipakai untuk menandai satu notifikasi sebagai sudah dibaca. Kalau berhasil server mengembalikan kode 200.
+
+Tipe notifikasi yang sudah diketahui sejauh ini adalah ADMIN_MENUGASKAN_OB, LAPORAN_DIKERJAKAN, LAPORAN_BERES, LAPORAN_DIBATALKAN, LAPORAN_BARU, GABUNG_LAPORAN, GABUNG_DISETUJUI, GABUNG_DIBATALKAN, KELUAR_KOLABORASI, DIKELUARKAN_KOLABORASI, KOLABORASI_DIBUKA, dan PENUGASAN_CHECKLIST.
+
+BAGIAN WEBSOCKET
+
+Endpoint GET /ws, bisa dipakai semua role asal sudah login, dipakai untuk membuka koneksi WebSocket demi menerima notifikasi secara real time. Alamatnya berupa ws diikuti nama host lalu path ws dengan parameter query token yang wajib diisi dengan JWT yang sama seperti dipakai untuk otorisasi Bearer biasa. Begitu koneksi berhasil, server mengirim event berupa objek dengan field type bernilai CONNECTED. Setelah itu, setiap ada notifikasi baru, server mengirim objek notifikasi secara real time berisi id, penerima_id, pengirim_id, tipe, judul, pesan, is_read, read_at, dan created_at. Kalau koneksi berhasil dibuka, statusnya 101 yang berarti switching protocols. Kalau token tidak valid atau kosong, statusnya 400.
+
+Pola standar yang disarankan, saat aplikasi dimuat, ambil dulu data awal lewat GET /api/notifikasi/unread-count dan GET /api/notifikasi, baru setelah itu terapkan setiap notifikasi yang masuk lewat WebSocket secara bertahap seperti menambah angka belum dibaca dan menambahkan ke daftar hari ini, bukan mengambil ulang seluruh data setiap kali ada notifikasi masuk, supaya tidak terjadi penghitungan ganda.
+
+CATATAN PENTING YANG HARUS DIPERHATIKAN, RANGKUMAN SEMUA HAL YANG PERNAH DITEMUKAN
+
+Yang pertama, endpoint PATCH dan POST pada path yang sama persis yaitu /api/ob/laporan/{laporan_id} melakukan dua hal yang sama sekali berbeda, yaitu mengambil laporan dan mengirim hasil pekerjaan. Kesalahan menulis metode HTTP di sini tidak akan gagal dengan jelas, tapi diam diam menjalankan aksi yang salah, jadi wajib diperiksa metodenya di setiap titik pemanggilan.
+
+Yang kedua, status laporan SELESAI sekarang punya dua penulis independen, yaitu OB lewat POST /api/ob/laporan/{laporan_id} dan Admin lewat PATCH /api/admin/laporan/{laporan_id}. Kalau produk memang mengharapkan admin punya kata akhir soal laporan selesai, ini perlu didiskusikan lagi sebagai keputusan produk bukan sekadar perbaikan bug.
+
+Yang ketiga, ada tiga hal yang sama sama disebut tugas di sistem ini, yaitu Laporan, Checklist Harian, dan Tugas katalog ad hoc, dengan status dan nama field yang saling tumpang tindih seperti nama_tugas, status, ob_id, dikerjakan_at, dan selesai_at. Selalu pastikan dulu resource dan tabel mana yang sebenarnya sedang disentuh sebelum memakai ulang komponen atau fungsi pemetaan dari resource lain.
+
+Yang keempat, field is_active sekarang ada secara eksplisit di PATCH /api/admin/user/{user_id}. Kalau ada laporan bug status pengguna tidak berubah, ini titik yang paling mungkin jadi penyebabnya, pastikan pengiriman boolean asli bukan string, dan pastikan ada pengambilan ulang data setelah berhasil.
+
+Yang kelima, POST /api/admin/user/{user_id}/renew-token adalah jawaban untuk masalah token aktivasi yang macet. Kalau ada laporan bug soal token aktivasi, periksa dulu apakah tombol untuk memanggil endpoint ini sudah ada di antarmuka sebelum menelusuri ulang logika token dari awal.
+
+Yang keenam, body permintaan Checklist Harian sudah berubah, field tugas_id dan lokasi_id dihapus, diganti dengan nama_tugas sebagai teks bebas dan hanya lantai_id yang dipakai untuk lokasi. Kalau ada form atau hook yang masih mengirim bentuk lama, itu akan tidak cocok atau ditolak backend.
+
+Yang ketujuh, /api/tugas di sisi Admin dan /api/ob/tugas di sisi OB adalah dua sudut pandang dari tabel yang sama, jadi perubahan status atau ob_id dari salah satu sisi harus memperbarui cache query di kedua sisi.
+
+Yang kedelapan, tampilan halaman Performa OB tidak cocok dengan endpoint performa yang didokumentasikan untuk satu user_id saja dengan data yang masih kosong. Halaman itu sebenarnya adalah papan peringkat gabungan banyak staf. Jangan mulai membangun halaman ini berdasarkan tebakan bentuk data, pastikan dulu lewat backend.
+
+Yang kesembilan, endpoint edit Kategori memakai metode PUT sedangkan semua resource lain memakai PATCH, hook yang salin tempel dari resource lain berisiko gagal secara diam diam kalau masih memanggil metode patch untuk kategori.
+
+Yang kesepuluh, status PENDING di PATCH /api/admin/laporan/{laporan_id} mewajibkan ob_id sudah terisi lebih dulu, kalau tidak server membalas kode 400.
+
+Yang kesebelas, string kosong dianggap sama dengan tidak diisi sama sekali untuk aturan minimal satu field terisi di PATCH /api/admin/laporan/{laporan_id}.
+
+Yang kedua belas, checkbox Ingat Saya di halaman login tidak punya field yang cocok di body permintaan login, perlu dikonfirmasi apakah ini murni urusan penyimpanan token di sisi frontend atau backend perlu parameter tambahan.
+
+Yang ketiga belas, DELETE /api/admin/laporan/{laporan_id} adalah penghapusan permanen secara cascade tanpa jalur pemulihan, wajib ada konfirmasi sebelum dipanggil, dan cache di sisi admin maupun OB harus diperbarui setelahnya.
+
+Yang keempat belas, pola sesi bersamaan dan data basi yang sama juga berlaku untuk kepemilikan ob_id, baik saat mengambil laporan yang membalas kode 409 kalau sudah diambil OB lain, maupun saat membatalkan atau mengeluarkan anggota kolaborasi yang membalas kode 403 kalau bukan pemiliknya, keduanya menjaga dari jenis race condition yang sama, server adalah sumber kebenaran, selalu ambil ulang data setelah aksi yang mengubah state, dan tampilkan kesalahan konflik ke pengguna alih alih menelannya diam diam.
+
+Yang kelima belas, baru ditemukan sekarang, alur persetujuan tugas ad hoc dan checklist harian oleh admin sekarang sudah jelas endpointnya, yaitu GET /api/admin/tugas/approval-list dan PATCH /api/admin/tugas/{tugas_id}/approve untuk tugas ad hoc, serta GET /api/admin/checklist-harian/approval-list dan PATCH /api/admin/checklist-harian/{checklist_harian_id}/approve untuk checklist harian. Ini menjawab kebutuhan tombol approve di halaman Manajemen Tugas untuk baris yang berstatus selesai tapi menunggu review admin. Kalau sebelumnya kode di frontend menganggap tombol approve cukup mengirim ulang status SELESAI ke endpoint update biasa, itu perlu diperbaiki supaya memanggil endpoint approve yang benar ini.
+
+Yang keenam belas, endpoint GET /api/admin/tugas/stats adalah sumber data yang benar untuk tiga kartu statistik di bagian atas halaman Manajemen Tugas, yaitu total, diproses OB, dan menunggu persetujuan, jadi kartu kartu itu tidak perlu dihitung manual dari daftar data di frontend, cukup panggil endpoint ini.
+
+Yang ketujuh belas, Jadwal Checklist adalah resource baru yang bisa menghasilkan instance Checklist Harian secara otomatis kalau jadwalnya cocok dengan hari ini, lengkap dengan notifikasi WebSocket PENUGASAN_CHECKLIST yang ikut terkirim. Kalau ada checklist harian yang muncul tanpa dibuat manual, cek dulu ke Jadwal Checklist sebagai kemungkinan penyebabnya.
+
+Yang kedelapan belas, endpoint GET /api/constants sekarang tersedia untuk mengambil daftar resmi nilai hari, status checklist, status tugas, status laporan, prioritas laporan, status kolaborasi, dan role pengguna. Sebaiknya semua dropdown yang berkaitan dengan nilai nilai ini di frontend memakai data dari endpoint ini, bukan nilai yang ditulis manual di kode.
+
+Yang kesembilan belas, ada dua versi endpoint GET /api/checklist-harian yang saling tidak cocok, satu versi punya filter dan pagination, versi lain tidak punya parameter sama sekali dan datanya langsung berupa array datar dengan struktur item yang lebih kaya berisi objek bersarang kategori, lantai, dan ob, ditambah field baru terlewat_at. Ini harus dikonfirmasi ke backend versi mana yang benar benar berjalan sebelum menyesuaikan kode frontend, supaya fitur pencarian dan filter di halaman checklist harian tidak tiba tiba rusak.
+
+Yang kedua puluh, deskripsi endpoint GET /api/constants menyebutkan cakupannya termasuk ref_tipe, tapi contoh skema respons yang diberikan tidak menampilkan field ref_tipe sama sekali, ini perlu dikonfirmasi ke backend.

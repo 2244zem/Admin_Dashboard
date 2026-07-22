@@ -19,9 +19,9 @@ const fadeUp = {
 const STATUS_MAP: Record<string, string | undefined> = {
   "Semua Status": undefined,
   "Menunggu": "BELUM_DIKERJAKAN",
-  "Ditugaskan": "PENDING",
+  "Dalam Proses": "PENDING",
   "Selesai": "SELESAI",
-  "Ditolak": "DIBATALKAN",
+  "Menunggu Persetujuan Admin": "DIBATALKAN",
 };
 
 const STATUS_OPTIONS = Object.keys(STATUS_MAP);
@@ -160,7 +160,7 @@ const Reports = () => {
 
   const totalLaporanAktif = useMemo(() => {
     return filteredByLevel.filter(
-      (row) => row.status !== "Selesai" && row.status !== "Ditolak"
+      (row) => row.status !== "Selesai" && row.status !== "Menunggu Persetujuan Admin"
     ).length;
   }, [filteredByLevel]);
 
@@ -188,7 +188,7 @@ const Reports = () => {
   };
   const closeDetailModal = () => setDetailTarget(null);
 
-  const handleDetailStatusChange = async (newStatus: "Menunggu" | "Ditugaskan" | "Selesai" | "Ditolak") => {
+  const handleDetailStatusChange = async (newStatus: "Menunggu" | "Dalam Proses" | "Selesai" | "Menunggu Persetujuan Admin") => {
     if (!detailTarget) return;
     try {
       await updateLaporan(detailTarget.backendId || String(detailTarget.id), {
@@ -602,7 +602,7 @@ const Reports = () => {
 const EDIT_LOKASI_OPTIONS = ["Toilet Lantai 2", "Lobi Utama", "Lantai 4 - Ruang Rapat 4C", "Parkir Barat B2"];
 const EDIT_KATEGORI_OPTIONS = ["Kebersihan Fasilitas", "Kerusakan Fasilitas", "Ketersediaan Barang", "Lainnya"];
 const EDIT_OB_OPTIONS = ["Rahman", "Slamet Rahardjo", "Samsul Bahri", "Ujang Komar", "Bambang S.", "Iwan Setiawan"];
-const EDIT_STATUS_OPTIONS = ["Menunggu", "Ditugaskan", "Selesai", "Ditolak"];
+const EDIT_STATUS_OPTIONS = ["Menunggu", "Dalam Proses", "Selesai", "Menunggu Persetujuan Admin"];
 
 interface EditLaporanModalProps {
   laporan: Laporan | null;
