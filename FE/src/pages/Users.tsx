@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import useUsers from "../hooks/useUsers";
+import useRoles from "../hooks/useRoles";
 import { useToast } from "../hooks/useToast";
 import AddUserModal from "../components/AddUserModal";
 import type { AddUserPayload } from "../components/AddUserModal";
 import EditUserModal from "../components/EditUserModal";
 import type { EditUserPayload } from "../components/EditUserModal";
-import { ROLE_OPTIONS, STATUS_USER_COLOR } from "../types/user";
-import type { AppUser, UserRole } from "../types/user";
+import { STATUS_USER_COLOR } from "../types/user";
+import type { AppUser } from "../types/user";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import EmptyState from "../components/ui/EmptyState";
@@ -127,17 +128,29 @@ const Users = () => {
 
   // --- Filter draft vs applied ---
   const [searchDraft, setSearchDraft] = useState("");
-  const [roleDraft, setRoleDraft] = useState<UserRole | "Semua Role">("Semua Role");
+  const [roleDraft, setRoleDraft] = useState("Semua Role");
   const [appliedSearch, setAppliedSearch] = useState("");
-  const [appliedRole, setAppliedRole] = useState<UserRole | "Semua Role">("Semua Role");
+  const [appliedRole, setAppliedRole] = useState("");
+
+  const { roles: roleOptions } = useRoles();
+  const roleUuidMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const r of roleOptions) {
+      let label = r.nama_role.charAt(0).toUpperCase() + r.nama_role.slice(1);
+      if (label.toLowerCase() === "ob") label = "OB";
+      if (label.toLowerCase() === "hr") label = "HR";
+      map[label] = r.id;
+    }
+    return map;
+  }, [roleOptions]);
 
   // Search + role filter dijalankan di server (GET /api/admin/user?search=&role_id=)
   const userFilters = useMemo(
     () => ({
       search: appliedSearch,
-      role_id: appliedRole !== "Semua Role" ? ROLE_UUID_MAP[appliedRole] : undefined,
+      role_id: appliedRole && appliedRole !== "Semua Role" ? (roleUuidMap[appliedRole] ?? appliedRole) : undefined,
     }),
-    [appliedSearch, appliedRole]
+    [appliedSearch, appliedRole, roleUuidMap]
   );
 
   const { userList, isLoading, error, fetchUsers, addUser, updateUser, deleteUser } = useUsers(userFilters);
@@ -152,7 +165,7 @@ const Users = () => {
     setSearchDraft("");
     setRoleDraft("Semua Role");
     setAppliedSearch("");
-    setAppliedRole("Semua Role");
+    setAppliedRole("");
     setCurrentPage(1);
   };
 
@@ -340,15 +353,16 @@ const Users = () => {
               <div className="relative">
                 <select
                   value={roleDraft}
-                  onChange={(e) => setRoleDraft(e.target.value as UserRole)}
+                  onChange={(e) => setRoleDraft(e.target.value)}
                   className="w-full bg-white text-gray-800 text-sm rounded-xl pl-4 pr-10 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all duration-200 appearance-none cursor-pointer dark:bg-surface"
                 >
                   <option value="Semua Role">Semua Role</option>
-                  {ROLE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
+                  {roleOptions.map((r) => {
+                    let label = r.nama_role.charAt(0).toUpperCase() + r.nama_role.slice(1);
+                    if (label.toLowerCase() === "ob") label = "OB";
+                    if (label.toLowerCase() === "hr") label = "HR";
+                    return <option key={r.id} value={label}>{label}</option>;
+                  })}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

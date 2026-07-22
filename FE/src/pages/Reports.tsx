@@ -5,6 +5,8 @@ import { STATUS_COLOR } from "../types/laporan";
 import type { Laporan } from "../types/laporan";
 import ReportDetailModal from "../components/ReportDetailModal";
 import useLaporan from "../hooks/useLaporan";
+import useLokasi from "../hooks/useLokasi";
+import useKategori from "../hooks/useKategori";
 import { useToast } from "../hooks/useToast";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
@@ -116,6 +118,22 @@ const Reports = () => {
   const [filterLevel, setFilterLevel] = useState("Semua Level");
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Real data dari API
+  const { gedungList } = useLokasi();
+  const { kategoriList } = useKategori();
+
+  // Build dropdown options from real API data
+  const lokasiOptions = useMemo(() => {
+    const opts: string[] = [];
+    gedungList.forEach((g) => g.lantai?.forEach((l) => opts.push(`${g.nama} - ${l.nama}`)));
+    return opts;
+  }, [gedungList]);
+
+  const kategoriOptions = useMemo(() =>
+    kategoriList.map((k) => ({ id: k.id, nama: k.nama })),
+    [kategoriList]
+  );
+
   const apiFilters = useMemo(() => ({
     // Convert UI status label to backend enum (server-side filter)
     status: STATUS_MAP[filterStatus],
@@ -214,7 +232,6 @@ const Reports = () => {
       await updateLaporan(_updated.backendId || String(_updated.id), {
         status: _updated.status,
         admin_catatan: _updated.desc,
-        assignedTo: _updated.assignedTo,
       });
       closeEditModal();
       push("success", "Laporan diperbarui");
@@ -589,7 +606,7 @@ const Reports = () => {
       />
 
       {/* MODAL EDIT LAPORAN */}
-      <EditLaporanModal key={editTarget?.backendId ?? editTarget?.id} laporan={editTarget} onClose={closeEditModal} onSave={handleSaveEdit} />
+      <EditLaporanModal key={editTarget?.backendId ?? editTarget?.id} laporan={editTarget} onClose={closeEditModal} onSave={handleSaveEdit} lokasiOptions={lokasiOptions} kategoriOptions={kategoriOptions} />
 
       {/* MODAL KONFIRMASI HAPUS LAPORAN */}
       <DeleteLaporanModal laporan={deleteTarget} onClose={closeDeleteConfirm} onConfirm={handleConfirmDelete} />
@@ -599,18 +616,17 @@ const Reports = () => {
 };
 
 // ---------- Modal Edit Laporan (lokal, hanya dipakai di halaman ini) ----------
-const EDIT_LOKASI_OPTIONS = ["Toilet Lantai 2", "Lobi Utama", "Lantai 4 - Ruang Rapat 4C", "Parkir Barat B2"];
-const EDIT_KATEGORI_OPTIONS = ["Kebersihan Fasilitas", "Kerusakan Fasilitas", "Ketersediaan Barang", "Lainnya"];
-const EDIT_OB_OPTIONS = ["Rahman", "Slamet Rahardjo", "Samsul Bahri", "Ujang Komar", "Bambang S.", "Iwan Setiawan"];
 const EDIT_STATUS_OPTIONS = ["Menunggu", "Dalam Proses", "Selesai", "Menunggu Persetujuan Admin"];
 
 interface EditLaporanModalProps {
   laporan: Laporan | null;
   onClose: () => void;
   onSave: (updated: Laporan) => void;
+  lokasiOptions?: string[];
+  kategoriOptions?: { id: string; nama: string }[];
 }
 
-const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) => {
+const EditLaporanModal = ({ laporan, onClose, onSave, lokasiOptions = [], kategoriOptions = [] }: EditLaporanModalProps) => {
   // Form diinisialisasi sekali dari laporan. Parent memasang `key` per-laporan
   // sehingga komponen remount (dan form ter-reset) saat laporan target berubah.
   const [form, setForm] = useState<{
@@ -618,7 +634,6 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
     loc: string;
     area: string;
     status: string;
-    assignedTo: string;
     desc: string;
     catatanOb: string;
   } | null>(() =>
@@ -626,9 +641,8 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
       ? {
           name: laporan.name,
           loc: laporan.loc,
-          area: laporan.area ?? EDIT_KATEGORI_OPTIONS[0],
+          area: laporan.area ?? (kategoriOptions[0]?.nama ?? ""),
           status: laporan.status,
-          assignedTo: laporan.assignedTo ?? "",
           desc: laporan.desc,
           catatanOb: "",
         }
@@ -648,7 +662,6 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
       area: form.area as Laporan["area"],
       status: form.status as Laporan["status"],
       desc: form.desc,
-      assignedTo: form.assignedTo,
     });
   };
 
@@ -731,46 +744,39 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
                     onChange={(e) => setForm({ ...form, loc: e.target.value })}
                     className="w-full text-sm font-medium text-blue-600 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
                   >
-                    {[form.loc, ...EDIT_LOKASI_OPTIONS.filter((l) => l !== form.loc)].map((l) => (
-                      <option key={l} value={l}>{l}</option>
-                    ))}
+                    {lokasiOptions.includes(form.loc) ? (
+                      [form.loc, ...lokasiOptions.filter((l) => l !== form.loc)].map((l) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))
+                    ) : (
+                      lokasiOptions.map((l) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
 
-              {/* Kategori / OB yang Mengerjakan */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    Area
-                  </p>
-                  <select
-                    value={form.area}
-                    onChange={(e) => setForm({ ...form, area: e.target.value })}
-                    className="w-full text-sm font-medium text-gray-800 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
-                  >
-                    {[form.area, ...EDIT_KATEGORI_OPTIONS.filter((k) => k !== form.area)].map((k) => (
+              {/* Kategori */}
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                  Area
+                </p>
+                <select
+                  value={form.area}
+                  onChange={(e) => setForm({ ...form, area: e.target.value })}
+                  className="w-full text-sm font-medium text-gray-800 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                >
+                  {kategoriOptions.find((k) => k.nama === form.area) ? (
+                    [form.area, ...kategoriOptions.filter((k) => k.nama !== form.area).map((k) => k.nama)].map((k) => (
                       <option key={k} value={k}>{k}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    OB yang Mengerjakan
-                  </p>
-                  <select
-                    value={form.assignedTo}
-                    onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-                    className="w-full text-sm font-medium text-gray-800 rounded-lg px-3 py-2 border border-gray-200 outline-none focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer"
-                  >
-                    <option value="">Belum ditugaskan</option>
-                    {[form.assignedTo, ...EDIT_OB_OPTIONS.filter((o) => o !== form.assignedTo)]
-                      .filter(Boolean)
-                      .map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                  </select>
-                </div>
+                    ))
+                  ) : (
+                    kategoriOptions.map((k) => (
+                      <option key={k.id} value={k.nama}>{k.nama}</option>
+                    ))
+                  )}
+                </select>
               </div>
 
               {/* Waktu Laporan / Waktu Selesai (read-only) */}
@@ -828,9 +834,9 @@ const EditLaporanModal = ({ laporan, onClose, onSave }: EditLaporanModalProps) =
                     className="w-full h-56 object-cover"
                   />
                 </div>
-                {form.assignedTo && waktuSelesai && (
+                {laporan.assignedTo && waktuSelesai && (
                   <p className="text-xs text-gray-400 mt-1.5">
-                    Diupload oleh {form.assignedTo} pada {new Date(waktuSelesai).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB
+                    Diupload oleh {laporan.assignedTo} pada {new Date(waktuSelesai).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB
                   </p>
                 )}
               </div>

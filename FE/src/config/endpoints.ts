@@ -35,4 +35,9 @@ export const ENDPOINTS = {
   NOTIFICATIONS_MARK_READ: (id: string) => `/api/notifikasi/${id}/read`,
 
   DASHBOARD_STATS: "/api/admin/dashboard",
+
+  SKILL_DEFINITIONS: "/api/skill/definitions",
+  SKILL_DEFINITION_DETAIL: (id: string) => `/api/skill/definitions/${id}`,
+  SKILL_ASSIGN: "/api/skill/assign",
+  SKILL_OB: (ob_id: string) => `/api/skill/ob/${ob_id}`,
 };

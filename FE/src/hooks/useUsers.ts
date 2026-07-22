@@ -42,28 +42,45 @@ async function fetchUserDetail(id: string): Promise<AppUser | null> {
   catch { return null; }
 }
 
-// Normalize role from backend response - aligned with spec
 const normalizeRole = (roleData: unknown): AppUser["role"] => {
-  const r = roleData as { role_id?: unknown; role?: { id?: unknown }; nama_role?: unknown; name?: unknown } | string | null | undefined;
-  // Check for UUID in role_id (try dynamic mapping first, fallback to name-based)
-  const tryId = typeof r === "string" ? r : r?.role_id != null ? String(r.role_id) : null;
-  if (tryId) {
-    const name = getRoleName(tryId);
-    if (name !== tryId) return name as AppUser["role"];
+  const r = roleData as { role_id?: unknown; role?: { id?: unknown; nama_role?: string }; nama_role?: unknown; name?: unknown } | string | null | undefined;
+  if (!r) return "Karyawan";
+
+  // Direct nama_role string (e.g. nested role object from API)
+  if (typeof r === "object" && !Array.isArray(r)) {
+    if (typeof r.nama_role === "string") {
+      const v = r.nama_role.toLowerCase();
+      if (v.includes("admin")) return "Admin";
+      if (v === "hr" || v.includes("hr")) return "HR";
+      if (v === "ob" || v.includes("ob")) return "OB";
+      if (v.includes("karyawan")) return "Karyawan";
+    }
+    if (r.role && typeof r.role === "object" && r.role !== null) {
+      const nestedName = (r.role as { nama_role?: string }).nama_role;
+      if (nestedName) return normalizeRole({ nama_role: nestedName });
+      const nestedId = String((r.role as { id?: unknown }).id ?? "");
+      if (nestedId) {
+        const name = getRoleName(nestedId);
+        if (name !== nestedId) return name as AppUser["role"];
+      }
+    }
+    const uuid = r.role_id != null ? String(r.role_id) : null;
+    if (uuid) {
+      const name = getRoleName(uuid);
+      if (name !== uuid) return name as AppUser["role"];
+    }
   }
-  // Check nested role object
-  if (r && typeof r !== "string" && r.role && typeof r.role === "object" && "id" in r.role) {
-    const nestedId = String((r.role as { id?: unknown }).id ?? "");
-    const nestedName = getRoleName(nestedId);
-    if (nestedName !== nestedId) return nestedName as AppUser["role"];
+
+  if (typeof r === "string") {
+    const name = getRoleName(r);
+    if (name !== r) return name as AppUser["role"];
+    const v = r.toLowerCase();
+    if (v.includes("admin")) return "Admin";
+    if (v === "hr" || v.includes("hr")) return "HR";
+    if (v === "ob" || v.includes("ob")) return "OB";
+    if (v.includes("karyawan")) return "Karyawan";
   }
-  // Fallback to name-based matching
-  const value = String(
-    (r && typeof r !== "string" ? (r.nama_role ?? r.name) : r) ?? ""
-  ).toLowerCase();
-  if (value.includes("admin")) return "Admin";
-  if (value.includes("hr") || value.includes("human resource")) return "HR";
-  if (value.includes("ob") || value.includes("office")) return "OB";
+
   return "Karyawan";
 };
 
@@ -104,8 +121,7 @@ const OB_KEY = ["ob"] as const;
 const KARYAWAN_KEY = ["karyawan"] as const;
 
 async function fetchUsers(filters?: { search?: string; role_id?: string }): Promise<AppUser[]> {
-  // Forward search + role_id ke API (GET /api/admin/user mendukung keduanya);
-  // ambil hingga 1000 row agar filter/pagination bekerja di sisi client.
+  await loadRoleMapping();
   const rows = await getAdminUsers({ page: 1, limit: 1000, search: filters?.search, role_id: filters?.role_id });
   const mapped = (rows as Record<string, unknown>[]).map(mapApiUser);
   return validateList(appUserSchema, mapped);

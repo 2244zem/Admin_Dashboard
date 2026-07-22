@@ -37,15 +37,12 @@ export function connectNotificationSocket(options: NotificationSocketOptions) {
     socket = new WebSocket(url.toString());
 
     socket.onopen = () => {
-      if (import.meta.env.DEV) console.log("[ws] connected to", url.toString());
       options.onConnected?.();
     };
 
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (import.meta.env.DEV) console.log("[ws] message", JSON.stringify(payload));
-
         if (payload?.type === "CONNECTED") {
           options.onConnected?.();
           return;

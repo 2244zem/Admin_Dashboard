@@ -1,14 +1,16 @@
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Task, StatusTask } from "../types/task";
+import type { Task, StatusTask, KategoriTugas } from "../types/task";
 import {
-  createChecklistHarian,
+  createJadwalChecklist,
   deleteChecklistHarian,
   getChecklistHarian,
   getChecklistHarianDetail,
   updateChecklistHarian,
   type ChecklistStatus,
+  type JadwalChecklistPayload,
 } from "../api/checklist";
+import { getAllTugas, createTugas, updateTugas, deleteTugas } from "../api/tugas";
 import { getErrorMessage } from "../lib/utils";
 import { stripIdPrefix } from "../lib/response";
 import { taskSchema, validateList } from "../schemas";
@@ -32,7 +34,7 @@ const UI_TO_CHECKLIST_STATUS: Record<StatusTask, ChecklistStatus> = {
 const mapUiStatus = (s: StatusTask): ChecklistStatus => UI_TO_CHECKLIST_STATUS[s] ?? "BELUM_DIKERJAKAN";
 
 // Map API row to Task
-export function mapApiChecklistToTask(row: Record<string, unknown>): Task {
+export function mapApiChecklistToTask(row: Record<string, unknown>, jenis: KategoriTugas = "Rutin"): Task {
   const get = (v: unknown, ...keys: string[]): unknown =>
     keys.reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), v) ?? "";
   const tanggal = String(row.tanggal ?? row.created_at ?? new Date().toISOString());
@@ -59,6 +61,7 @@ export function mapApiChecklistToTask(row: Record<string, unknown>): Task {
     tanggal: String(tanggal).slice(0, 10),
     catatan: row.catatan != null ? String(row.catatan) : undefined,
     status: mapApiStatus(row.status),
+    jenis,
   };
 }
 
@@ -74,28 +77,67 @@ interface TaskPayload {
   ob_id?: string;
   status?: StatusTask;
   catatan?: string;
+  hari?: string[];
+  tanggal_ulang?: number;
+  tanggal_spesifik?: string[];
+  tanggal_mulai?: string;
+  tanggal_selesai?: string;
 }
 
-// Build payload for checklist API - per CLAUDE.md: lokasi_id sudah dihapus dari body
-const toPayload = (p: TaskPayload) => ({
-  ...(p.nama_tugas && { nama_tugas: p.nama_tugas }),
-  ...(p.kategori_id && { kategori_id: stripIdPrefix(p.kategori_id) }),
-  ...(p.lantai_id && { lantai_id: stripIdPrefix(p.lantai_id) }),
+// Build payload for jadwal checklist API
+const toJadwalPayload = (p: TaskPayload): JadwalChecklistPayload => ({
+  nama_tugas: p.nama_tugas ?? "",
+  kategori_id: stripIdPrefix(p.kategori_id ?? ""),
+  lantai_id: stripIdPrefix(p.lantai_id ?? ""),
   ...(p.ob_id && { ob_id: stripIdPrefix(p.ob_id) }),
-  ...(p.status && { status: mapUiStatus(p.status) }),
-  ...(p.catatan ? { catatan: p.catatan } : {}),
+  ...(p.catatan && { catatan: p.catatan }),
+  ...(p.hari && { hari: p.hari }),
+  ...(p.tanggal_ulang && { tanggal_ulang: p.tanggal_ulang }),
+  ...(p.tanggal_spesifik && { tanggal_spesifik: p.tanggal_spesifik }),
+  ...(p.tanggal_mulai && { tanggal_mulai: p.tanggal_mulai }),
+  ...(p.tanggal_selesai && { tanggal_selesai: p.tanggal_selesai }),
 });
 
 const TASKS_KEY = ["tasks"] as const;
 
 async function fetchTasks(filters?: TaskFilters): Promise<Task[]> {
-  const payload = await getChecklistHarian(filters && {
-    ...filters,
-    lokasi_id: filters.lokasi_id ? stripIdPrefix(filters.lokasi_id) : undefined,
-    lantai_id: filters.lantai_id ? stripIdPrefix(filters.lantai_id) : undefined,
-  });
-  const items = Array.isArray(payload) ? payload : payload?.items ?? [];
-  return validateList(taskSchema, items.map(mapApiChecklistToTask));
+  // Fetch checklist-harian (Rutin) dan /api/tugas (Tidak Rutin) secara parallel
+  const [checklistData, tugasData] = await Promise.all([
+    getChecklistHarian(filters).catch(() => ({ items: [] })),
+    getAllTugas(filters).catch(() => []),
+  ]);
+
+  // Map checklist sebagai "Rutin"
+  const checklistItems = Array.isArray(checklistData) ? checklistData : (checklistData?.items ?? []);
+  const rutinTasks = checklistItems.map((item) => mapApiChecklistToTask(item, "Rutin"));
+
+  // Map tugas sebagai "Tidak Rutin"
+  const tidakRutinTasks = (Array.isArray(tugasData) ? tugasData : []).map((item) => mapApiTugasToTask(item));
+
+  // Gabungkan
+  return validateList(taskSchema, [...rutinTasks, ...tidakRutinTasks]);
+}
+
+// Map API tugas row to Task
+function mapApiTugasToTask(row: Record<string, unknown>): Task {
+  const get = (v: unknown, ...keys: string[]) =>
+    keys.reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), v) ?? "";
+
+  return {
+    id: String(row.id ?? ""),
+    kategori: String(get(row, "kategori", "nama_kategori") || "-"),
+    namaTugas: String(row.nama_tugas || "-"),
+    gedung: "-",
+    lantai: "-",
+    lokasiId: String(row.lantai_id ?? ""),
+    lantaiId: String(row.lantai_id ?? ""),
+    petugas: { nama: String(get(row, "ob", "nama_lengkap") || row.nama_ob || "Belum ditugaskan") },
+    waktu: String(row.created_at ?? "").slice(11, 16) || "-",
+    tanggal: String(row.created_at ?? "").slice(0, 10),
+    catatan: row.catatan != null ? String(row.catatan) : undefined,
+    status: mapApiStatus(row.status),
+    jenis: "Tidak Rutin",
+  };
 }
 
 export { useTasks };
@@ -134,15 +176,30 @@ function useTasks(filters?: TaskFilters) {
     fetchTasks: () => qc.invalidateQueries({ queryKey: ["tasks"], refetchType: "all" }),
     fetchTaskDetail,
     createTask: (p: TaskPayload) => runMutation(async () => {
-      await createChecklistHarian(toPayload(p));
+      // Buat tugas Tidak Rutin via /api/tugas
+      await createTugas({
+        kategori_id: p.kategori_id ?? "",
+        nama_tugas: p.nama_tugas ?? "",
+        lantai_id: p.lantai_id ?? "",
+        catatan: p.catatan,
+        tanggal_selesai: p.tanggal_selesai,
+      });
       await qc.invalidateQueries({ queryKey: TASKS_KEY, refetchType: "all" });
     }),
     updateTask: (id: string, p: TaskPayload) => runMutation(async () => {
-      await updateChecklistHarian(id, toPayload(p));
+      // Update via /api/tugas (Tidak Rutin)
+      await updateTugas(id, {
+        kategori_id: p.kategori_id,
+        nama_tugas: p.nama_tugas,
+        lantai_id: p.lantai_id,
+        catatan: p.catatan,
+        status: p.status ? (p.status === "Selesai" ? "SELESAI" : p.status === "Proses" ? "SEDANG_DIKERJAKAN" : "BELUM_DIKERJAKAN") : undefined,
+      });
       await qc.invalidateQueries({ queryKey: TASKS_KEY });
     }),
     deleteTask: (id: string) => runMutation(async () => {
-      await deleteChecklistHarian(id);
+      // Hapus via /api/tugas
+      await deleteTugas(id);
       await qc.invalidateQueries({ queryKey: TASKS_KEY });
     }),
     updateTaskStatus: async (id: string, status: StatusTask) => {

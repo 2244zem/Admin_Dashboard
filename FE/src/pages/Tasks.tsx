@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useToast } from "../hooks/useToast";
-import type { Task, StatusTask } from "../types/task";
+import type { Task, StatusTask, KategoriTugas } from "../types/task";
 import useTasks, { type TaskFilters } from "../hooks/useTasks";
 import useLokasi from "../hooks/useLokasi";
 import useUsers from "../hooks/useUsers";
@@ -19,23 +19,13 @@ import Avatar from "../components/ui/Avatar";
 
 type Periode = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
 
-// ---------- Kategori Tugas (Rutin / Tidak Rutin) ----------
-// ⚠️ ASUMSI ARSITEKTUR (lihat changelog): halaman ini digabung dari 2 resource
-// terpisah — Checklist Harian ("Rutin") dan Tugas ad-hoc katalog ("Tidak Rutin").
-// Untuk saat ini, HANYA Checklist Harian (via useTasks) yang benar-benar
-// disambungkan — semua baris otomatis ditandai "Rutin". Baris "Tidak Rutin"
-// BELUM digabung karena saya tidak punya kode/hook `useTugasKatalog` yang
-// sebenarnya (CLAUDE.md hanya menyebutnya ada, tanpa shape detail). Lihat
-// TODO di bagian bawah file ini untuk cara menyambungkannya.
-type KategoriTugas = "Rutin" | "Tidak Rutin";
-
 interface UnifiedTask extends Task {
   jenis: KategoriTugas;
 }
 
 const KATEGORI_TUGAS_STYLE: Record<KategoriTugas, string> = {
-  Rutin: "bg-blue-50 text-blue-600",
-  "Tidak Rutin": "bg-purple-50 text-purple-600",
+  Rutin: "bg-[#22C55E]/10 text-[#22C55E]",
+  "Tidak Rutin": "bg-[#FF8D28]/10 text-[#FF8D28]",
 };
 
 // ---------- UI status ----------
@@ -235,17 +225,14 @@ const Tasks = () => {
     return map;
   }, [gedungList]);
 
-  // --- Resolve nama gedung/lantai + tag "Rutin" (semua data useTasks = Checklist Harian) ---
-  // TODO (lihat changelog): gabungkan data ad-hoc Tugas ("Tidak Rutin") di sini
-  // begitu hook `useTugasKatalog` tersedia — map hasilnya ke `UnifiedTask` dengan
-  // `jenis: "Tidak Rutin"`, lalu gabung array-nya sebelum sorting/pagination.
+  // --- Resolve nama gedung/lantai + tag jenis dari API (Rutin / Tidak Rutin) ---
   const unifiedTasks: UnifiedTask[] = useMemo(
     () =>
       tasks.map((t) => ({
         ...t,
         gedung: (t.lokasiId && lokasiNameById.get(t.lokasiId)) || t.gedung,
         lantai: (t.lantaiId && lantaiNameById.get(t.lantaiId)) || t.lantai,
-        jenis: "Rutin" as KategoriTugas,
+        jenis: t.jenis ?? "Rutin" as KategoriTugas,
       })),
     [tasks, lokasiNameById, lantaiNameById]
   );

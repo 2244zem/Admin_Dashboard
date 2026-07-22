@@ -117,9 +117,6 @@ const TasksRutin = () => {
     [rows, gedungFilter, activeTab, lantaiToGedung]
   );
 
-  // Debug log - remove after verifying data flow
-  if (import.meta.env.DEV) console.log("[TasksRutin]", { tugasList: tugasList.length, isLoading, error, filteredRows: filteredRows.length, activeTab });
-
   const prefill = (location.state as { prefill?: { nama_tugas: string; kategori_id: string; lantai_id: string } } | null)?.prefill;
 
   const [isModalOpen, setIsModalOpen] = useState(Boolean(prefill));

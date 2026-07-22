@@ -90,11 +90,6 @@ async function fetchLaporan(params: Record<string, unknown>): Promise<LaporanPag
     sort_order: str(params.sort_order) as AdminLaporanParams["sort_order"],
   });
 
-  // ponytail-debug: dump one raw laporan row so we can find the real foto field
-  if (import.meta.env.DEV && items.length) {
-    console.log("[laporan raw row]", JSON.stringify(items[0]));
-  }
-
   const photoMaps = await getPhotoMaps();
   const mapped = items.map(mapApiLaporanToLaporan);
 
@@ -152,7 +147,6 @@ function useLaporan(filters?: Record<string, unknown>) {
     getLaporanDetail: async (laporan: Laporan) => {
       const id = laporan.backendId || String(laporan.id);
       const raw = await getAdminLaporanDetail(id) as Record<string, unknown>;
-      if (import.meta.env.DEV) console.log("[laporan detail raw]", JSON.stringify(raw));
       const mapped = mapApiLaporanToLaporan(raw);
       // Preserve detail-fetched fields; only keep caller values when present
       // (a deep-link passes only backendId, so name/createdAt come from detail).

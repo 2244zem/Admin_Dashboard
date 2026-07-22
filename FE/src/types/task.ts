@@ -1,4 +1,5 @@
 export type StatusTask = "Belum" | "Proses" | "Selesai" | "Delayed";
+export type KategoriTugas = "Rutin" | "Tidak Rutin";
 
 export interface Petugas {
   nama: string;
@@ -18,6 +19,7 @@ export interface Task {
   tanggal: string;
   catatan?: string;
   status: StatusTask;
+  jenis?: KategoriTugas; // Untuk membedakan Rutin atau Tidak Rutin
 }
 
 export const STATUS_TASK_OPTIONS: StatusTask[] = ["Belum", "Proses", "Selesai", "Delayed"];

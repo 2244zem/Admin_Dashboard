@@ -33,9 +33,7 @@ export interface NotifikasiGrouped {
 export async function getNotifikasi(): Promise<NotifikasiGrouped | null> {
   try {
     const raw = await apiClient.get<Record<string, unknown>>("/api/notifikasi");
-    if (import.meta.env.DEV) console.log("[notifikasi raw]", JSON.stringify(raw));
     const data = unwrapData<Record<string, unknown>>(raw);
-    if (import.meta.env.DEV) console.log("[notifikasi unwrapped]", JSON.stringify(data));
     return {
       hari_ini: (data?.hari_ini as ApiNotification[] | undefined) ?? [],
       kemarin: (data?.kemarin as ApiNotification[] | undefined) ?? [],

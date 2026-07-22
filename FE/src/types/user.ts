@@ -4,13 +4,6 @@ export type { UserRole };
 export type UserStatus = "Aktif" | "Non-Aktif" | "Menunggu" | "Aktivasi Kadaluwarsa";
 export type TokenStatus = "Aktif" | "Expired";
 
-export const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "Admin", label: "Admin" },
-  { value: "HR", label: "HR" },
-  { value: "OB", label: "Office Boy (OB)" },
-  { value: "Karyawan", label: "Karyawan" },
-];
-
 export const STATUS_USER_COLOR: Record<UserStatus, string> = {
   Aktif: "bg-green-100 text-green-600",
   "Non-Aktif": "bg-gray-100 text-gray-500",

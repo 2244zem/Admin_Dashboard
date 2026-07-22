@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ROLE_OPTIONS } from "../types/user";
 import { getAllRoles } from "../api/user";
-import type { AppUser, UserRole, UserStatus } from "../types/user";
+import type { AppUser, UserStatus } from "../types/user";
+import type { UserRole } from "../types/auth";
 
 export interface EditUserPayload {
   namaLengkap: string;
@@ -45,9 +45,14 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
       getAllRoles()
         .then((data) => {
           const raw = data as Array<{ id: string; nama_role: string }>;
-          setRoles(raw.map((r) => ({ id: r.id, label: r.nama_role.charAt(0).toUpperCase() + r.nama_role.slice(1) })));
+          setRoles(raw.map((r) => {
+            let label = r.nama_role.charAt(0).toUpperCase() + r.nama_role.slice(1);
+            if (label.toLowerCase() === "ob") label = "OB";
+            if (label.toLowerCase() === "hr") label = "HR";
+            return { id: r.id, label };
+          }));
         })
-        .catch(() => setRoles(ROLE_OPTIONS));
+        .catch(() => setRoles([]));
     }
   }, [open]);
 
@@ -149,12 +154,15 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Role</label>
                 <select
-                  value={form.role}
-                  onChange={(e) => setForm((f) => f && { ...f, role: e.target.value as UserRole })}
+                  value={roles.find((r) => r.label === form.role)?.id ?? form.role}
+                  onChange={(e) => {
+                    const selected = roles.find((r) => r.id === e.target.value);
+                    setForm((f) => f && { ...f, role: (selected?.label ?? e.target.value) as UserRole });
+                  }}
                   className="w-full bg-white text-gray-700 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-300 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 cursor-pointer dark:bg-surface"
                 >
                   {roles.map((r) => (
-                    <option key={r.id} value={r.label}>{r.label}</option>
+                    <option key={r.id} value={r.id}>{r.label}</option>
                   ))}
                 </select>
               </div>
