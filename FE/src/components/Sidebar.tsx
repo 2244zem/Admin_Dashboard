@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useDarkMode } from "../context/DarkModeContext";
 import type { UserRole } from "../types/auth";
 
 interface NavItem {
@@ -39,7 +40,7 @@ const navItems: NavItem[] = [
     icon: ListChecks,
     roles: ["Admin", "HR"],
     children: [
-      { id: "tasks-rutin", label: "Tugas Rutin", href: '/tasks', icon: ListChecks, roles: ["Admin", "HR"] },
+      { id: "tasks-rutin", label: "Tugas Rutin", href: '/tasks-rutin', icon: ListChecks, roles: ["Admin", "HR"] },
       { id: "tasks-insidental", label: "Tugas Tidak Rutin", href: '/tugas-insidental', icon: ListChecks, roles: ["Admin", "HR"] },
     ],
   },
@@ -59,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { isDark } = useDarkMode();
 
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);
@@ -80,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     <>
       <div className="md:hidden flex items-center justify-between bg-white border-b border-slate-200/80 p-4 sticky top-0 z-40 shadow-sm dark:bg-elevated dark:border-line">
         <div className="flex items-center gap-2">
-          <img src="/src/assets/WGSLogoNoBG.png" alt="Logo WGS" className="h-5" />
+          <img src={isDark ? "/src/assets/WGSDARK.png" : "/src/assets/WGSLogoNoBG.png"} alt="Logo WGS" className="h-5" />
           <h1 className="text-lg font-bold text-[#0F4C81] tracking-tight dark:text-ink">Lapor OB</h1>
         </div>
         <button
@@ -92,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         </button>
       </div>
       <aside className="hidden md:block w-56 h-screen sticky top-0 flex-shrink-0 bg-[#F3F7FC] dark:bg-elevated">
-        <SidebarContent location={location} setIsOpen={setIsOpen} onLogout={handleLogoutClick} />
+        <SidebarContent location={location} setIsOpen={setIsOpen} onLogout={handleLogoutClick} isDark={isDark} />
       </aside>
       <AnimatePresence>
         {isOpen && (
@@ -120,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                   <CircleX className="w-5 h-5" />
                 </button>
               </div>
-              <SidebarContent location={location} setIsOpen={setIsOpen} onLogout={handleLogoutClick} />
+              <SidebarContent location={location} setIsOpen={setIsOpen} onLogout={handleLogoutClick} isDark={isDark} />
             </motion.aside>
           </>
         )}
@@ -186,9 +188,10 @@ interface SidebarContentProps {
   location: Location;
   setIsOpen: (open: boolean) => void;
   onLogout: () => void;
+  isDark: boolean;
 }
 
-export function SidebarContent({ location, setIsOpen, onLogout }: SidebarContentProps) {
+export function SidebarContent({ location, setIsOpen, onLogout, isDark }: SidebarContentProps) {
   // Dropdown: parent dengan child (Tugas) otomatis terbuka bila route-nya aktif.
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(
@@ -221,7 +224,7 @@ export function SidebarContent({ location, setIsOpen, onLogout }: SidebarContent
     <div className="flex flex-col h-full bg-[#F3F7FC] text-slate-800 py-6 px-3 select-none border-r border-slate-200/60 dark:bg-elevated dark:text-ink dark:border-line">
       <div className="flex items-center gap-0.5 mb-0.5 px-1 pb-5 -mt-10">
         <img
-          src="/src/assets/WGSLogoNoBG.png"
+          src={isDark ? "/src/assets/WGSDARK.png" : "/src/assets/WGSLogoNoBG.png"}
           alt="Logo WGS"
           className="h-25 object-contain"
         />

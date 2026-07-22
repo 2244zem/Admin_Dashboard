@@ -5,6 +5,8 @@ import Login from "./pages/Login";
 import ActivateAccount from "./pages/ActivateAccount";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
+import TasksRutin from "./pages/TasksRutin";
+import TasksTidakRutin from "./pages/TasksTidakRutin";
 import LaporanUser from "./pages/Reports";
 import DataLokasi from "./pages/Data_Lokasi";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -128,11 +130,29 @@ function AnimatedRoutes() {
           <Route path="/lupa-password" element={<LupaPassword />} />
 <Route path="/reset-password" element={<ResetPassword />} />
           <Route
-            path="/tasks/*"
+            path="/tasks"
             element={
               <ProtectedRoute>
                 <PageHeader title="Tugas" />
                 <Tasks />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tasks-rutin"
+            element={
+              <ProtectedRoute>
+                <PageHeader title="Tugas Rutin" />
+                <TasksRutin />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tugas-insidental"
+            element={
+              <ProtectedRoute>
+                <PageHeader title="Tugas Tidak Rutin" />
+                <TasksTidakRutin />
               </ProtectedRoute>
             }
           />
@@ -144,15 +164,6 @@ function AnimatedRoutes() {
     </ProtectedRoute>
   }
 />
-          <Route
-            path="/tugas-insidental"
-            element={
-              <ProtectedRoute>
-                <PageHeader title="Tugas" />
-                <Tasks />
-              </ProtectedRoute>
-            }
-          />
           <Route
             path="/reports"
             element={

@@ -8,7 +8,7 @@ import DailyChecklistModal, { type OBChecklistDetail } from "../components/Daily
 import * as XLSX from "xlsx";
 import { useLaporan } from "../hooks/useLaporan";
 import { useTasks } from "../hooks/useTasks";
-import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
+import { StatCardsSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import Avatar from "../components/ui/Avatar";
 
@@ -397,7 +397,7 @@ const Dashboard = () => {
                 {/* Laporan Terbaru Karyawan */}
                 <div className="xl:col-span-3 border border-gray-200 rounded-2xl p-6 bg-white shadow-sm dark:bg-surface flex flex-col">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-base font-bold text-gray-800">Laporan Terbaru Karyawan</h2>
+                    <h2 className="text-base font-bold text-gray-800 dark:text-white">Laporan Terbaru Karyawan</h2>
                     <button onClick={() => navigate("/reports")} className="text-xs font-semibold text-[#0ea5e9] hover:underline cursor-pointer">
                       Lihat Semua
                     </button>
@@ -490,7 +490,7 @@ const Dashboard = () => {
                 {/* Riwayat Tugas OB */}
                 <div className="xl:col-span-2 border border-gray-200 rounded-2xl p-6 bg-white shadow-sm dark:bg-surface flex flex-col">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-base font-bold text-gray-800">Riwayat Tugas OB</h2>
+                    <h2 className="text-base font-bold text-gray-800 dark:text-white">Riwayat Tugas OB</h2>
                     <button onClick={() => navigate("/tasks")} className="text-xs font-semibold text-[#0ea5e9] hover:underline cursor-pointer">
                       Lihat semua
                     </button>
@@ -600,65 +600,47 @@ const Dashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 
                 {/* Total Laporan Karyawan */}
-                <div className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow dark:bg-surface dark:border-line">
                   <div className="flex justify-between items-start mb-6">
-                    <div className="h-11 w-11 bg-blue-50 rounded-[14px] flex items-center justify-center text-blue-600 shrink-0">
+                    <div className="h-11 w-11 bg-blue-50 rounded-[14px] flex items-center justify-center text-blue-600 shrink-0 dark:bg-blue-900/30 dark:text-blue-400">
                       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
                       </svg>
                     </div>
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 text-[11px] font-bold">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
-                      </svg>
-                      {kpiRates.urgentRate}% URGENT
-                    </div>
                   </div>
                   <div>
-                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none">{totalLaporan}</h3>
-                    <p className="text-xs text-gray-500 font-semibold">Total Laporan Karyawan</p>
+                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{totalLaporan}</h3>
+                    <p className="text-xs text-gray-500 font-semibold dark:text-gray-400">Total Laporan Karyawan</p>
                   </div>
                 </div>
 
                 {/* Laporan Selesai */}
-                <div className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow dark:bg-surface dark:border-line">
                   <div className="flex justify-between items-start mb-6">
-                    <div className="h-11 w-11 bg-emerald-50 rounded-[14px] flex items-center justify-center text-emerald-500 shrink-0">
+                    <div className="h-11 w-11 bg-emerald-50 rounded-[14px] flex items-center justify-center text-emerald-500 shrink-0 dark:bg-emerald-900/30 dark:text-emerald-400">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[11px] font-bold">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
-                        </svg>
-                        {kpiRates.selesaiRate}%
-                    </div>
                   </div>
                   <div>
-                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none">{laporanSelesai}</h3>
-                    <p className="text-xs text-gray-500 font-semibold">Laporan Selesai</p>
+                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{laporanSelesai}</h3>
+                    <p className="text-xs text-gray-500 font-semibold dark:text-gray-400">Laporan Selesai</p>
                   </div>
                 </div>
 
                 {/* Tugas Unassigned */}
-                <div className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow dark:bg-surface dark:border-line">
                   <div className="flex justify-between items-start mb-6">
-                    <div className="h-11 w-11 bg-amber-50 rounded-[14px] flex items-center justify-center text-amber-500 shrink-0">
+                    <div className="h-11 w-11 bg-amber-50 rounded-[14px] flex items-center justify-center text-amber-500 shrink-0 dark:bg-amber-900/30 dark:text-amber-400">
                       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
                     </div>
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-500 text-[11px] font-bold">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 4.5l15 15m0 0V8.25m0 11.25H8.25" />
-                        </svg>
-                        {kpiRates.unassignedRate}%
-                    </div>
                   </div>
                   <div>
-                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none">{tugasUnassigned}</h3>
-                    <p className="text-xs text-gray-500 font-semibold">Tugas Unassigned</p>
+                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{tugasUnassigned}</h3>
+                    <p className="text-xs text-gray-500 font-semibold dark:text-gray-400">Tugas Unassigned</p>
                   </div>
                 </div>
 
@@ -684,7 +666,7 @@ const Dashboard = () => {
                       style={{ background: donutTotal === 0 ? "#e5e7eb" : conicGradient }}
                     >
                       <div className="h-32 w-32 bg-white rounded-full flex flex-col items-center justify-center dark:bg-surface">
-                        <span className="text-[17px] font-extrabold text-[#1d4ed8]">{donutTotal}</span>
+                        <span className="text-[17px] font-extrabold text-[#1d4ed8] dark:text-blue-400">{donutTotal}</span>
                         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">TOTAL</span>
                       </div>
                     </div>
@@ -695,7 +677,7 @@ const Dashboard = () => {
                           <span className="w-3.5 h-3.5 rounded-full mt-0.5 shrink-0" style={{ backgroundColor: d.color }}></span>
                           <div className="flex flex-col">
                             <span className="text-[11px] text-gray-500 font-medium leading-none mb-1.5">{d.label}</span>
-                            <span className="text-sm font-bold text-gray-900 leading-none">{d.pct}%</span>
+                            <span className="text-sm font-bold text-gray-900 leading-none dark:text-white">{d.pct}%</span>
                           </div>
                         </div>
                       ))}
