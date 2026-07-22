@@ -21,8 +21,8 @@ export function getRoleName(roleId: string) {
 export async function loadRoleMapping() {
   if (roleCache.loaded) return;
   try {
-    const roles = await getAllRoles();
-    roles.forEach((r) => {
+    const roles = await getAllRoles() as { id: string; nama_role: string }[];
+    roles.forEach((r: { id: string; nama_role: string }) => {
       if (r.id && r.nama_role) {
         roleCache.map.set(r.nama_role, r.id);
         roleCache.reverse.set(r.id, r.nama_role);

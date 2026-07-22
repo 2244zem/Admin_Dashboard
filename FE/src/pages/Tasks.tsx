@@ -82,7 +82,6 @@ function formatTanggalWaktu(tanggal: string, waktu: string): string {
 
 const ITEMS_PER_PAGE = 10;
 
-// ---------- Row Action Menu (titik tiga): Edit → Lihat Detail → Hapus ----------
 function RowActionMenu({
   onEdit,
   onDetail,
