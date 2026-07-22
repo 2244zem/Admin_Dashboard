@@ -3,9 +3,7 @@ import { motion } from "framer-motion";
 import PageHeader from "../components/ui/PageHeader";
 import ErrorState from "../components/ui/ErrorState";
 import { Skeleton } from "../components/ui/Skeleton";
-import useUsers from "../hooks/useUsers";
-import { usePerformanceOb, type ObPerformanceRow } from "../hooks/usePerformance";
-import useLaporan from "../hooks/useLaporan";
+import { usePerformanceOb } from "../hooks/usePerformance";
 import type { PerformancePeriod } from "../api/performance";
 
 const AVATAR_COLORS = [
@@ -29,30 +27,17 @@ function getAvatarColor(name: string) {
 }
 
 const Performa = () => {
-  const { fetchOB } = useUsers();
-  const { rows, isLoading, error, fetchAll } = usePerformanceOb();
-  const { meta: laporanMenungguMeta, isLoading: laporanMenungguLoading } = useLaporan({
-    status: "BELUM_DIKERJAKAN",
-    limit: 1,
-  });
-  const laporanMenunggu = laporanMenungguMeta.total_items;
-  const [period, setPeriod] = useState<PerformancePeriod>("mingguan");
-  const [obList, setObList] = useState<Array<{ id: string; nama: string }>>([]);
+  const { rows, dashboard, isLoading, error, fetchAll } = usePerformanceOb();
+  const [period, setPeriod] = useState<PerformancePeriod>("bulanan");
 
   useEffect(() => {
-    fetchOB().then(setObList).catch(console.error);
-  }, [fetchOB]);
-
-  useEffect(() => {
-    if (obList.length > 0) fetchAll(obList, period);
-  }, [obList, period, fetchAll]);
+    fetchAll(undefined, period);
+  }, [period, fetchAll]);
 
   const rankedRows = useMemo(
     () => [...rows].sort((a, b) => (b.tugasDiklaim ?? 0) - (a.tugasDiklaim ?? 0)),
     [rows]
   );
-
-  const maxDiklaim = Math.max(...rows.map((r) => r.tugasDiklaim ?? 0), 1);
 
   return (
     <div className="flex h-screen bg-white font-sans dark:bg-base">
@@ -72,7 +57,7 @@ const Performa = () => {
               <Skeleton className="h-64 rounded-xl" />
             </div>
           ) : error ? (
-            <ErrorState message={error} onRetry={() => fetchAll(obList, period)} />
+            <ErrorState message={error} onRetry={() => fetchAll(undefined, period)} />
           ) : (
             <>
               <div className="flex items-start justify-between mb-6">
@@ -89,6 +74,7 @@ const Performa = () => {
                       onChange={(e) => setPeriod(e.target.value as PerformancePeriod)}
                       className="appearance-none bg-blue-50 text-[#0F4C81] font-semibold text-sm rounded-xl pl-9 pr-9 py-2 outline-none cursor-pointer border border-blue-100"
                     >
+                      <option value="harian">Hari Ini</option>
                       <option value="mingguan">7 Hari Terakhir</option>
                       <option value="bulanan">30 Hari Terakhir</option>
                       <option value="tahunan">1 Tahun Terakhir</option>
@@ -104,15 +90,8 @@ const Performa = () => {
               </div>
 
               {/* KPI Cards */}
-              {/*
-                NOTE: "Rata-rata Tingkat Keberhasilan" dan "Waktu Aktif Sistem"
-                TIDAK ADA di endpoint manapun yang terdokumentasi. Ini butuh
-                backend menyediakan metrik agregat terpisah. Ditampilkan
-                "Belum tersedia" sampai ada sumber data.
-                "Laporan Menunggu" diambil dari GET /api/admin/laporan dengan
-                filter status=BELUM_DIKERJAKAN via useLaporan (hook di atas).
-              */}
               <div className="grid grid-cols-3 gap-4 mb-6">
+                {/* Rata-rata Tingkat Keberhasilan — from produktivitas */}
                 <div className="border border-gray-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500">Rata-rata Tingkat Keberhasilan</span>
@@ -122,10 +101,15 @@ const Performa = () => {
                       </svg>
                     </span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">Belum tersedia</p>
-                  <p className="text-[11px] text-gray-400 mt-1">Butuh endpoint metrik agregat dari backend</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {dashboard ? `${dashboard.produktivitas}%` : "..."}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {dashboard ? `${dashboard.tugas_diselesaikan.selesai} / ${dashboard.tugas_diselesaikan.total} tugas` : "dari dashboard OB"}
+                  </p>
                 </div>
 
+                {/* Laporan Menunggu — from laporan_menunggu */}
                 <div className="border border-gray-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500">Waktu Aktif Sistem</span>
@@ -135,61 +119,87 @@ const Performa = () => {
                       </svg>
                     </span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">Belum tersedia</p>
-                  <p className="text-[11px] text-gray-400 mt-1">Butuh monitoring uptime dari backend/infra</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {dashboard ? `${dashboard.laporan_menunggu}` : "..."}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-1">laporan belum dikerjakan</p>
                 </div>
 
+                {/* Total Selesai shortcut */}
                 <div className="border border-gray-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-gray-500">Laporan Menunggu</span>
+                    <span className="text-xs font-semibold text-gray-500">Tugas Diselesaikan</span>
                   </div>
                   <p className="text-2xl font-bold text-gray-900">
-                    {laporanMenungguLoading ? "..." : laporanMenunggu}
+                    {dashboard ? dashboard.tugas_diselesaikan.selesai : "..."}
                   </p>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    Laporan status BELUM_DIKERJAKAN (via <code className="text-[10px]">useLaporan</code>)
+                    dari {dashboard ? dashboard.tugas_diselesaikan.total : "..."} total diklaim
                   </p>
                 </div>
               </div>
 
-              {/* Perbandingan Penyelesaian Tugas — bar chart sederhana dari tugasDiklaim */}
+              {/* Perbandingan Penyelesaian Tugas + Tren Keluhan (reuse tren_laporan_bulanan) */}
               <div className="grid grid-cols-2 gap-4 mb-6">
+                {/* Perbandingan OB — from perbandingan_ob */}
                 <div className="border border-gray-200 rounded-xl p-6">
                   <h3 className="text-sm font-bold text-gray-700 mb-4">Perbandingan Penyelesaian Tugas</h3>
-                  {rows.every((r) => r.tugasDiklaim === undefined) ? (
+                  {!dashboard?.perbandingan_ob?.length ? (
                     <div className="h-48 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-gray-400 dark:bg-surface">
                       Data belum tersedia
                     </div>
                   ) : (
                     <div className="h-48 flex items-end gap-4">
-                      {rows.map((r) => (
-                        <div key={r.userId} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                          <div className="w-full bg-gray-100 rounded-t-md flex items-end justify-center h-full relative overflow-hidden dark:bg-elevated">
-                            <motion.div
-                              initial={{ height: 0 }}
-                              animate={{ height: `${((r.tugasDiklaim ?? 0) / maxDiklaim) * 100}%` }}
-                              transition={{ type: "spring", stiffness: 120, damping: 18 }}
-                              className="w-full bg-[#2E6DA4] rounded-t-md"
-                            />
+                      {dashboard.perbandingan_ob.map((ob) => {
+                        const maxTotal = Math.max(...dashboard.perbandingan_ob.map((o) => o.total_tugas), 1);
+                        return (
+                          <div key={ob.ob_id} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                            <div className="w-full bg-gray-100 rounded-t-md flex items-end justify-center h-full relative overflow-hidden dark:bg-elevated">
+                              <motion.div
+                                initial={{ height: 0 }}
+                                animate={{ height: `${(ob.tugas_selesai / maxTotal) * 100}%` }}
+                                transition={{ type: "spring", stiffness: 120, damping: 18 }}
+                                className="w-full bg-[#2E6DA4] rounded-t-md"
+                              />
+                            </div>
+                            <span className="text-[11px] font-semibold text-gray-500 truncate w-full text-center">
+                              {ob.nama_ob}
+                            </span>
+                            <span className="text-[10px] text-gray-400">{ob.persentase}%</span>
                           </div>
-                          <span className="text-[11px] font-semibold text-gray-500 truncate w-full text-center">{r.nama}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
 
-                {/*
-                  NOTE: "Tren Keluhan" (grafik garis bulanan Jan-Jun) TIDAK ADA
-                  sumber datanya di endpoint manapun yang terdokumentasi —
-                  tidak ada endpoint historis bulanan untuk jumlah
-                  keluhan/laporan. Placeholder "Belum tersedia" dulu.
-                */}
+                {/* Tren Keluhan — reuse tren_laporan_bulanan as line chart placeholder */}
                 <div className="border border-gray-200 rounded-xl p-6">
                   <h3 className="text-sm font-bold text-gray-700 mb-4">Tren Keluhan</h3>
-                  <div className="h-48 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-gray-400 dark:bg-surface">
-                    Data belum tersedia — butuh endpoint tren bulanan dari backend
-                  </div>
+                  {!dashboard?.tren_laporan_bulanan?.length ? (
+                    <div className="h-48 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-gray-400 dark:bg-surface">
+                      Data belum tersedia
+                    </div>
+                  ) : (
+                    <div className="h-48 flex items-end gap-2">
+                      {dashboard.tren_laporan_bulanan.map((item) => {
+                        const maxTotal = Math.max(...dashboard.tren_laporan_bulanan.map((i) => i.total), 1);
+                        return (
+                          <div key={item.bulan} className="flex-1 flex flex-col items-center gap-1 justify-end">
+                            <div className="w-full bg-gray-100 rounded-t-sm flex items-end justify-center h-full relative overflow-hidden dark:bg-elevated">
+                              <motion.div
+                                initial={{ height: 0 }}
+                                animate={{ height: `${(item.pending / maxTotal) * 100}%` }}
+                                transition={{ type: "spring", stiffness: 120, damping: 18 }}
+                                className="w-full bg-red-400 rounded-t-sm"
+                              />
+                            </div>
+                            <span className="text-[10px] text-gray-400">{item.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -212,12 +222,12 @@ const Performa = () => {
                           <th className="px-6 py-3">Peringkat / Staf</th>
                           <th className="px-6 py-3">Tugas Diklaim</th>
                           <th className="px-6 py-3">Kec. Rata-rata</th>
-                          <th className="px-6 py-3">Badge Diperoleh</th>
+                          <th className="px-6 py-3">Achievement</th>
                           <th className="px-6 py-3 text-right">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                        {rankedRows.map((row: ObPerformanceRow, idx: number) => (
+                        {rankedRows.map((row, idx) => (
                           <tr key={row.userId} className="hover:bg-gray-50/50 transition-colors dark:bg-surface">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
@@ -235,12 +245,21 @@ const Performa = () => {
                               {row.kecepatanRataRata ?? "-"}
                             </td>
                             <td className="px-6 py-4">
-                              {row.badge ? (
-                                <span className="inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600">
-                                  {row.badge}
-                                </span>
+                              {row.achievements.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {row.achievements.map((ach, i) => (
+                                    <span
+                                      key={i}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600"
+                                      title={ach.nama}
+                                    >
+                                      {ach.icon && <span>{ach.icon}</span>}
+                                      {ach.nama}
+                                    </span>
+                                  ))}
+                                </div>
                               ) : (
-                                <span className="text-xs text-gray-300">Belum ada badge</span>
+                                <span className="text-xs text-gray-300">Belum ada achievement</span>
                               )}
                             </td>
                             <td className="px-6 py-4 text-right">

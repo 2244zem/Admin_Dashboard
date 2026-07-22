@@ -20,21 +20,20 @@ export function getRoleName(roleId: string) {
 }
 export async function loadRoleMapping() {
   if (roleCache.loaded) return;
-  try {
-    const roles = await getAllRoles() as { id: string; nama_role: string }[];
-    roles.forEach((r: { id: string; nama_role: string }) => {
-      if (r.id && r.nama_role) {
-        roleCache.map.set(r.nama_role, r.id);
-        roleCache.reverse.set(r.id, r.nama_role);
-      }
-    });
-    roleCache.loaded = true;
-  } catch { /* ignore */ }
+  const roles = await getAllRoles() as { id: string; nama_role: string }[];
+  roles.forEach((r: { id: string; nama_role: string }) => {
+    if (r.id && r.nama_role) {
+      roleCache.map.set(r.nama_role, r.id);
+      roleCache.reverse.set(r.id, r.nama_role);
+    }
+  });
+  if (roles.length > 0) roleCache.loaded = true;
 }
 
 // Separate async function so it can be called directly without useCallback dependency chain
 async function fetchUserDetail(id: string): Promise<AppUser | null> {
   try {
+    await loadRoleMapping(); // ensure role UUID → name cache is populated
     const raw = await getUserDetailApi(id);
     const data = (raw as Record<string, unknown>)?.data ?? raw;
     return mapApiUser(data as Record<string, unknown>);
@@ -43,7 +42,7 @@ async function fetchUserDetail(id: string): Promise<AppUser | null> {
 }
 
 const normalizeRole = (roleData: unknown): AppUser["role"] => {
-  const r = roleData as { role_id?: unknown; role?: { id?: unknown; nama_role?: string }; nama_role?: unknown; name?: unknown } | string | null | undefined;
+  const r = roleData as { role_id?: unknown; role?: unknown; nama_role?: unknown; name?: unknown } | string | null | undefined;
   if (!r) return "Karyawan";
 
   // Direct nama_role string (e.g. nested role object from API)
@@ -56,15 +55,20 @@ const normalizeRole = (roleData: unknown): AppUser["role"] => {
       if (v.includes("karyawan")) return "Karyawan";
     }
     if (r.role && typeof r.role === "object" && r.role !== null) {
-      const nestedName = (r.role as { nama_role?: string }).nama_role;
-      if (nestedName) return normalizeRole({ nama_role: nestedName });
-      const nestedId = String((r.role as { id?: unknown }).id ?? "");
-      if (nestedId) {
-        const name = getRoleName(nestedId);
-        if (name !== nestedId) return name as AppUser["role"];
+      const nestedRole = r.role as { nama_role?: string; id?: unknown };
+      if (nestedRole.nama_role) {
+        const v = nestedRole.nama_role.toLowerCase();
+        if (v.includes("admin")) return "Admin";
+        if (v === "hr" || v.includes("hr")) return "HR";
+        if (v === "ob" || v.includes("ob")) return "OB";
+        if (v.includes("karyawan")) return "Karyawan";
+      }
+      if (nestedRole.id) {
+        const name = getRoleName(String(nestedRole.id));
+        if (name !== String(nestedRole.id)) return name as AppUser["role"];
       }
     }
-    const uuid = r.role_id != null ? String(r.role_id) : null;
+    const uuid = r.role_id != null && r.role_id !== "" ? String(r.role_id) : null;
     if (uuid) {
       const name = getRoleName(uuid);
       if (name !== uuid) return name as AppUser["role"];
@@ -99,7 +103,7 @@ const mapApiUser = (row: Record<string, unknown>): AppUser => {
     username: String(row.username ?? "-"),
     email: String(row.email ?? ""),
     noTelepon: String(row.no_telepon ?? row.phone ?? "-"),
-    role: normalizeRole(roleId !== undefined ? { role_id: roleId } : role),
+    role: normalizeRole(roleId !== undefined && roleId !== null && roleId !== "" ? { role_id: roleId, role } : role),
     departemen: String(row.departemen ?? "-"),
     status: row.is_active === false ? "Non-Aktif" : (row.status as AppUser["status"]) ?? "Aktif",
     avatar: row.profile_picture ? resolveAssetUrl(String(row.profile_picture)) : undefined,

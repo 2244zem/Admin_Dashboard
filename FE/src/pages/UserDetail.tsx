@@ -10,11 +10,11 @@ import type { AppUser } from "../types/user";
 import { formatTanggal, formatTanggalWaktuWIB, getErrorMessage } from "../lib/utils";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
-import Avatar from "../components/ui/Avatar";
 import Can from "../components/auth/Can";
+import { useObSkills, useSkillDefinitions } from "../hooks/useSkill";
+import { getObPerformance, getKaryawanPerformance } from "../api/performance";
+import type { ObPerformanceData, KaryawanPerformanceData } from "../api/performance";
 
-// Type untuk tab performa
-type PerformaTab = "Mingguan" | "Bulanan" | "Tahunan";
 
 const UserDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,12 +30,22 @@ const UserDetail = () => {
   const [detailError, setDetailError] = useState<string | null>(null);
 
   // State untuk tab & modal
-  const [performaTab, setPerformaTab] = useState<PerformaTab>("Mingguan");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(24);
   const [copiedToken, setCopiedToken] = useState(false);
+
+  // Performance state untuk OB
+  const [obPerf, setObPerf] = useState<(ObPerformanceData & KaryawanPerformanceData) | null>(null);
+  const [perfLoading, setPerfLoading] = useState(false);
+  const [perfError, setPerfError] = useState<string | null>(null);
+
+  // Skill state untuk OB (useObSkills internal enabled guard handles undefined ob_id)
+  const { obSkills, assignSkill, refetch: refetchSkills } = useObSkills(user?.backendId);
+  const { skillDefinitions } = useSkillDefinitions();
+  const [showSkillModal, setShowSkillModal] = useState(false);
+  const [selectedSkillId, setSelectedSkillId] = useState("");
 
   // === FETCH USER DATA ===
   useEffect(() => {
@@ -66,6 +76,26 @@ const UserDetail = () => {
     loadUserDetail();
   }, [id, getUserDetail]);
 
+  // === FETCH PERFORMANCE DATA ===
+  useEffect(() => {
+    if (!user?.backendId) return
+    const role = user.role
+    setPerfLoading(true)
+    setPerfError(null)
+
+    const fn = role === "OB"
+      ? getObPerformance(user.backendId, "mingguan")
+      : role === "Karyawan"
+        ? getKaryawanPerformance(user.backendId, "mingguan")
+        : null
+
+    if (!fn) { setPerfLoading(false); return }
+
+    fn.then((data) => setObPerf(data as ObPerformanceData & KaryawanPerformanceData))
+      .catch((err) => setPerfError(getErrorMessage(err)))
+      .finally(() => setPerfLoading(false))
+  }, [user?.backendId, user?.role])
+
   // === HANDLERS ===
   const handleConfirmDelete = useCallback(async () => {
     if (!user?.backendId) return;
@@ -82,12 +112,14 @@ const UserDetail = () => {
     if (!user?.backendId) return;
     try {
       await renewToken(user.backendId, selectedDuration);
-      push("success", "Token akses berhasil diperpanjang");
+      push("success", "Token berhasil diperbarui, link aktivasi baru telah dikirim ke email user");
       setShowTokenModal(false);
+      const updatedUser = await getUserDetail(user.backendId);
+      if (updatedUser) setUser(updatedUser);
     } catch (err: unknown) {
       push("error", getErrorMessage(err) || "Gagal memperpanjang token");
     }
-  }, [user, renewToken, selectedDuration, push]);
+  }, [user, renewToken, selectedDuration, push, getUserDetail]);
 
   const handleEditSave = useCallback(async (payload: EditUserPayload) => {
     if (!user?.backendId) return;
@@ -107,10 +139,6 @@ const UserDetail = () => {
     }
   }, [user, updateUser, getUserDetail, push]);
 
-  const handleExportPdf = useCallback(() => {
-    push("success", "Laporan performa berhasil diekspor ke PDF");
-  }, [push]);
-
   const handleCopyToken = useCallback(() => {
     if (!user?.tokenString) return;
     navigator.clipboard.writeText(user.tokenString).then(() => {
@@ -119,6 +147,19 @@ const UserDetail = () => {
       setTimeout(() => setCopiedToken(false), 2000);
     });
   }, [user, push]);
+
+  const handleAssignSkill = useCallback(async () => {
+    if (!user?.backendId || !selectedSkillId) return;
+    try {
+      await assignSkill({ ob_id: user.backendId, skill_id: selectedSkillId });
+      push("success", "Skill berhasil ditambahkan");
+      setShowSkillModal(false);
+      setSelectedSkillId("");
+      refetchSkills();
+    } catch (err: unknown) {
+      push("error", getErrorMessage(err) || "Gagal menambahkan skill");
+    }
+  }, [user, selectedSkillId, assignSkill, refetchSkills, push]);
 
   // === DERIVED STATE ===
   const isOB = user?.role === "OB";
@@ -177,8 +218,13 @@ const UserDetail = () => {
           {/* Grid utama */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             <div className="lg:col-span-2 flex flex-col gap-6">
+              
               {isOB ? (
-                <div className="border border-gray-200 rounded-2xl p-7 bg-white shadow-sm dark:bg-surface">
+                /* === TAMPILAN PROFIL OB === */
+                <div className="relative border border-gray-200 rounded-2xl p-7 bg-white shadow-sm dark:bg-surface">
+                  <div className="absolute top-6 right-6 bg-[#FEF3C7] text-[#D97706] px-3 py-1 rounded-full text-[11px] font-bold">
+                    Gedung A
+                  </div>
                   <div className="flex items-start justify-between mb-8">
                     <div className="flex gap-5">
                       <div className="relative">
@@ -198,7 +244,7 @@ const UserDetail = () => {
                       <div className="pt-1">
                         <h2 className="text-2xl font-black text-[#1F2937] tracking-tight uppercase">{user.namaLengkap}</h2>
                         <p className="text-sm font-medium text-gray-500 mb-2">@{user.username || `${user.namaLengkap.toLowerCase()}_OB`}</p>
-                        
+
                         <div className="bg-[#382314] text-[#F3E8E0] text-xs font-semibold px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 mb-3 shadow-sm">
                           <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
@@ -249,21 +295,58 @@ const UserDetail = () => {
                           <div>
                             <p className="text-xs text-gray-500 font-medium">Nomor Telepon</p>
                             <p className="text-sm font-semibold text-gray-800">{user.noTelepon || "-"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">Jadwal Kerja</p>
+                            <p className="text-sm font-semibold text-gray-800">Senin - Jumat, 07:00 - 16:00</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                    </div>
-                    
+
                     <div className="pl-6">
-                      <h3 className="flex items-center gap-2 text-[15px] font-bold text-gray-800 mb-1">
-                        <svg className="w-5 h-5 text-[#0F4C81]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                        </svg>
-                        Skill Spesialisasi
-                      </h3>
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="flex items-center gap-2 text-[15px] font-bold text-gray-800">
+                          <svg className="w-5 h-5 text-[#0F4C81]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                          </svg>
+                          Skill Spesialisasi
+                        </h3>
+                        <button
+                          onClick={() => setShowSkillModal(true)}
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-[#0F4C81] hover:text-[#0c3c68] border border-[#0F4C81] hover:border-[#0c3c68] px-2.5 py-1 rounded-full transition-colors cursor-pointer"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Tambah
+                        </button>
+                      </div>
                       <p className="text-[11px] text-gray-400 italic mb-4">(Terdeteksi Otomatis Berdasarkan Riwayat)</p>
-                      
-                      <p className="text-xs text-gray-400 italic">Belum ada data spesialisasi.</p>
+
+                      {obSkills.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">Belum ada data spesialisasi.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {obSkills.map((skill) => (
+                            <div
+                              key={skill.id}
+                              className="flex items-center gap-1.5 bg-[#EEF2FF] text-[#4F46E5] px-3 py-1.5 rounded-full text-xs font-semibold border border-[#E0E7FF]"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              {skill.nama_skill}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -338,17 +421,17 @@ const UserDetail = () => {
                       <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
-                      <input 
-                        type="text" 
-                        placeholder="Cari laporan..." 
+                      <input
+                        type="text"
+                        placeholder="Cari laporan..."
                         className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0F4C81] w-64"
                       />
                     </div>
                   </div>
-                  
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-700">
-                      <thead className="text-[11px] font-bold text-gray-500 bg-gray-50/80 border-b border-gray-100 uppercase dark:bg-surface">
+                      <thead className="text-[11px] font-bold text-gray-500 bg-[#F8FAFC] border-b border-gray-100 uppercase dark:bg-surface">
                         <tr>
                           <th className="px-6 py-4">ID Laporan</th>
                           <th className="px-6 py-4">Kategori</th>
@@ -367,13 +450,9 @@ const UserDetail = () => {
                       </tbody>
                     </table>
                   </div>
-                  
+
                   <div className="border-t border-gray-100 p-4 flex items-center justify-between text-xs text-gray-500">
                     <span>Belum ada laporan</span>
-                    <div className="flex items-center gap-2">
-                      <button className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 dark:bg-surface">&lt;</button>
-                      <button className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 dark:bg-surface">&gt;</button>
-                    </div>
                   </div>
                 </div>
               ) : (
@@ -381,12 +460,12 @@ const UserDetail = () => {
                 <div className="border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden flex flex-col dark:bg-surface">
                   <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                     <h2 className="text-lg font-bold text-gray-900">Riwayat Laporan</h2>
-                    <button className="text-sm font-bold text-[#0070AF] hover:underline cursor-pointer">Lihat Semua</button>
+                    <button className="text-sm font-bold text-[#0F4C81] hover:underline cursor-pointer">Lihat Semua</button>
                   </div>
-                  
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-700">
-                      <thead className="text-[12px] font-bold text-gray-500 bg-indigo-50/50 border-b border-gray-100">
+                      <thead className="text-[12px] font-bold text-gray-500 bg-[#F8FAFC] border-b border-gray-100">
                         <tr>
                           <th className="px-6 py-4">ID Tugas</th>
                           <th className="px-6 py-4">Deskripsi Tugas</th>
@@ -412,7 +491,7 @@ const UserDetail = () => {
             <div className="flex flex-col gap-6">
               
               {/* Metrik Kinerja (Hanya untuk OB) */}
-              {isOB && (
+               {isOB && (
                 <div className="bg-[#0c6b9d] rounded-2xl p-6 text-white shadow-sm relative overflow-hidden">
                   <div className="absolute right-0 bottom-0 opacity-10">
                     <svg width="150" height="150" viewBox="0 0 24 24" fill="currentColor">
@@ -422,15 +501,54 @@ const UserDetail = () => {
                   
                   <h2 className="text-lg font-bold mb-4">Metrik Kinerja</h2>
                   
-                  <div className="mb-6">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Total Tugas Selesai</p>
-                    <p className="text-5xl font-bold">{user.stats?.tasksCompleted ?? 0}</p>
-                  </div>
-                  
-                  <div className="border-t border-blue-400/30 pt-4">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Rata-Rata Kecepatan Pengerjaan</p>
-                    <p className="text-3xl font-bold">{user.stats?.avgResponseMinutes ?? 0} <span className="text-lg font-medium">Menit</span></p>
-                  </div>
+                  {perfError && (
+                    <p className="text-xs text-red-200 mb-2 bg-red-500/20 rounded px-2 py-1">{perfError}</p>
+                  )}
+
+                  {perfLoading && !obPerf ? (
+                    <div className="space-y-3 animate-pulse">
+                      <div className="h-4 w-24 bg-blue-400/30 rounded" />
+                      <div className="h-8 w-16 bg-blue-400/30 rounded" />
+                      <div className="h-px bg-blue-400/20 my-4" />
+                      <div className="h-4 w-32 bg-blue-400/30 rounded" />
+                      <div className="h-8 w-20 bg-blue-400/30 rounded" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-6">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Total Tugas Selesai</p>
+                        <p className="text-5xl font-bold">{obPerf?.tugas_selesai ?? user.stats?.tasksCompleted ?? "-"}</p>
+                      </div>
+                      
+                      <div className="border-t border-blue-400/30 pt-4">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Rata-Rata Kecepatan Pengerjaan</p>
+                        <p className="text-3xl font-bold">
+                          {obPerf?.kecepatan_rata_rata != null
+                            ? `${Math.round(obPerf.kecepatan_rata_rata / 60)}`
+                            : user.stats?.avgResponseMinutes ?? "-"}
+                          <span className="text-lg font-medium"> Menit</span>
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Metrik Kinerja Karyawan */}
+              {user?.role === "Karyawan" && (
+                <div className="bg-[#0F4C81] rounded-2xl p-6 text-white shadow-sm relative overflow-hidden">
+                  <h2 className="text-lg font-bold mb-4">Ringkasan Kinerja</h2>
+                  {perfError && (
+                    <p className="text-xs text-red-200 mb-2 bg-red-500/20 rounded px-2 py-1">{perfError}</p>
+                  )}
+                  {perfLoading && !obPerf ? (
+                    <div className="animate-pulse h-8 w-16 bg-blue-400/30 rounded" />
+                  ) : (
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Laporan Terkirim</p>
+                      <p className="text-5xl font-bold">{obPerf?.laporan_terkirim ?? "-"}</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -617,6 +735,72 @@ const UserDetail = () => {
         )}
       </AnimatePresence>
 
+      {/* ADD SKILL MODAL */}
+      <AnimatePresence>
+        {showSkillModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => { setShowSkillModal(false); setSelectedSkillId(""); }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-surface"
+            >
+              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900">Tambah Skill</h3>
+                <button
+                  onClick={() => { setShowSkillModal(false); setSelectedSkillId(""); }}
+                  className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer dark:bg-elevated"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="px-6 py-5">
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Pilih Skill</label>
+                <select
+                  value={selectedSkillId}
+                  onChange={(e) => setSelectedSkillId(e.target.value)}
+                  className="w-full bg-white text-gray-800 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer dark:bg-surface"
+                >
+                  <option value="">— Pilih skill —</option>
+                  {skillDefinitions
+                    .filter((s) => !obSkills.some((ob) => ob.nama_skill === s.nama_skill))
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>{s.nama_skill}</option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 dark:bg-surface">
+                <button
+                  onClick={() => { setShowSkillModal(false); setSelectedSkillId(""); }}
+                  className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 cursor-pointer dark:bg-elevated"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleAssignSkill}
+                  disabled={!selectedSkillId}
+                  className="px-6 py-2.5 rounded-xl bg-[#0F4C81] hover:bg-[#0c3c68] text-white font-semibold text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Tambahkan
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* EDIT MODAL */}
       <EditUserModal
         key={user?.backendId}
@@ -632,7 +816,7 @@ const UserDetail = () => {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleConfirmDelete}
         title="Hapus Akun Pengguna?"
-        message={`Apakah Anda yakin ingin menghapus akun ${user.namaLengkap}? Tindakan ini bersifat permanen dan tidak dapat dibatalkan.`}
+        message={`Apakah Anda yakin ingin menghapus akun ${user?.namaLengkap}? Tindakan ini bersifat permanen dan tidak dapat dibatalkan.`}
       />
     </div>
   );
