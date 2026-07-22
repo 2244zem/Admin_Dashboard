@@ -141,7 +141,6 @@ const TasksRutin = () => {
     setEditingId(row.id);
     setModalInitial({ kategori_id: row.kategori_id, namaTugas: row.namaTugas, lantai_id: row.lantai_id, catatan: row.catatan });
     setIsModalOpen(true);
-    setActiveDropdown(null);
   };
 
   const handleSave = async (form: FormValues) => {
@@ -170,7 +169,6 @@ const TasksRutin = () => {
       push("error", getErrorMessage(e) || "Gagal menghapus tugas");
     }
     setRowToDelete(null);
-    setActiveDropdown(null);
   };
 
   return (

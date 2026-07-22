@@ -30,18 +30,17 @@ interface NavItem {
 }
 
 const iconProps = { strokeWidth: 2 } as const;
-
 const navItems: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: '/dashboard', icon: House, roles: ["Admin", "HR", "Karyawan"] },
   {
     id: "tasks",
-    label: "Tugas",
+    label: "Manajemen Tugas",
     href: '/tasks',
     icon: ListChecks,
     roles: ["Admin", "HR"],
     children: [
-      { id: "tasks-rutin", label: "Tugas Rutin", href: '/tasks-rutin', icon: ListChecks, roles: ["Admin", "HR"] },
-      { id: "tasks-insidental", label: "Tugas Tidak Rutin", href: '/tugas-insidental', icon: ListChecks, roles: ["Admin", "HR"] },
+      { id: "tasks-rutin", label: "Rutin", href: '/tasks-rutin', icon: ListChecks, roles: ["Admin", "HR"] },
+      { id: "tasks-insidental", label: "Tidak Rutin", href: '/tugas-insidental', icon: ListChecks, roles: ["Admin", "HR"] },
     ],
   },
   { id: "reports", label: "Laporan Pengguna", href: '/reports', icon: BarChart3, roles: ["Admin", "HR"] },
@@ -106,7 +105,6 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               onClick={() => setIsOpen(false)}
               className="md:hidden fixed inset-0 bg-black z-40"
             />
-
             <motion.aside
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
