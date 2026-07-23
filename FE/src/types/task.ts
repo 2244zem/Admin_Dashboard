@@ -22,6 +22,8 @@ export interface Task {
   jenis?: KategoriTugas;
   approved?: boolean;
   pelapor?: string;
+  waktuMulai?: string;
+  waktuSelesai?: string;
 }
 
 export const STATUS_TASK_OPTIONS: StatusTask[] = ["Belum", "Proses", "Selesai", "Delayed"];

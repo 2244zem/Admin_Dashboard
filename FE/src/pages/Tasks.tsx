@@ -549,21 +549,6 @@ const Tasks = () => {
                   </div>
                 </div>
               )}
-
-              <div className="flex justify-end mb-4">
-                <Can permission="tasks:create">
-                  <button
-                    onClick={openCreateModal}
-                    className="flex items-center gap-2 bg-[#0F4C81] hover:bg-[#0a355c] text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Tambah Tugas Baru
-                  </button>
-                </Can>
-              </div>
-
               <div className="border border-gray-200 rounded-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100">
                   <h2 className="text-base font-bold text-gray-900">Daftar Tugas</h2>

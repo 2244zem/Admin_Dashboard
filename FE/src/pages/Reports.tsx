@@ -31,7 +31,7 @@ const STATUS_OPTIONS = Object.keys(STATUS_MAP);
 const LOKASI_OPTIONS = ["Semua Area", "Toilet", "Lobi", "Area Kantor", "Parkir"];
 const LEVEL_OPTIONS = ["Semua Tingkat", "MENDESAK", "STANDAR"];
 
-const ITEMS_PER_PAGE = 4;
+const ITEMS_PER_PAGE = 15;
 
 // ---------- Action Menu (titik tiga) ----------
 function RowActionMenu({
@@ -211,7 +211,6 @@ const Reports = () => {
     if (!detailTarget) return;
     try {
       await updateLaporan(detailTarget.backendId || String(detailTarget.id), {
-        ...detailTarget,
         status: newStatus,
       });
       // Refresh detail data

@@ -11,7 +11,7 @@ import type { ApiMutationResult } from "../types/api";
 // Dynamic role mapping from API per CLAUDE.md - fetch from GET /api/admin/role
 const roleCache = { map: new Map<string, string>(), reverse: new Map<string, string>(), loaded: false };
 export function getRoleId(roleName: string) {
-  if (roleCache.loaded) return roleCache.map.get(roleName) ?? roleName;
+  if (roleCache.loaded) return roleCache.map.get(roleName.toLowerCase()) ?? roleName;
   return roleName; // fallback to name if not loaded yet
 }
 export function getRoleName(roleId: string) {
@@ -23,7 +23,7 @@ export async function loadRoleMapping() {
   const roles = await getAllRoles() as { id: string; nama_role: string }[];
   roles.forEach((r: { id: string; nama_role: string }) => {
     if (r.id && r.nama_role) {
-      roleCache.map.set(r.nama_role, r.id);
+      roleCache.map.set(r.nama_role.toLowerCase(), r.id);
       roleCache.reverse.set(r.id, r.nama_role);
     }
   });
@@ -177,17 +177,18 @@ function useUsers(filters?: { search?: string; role_id?: string }) {
   };
 
   const updateUser = async (id: string, p: Record<string, unknown>) => {
+    console.log("[updateUser] called", id, p);
+    await loadRoleMapping();
     const body: Record<string, unknown> = {};
-    if (p.username) body.username = p.username;
-    if (p.email) body.email = p.email;
-    if (p.namaLengkap) body.nama_lengkap = p.namaLengkap;
-    // Map role name to UUID per CLAUDE.md (fetched from GET /api/admin/role)
+    if (p.username) body.username = String(p.username);
+    if (p.email) body.email = String(p.email);
+    if (p.namaLengkap) body.nama_lengkap = String(p.namaLengkap);
     if (p.role) {
-      body.role_id = getRoleId(String(p.role)) || p.role;
+      body.role_id = getRoleId(String(p.role)) || String(p.role);
     }
-    if (p.password) body.password = p.password;
-    // is_active must be a proper boolean, not a string — backend expects boolean (true/false)
+    if (p.password) body.password = String(p.password);
     if (p.status) body.is_active = p.status === "Aktif";
+    console.log("[updateUser] calling apiClient.patch", body);
     return apiClient.patch<ApiMutationResult>(`/api/admin/user/${encodeURIComponent(id)}`, body);
   };
 

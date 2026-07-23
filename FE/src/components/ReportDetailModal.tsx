@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Laporan, StatusLaporan } from "../types/laporan";
 import { formatWaktu } from "../lib/utils";
 import { STATUS_BANNER_STYLE, type DisplayStatus } from "../utils/statusMapper";
+import Avatar from "./ui/Avatar";
 
 const DETAIL_STATUS_OPTIONS: StatusLaporan[] = ["Menunggu", "Dalam Proses", "Selesai", "Menunggu Persetujuan Admin"];
 
@@ -151,20 +152,7 @@ export default function ReportDetailModal({
                     Nama Karyawan
                   </p>
                   <div className="flex items-center gap-2">
-                    {laporan.fotoProfil ? (
-                      <img
-                        src={laporan.fotoProfil}
-                        alt={laporan.name}
-                        onError={(event) => {
-                          event.currentTarget.style.display = "none";
-                        }}
-                        className="h-8 w-8 rounded-full object-cover shrink-0 border border-gray-200"
-                      />
-                    ) : (
-                      <span className="h-8 w-8 rounded-full bg-blue-100 text-[#0F4C81] flex items-center justify-center font-bold text-xs flex-shrink-0">
-                        {laporan.initial}
-                      </span>
-                    )}
+                    <Avatar name={laporan.name} src={laporan.fotoProfil} size="md" />
                     <span className="text-sm font-medium text-gray-800">{laporan.name}</span>
                   </div>
                 </div>

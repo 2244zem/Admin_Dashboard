@@ -12,10 +12,14 @@ import ConfirmDialog from "../components/ui/ConfirmDialog";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import Can from "../components/auth/Can";
 import { useObSkills, useSkillDefinitions } from "../hooks/useSkill";
-import { getObPerformance, getKaryawanPerformance } from "../api/performance";
-import type { ObPerformanceData, KaryawanPerformanceData } from "../api/performance";
+import { getObPerformance, getKaryawanPerformance, getObRanking } from "../api/performance";
+import type { ObPerformanceData, KaryawanPerformanceData, ObRankingItem } from "../api/performance";
 import { getObAchievements } from "../api/achievement";
 import type { ObAchievement } from "../api/achievement";
+import { getLaporanHistory, getAdminLaporanDetail, updateAdminLaporan } from "../api/laporan";
+import { mapApiLaporanToLaporan, statusToBackend } from "../hooks/useLaporan";
+import type { Laporan, StatusLaporan } from "../types/laporan";
+import ReportDetailModal from "../components/ReportDetailModal";
 
 
 const UserDetail = () => {
@@ -43,8 +47,33 @@ const UserDetail = () => {
   const [perfLoading, setPerfLoading] = useState(false);
   const [perfError, setPerfError] = useState<string | null>(null);
 
+  // Ranking state untuk OB
+  const [obRank, setObRank] = useState<{ rank: number; item: ObRankingItem } | null>(null);
+
   // Achievement state untuk OB
   const [achievements, setAchievements] = useState<ObAchievement[]>([]);
+
+  // Laporan history untuk karyawan
+  const [laporanHistory, setLaporanHistory] = useState<Laporan[]>([]);
+  const [laporanHistoryLoading, setLaporanHistoryLoading] = useState(false);
+
+  // Detail modal laporan
+  const [detailTarget, setDetailTarget] = useState<Laporan | null>(null);
+  const openDetail = async (row: Laporan) => {
+    setDetailTarget(row);
+    try {
+      const raw = await getAdminLaporanDetail(row.backendId || String(row.id));
+      setDetailTarget(mapApiLaporanToLaporan(raw as Record<string, unknown>));
+    } catch { /* use fallback row data */ }
+  };
+  const closeDetail = () => setDetailTarget(null);
+  const handleDetailStatusChange = async (newStatus: StatusLaporan) => {
+    if (!detailTarget) return;
+    try {
+      await updateAdminLaporan(detailTarget.backendId || String(detailTarget.id), { status: statusToBackend(newStatus) });
+      setDetailTarget({ ...detailTarget, status: newStatus });
+    } catch { /* non-critical */ }
+  };
 
   // Skill state untuk OB (useObSkills internal enabled guard handles undefined ob_id)
   const { obSkills, assignSkill, refetch: refetchSkills } = useObSkills(user?.backendId);
@@ -104,7 +133,20 @@ const UserDetail = () => {
       getObAchievements(user.backendId)
         .then((data) => setAchievements(data as ObAchievement[]))
         .catch(() => { /* non-critical */ })
+      getObRanking()
+        .then((list: ObRankingItem[]) => {
+          const idx = list.findIndex((r: ObRankingItem) => r.ob.id === user.backendId)
+          if (idx !== -1) setObRank({ rank: idx + 1, item: list[idx] })
+        })
+        .catch(() => { /* non-critical */ })
     }
+
+    // Fetch laporan history for all roles
+    setLaporanHistoryLoading(true)
+    getLaporanHistory({ user_id: user.backendId, limit: 10 })
+      .then((data) => setLaporanHistory((data?.items ?? []).map(mapApiLaporanToLaporan)))
+      .catch(() => { /* non-critical */ })
+      .finally(() => setLaporanHistoryLoading(false))
   }, [user?.backendId, user?.role])
 
   // === HANDLERS ===
@@ -133,7 +175,8 @@ const UserDetail = () => {
   }, [user, renewToken, selectedDuration, push, getUserDetail]);
 
   const handleEditSave = useCallback(async (payload: EditUserPayload) => {
-    if (!user?.backendId) return;
+    console.log("[handleEditSave] called", payload);
+    if (!user?.backendId) { console.log("[handleEditSave] no backendId"); return; }
     try {
       const res = await updateUser(user.backendId, payload);
       if (res && res.success === false) {
@@ -434,71 +477,106 @@ const UserDetail = () => {
               {isOB ? (
                 /* Tabel Detail Laporan untuk OB */
                 <div className="border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden flex flex-col dark:bg-surface">
-                  <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-gray-900">Detail Laporan</h2>
+                  <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-gray-900">Detail Laporan</h2>
                     <div className="relative">
-                      <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                       <input
                         type="text"
                         placeholder="Cari laporan..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0F4C81] w-64"
+                        className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#0F4C81] w-48"
                       />
                     </div>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-gray-700">
-                      <thead className="text-[11px] font-bold text-gray-500 bg-[#F8FAFC] border-b border-gray-100 uppercase dark:bg-surface">
+                    <table className="w-full text-left text-xs text-gray-700">
+                      <thead className="text-[10px] font-bold text-gray-500 bg-[#F8FAFC] border-b border-gray-100 uppercase dark:bg-surface">
                         <tr>
-                          <th className="px-6 py-4">ID Laporan</th>
-                          <th className="px-6 py-4">Kategori</th>
-                          <th className="px-6 py-4">Lokasi</th>
-                          <th className="px-6 py-4">Tanggal</th>
-                          <th className="px-6 py-4">Status</th>
-                          <th className="px-6 py-4 text-center">Aksi</th>
+                          <th className="px-3 py-2">ID LAPORAN</th>
+                          <th className="px-3 py-2">KATEGORI</th>
+                          <th className="px-3 py-2">LOKASI</th>
+                          <th className="px-3 py-2">TANGGAL</th>
+                          <th className="px-3 py-2">STATUS</th>
+                          <th className="px-3 py-2 text-center">AKSI</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        <tr>
-                          <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">
-                            Belum ada laporan untuk pengguna ini.
-                          </td>
-                        </tr>
+                        {laporanHistoryLoading ? (
+                          <tr><td colSpan={6} className="px-3 py-6 text-center text-xs text-gray-400">Memuat...</td></tr>
+                        ) : laporanHistory.length === 0 ? (
+                          <tr><td colSpan={6} className="px-3 py-6 text-center text-xs text-gray-400">Belum ada laporan untuk pengguna ini.</td></tr>
+                        ) : laporanHistory.map((l) => (
+                          <tr key={l.backendId} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-3 py-2 font-medium text-gray-800 text-[11px]">{l.id_laporan || `LPR-${l.id}`}</td>
+                            <td className="px-3 py-2 text-gray-600">{l.area}</td>
+                            <td className="px-3 py-2 text-gray-500">{l.loc}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatTanggal(l.createdAt)}</td>
+                            <td className="px-3 py-2">
+                              <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap ${
+                                l.status === "Menunggu" ? "bg-[#3F4852]/10 text-[#3F4852]" :
+                                l.status === "Dalam Proses" ? "bg-[#FF8D28]/10 text-[#FF8D28]" :
+                                l.status === "Selesai" ? "bg-[#22C55E]/10 text-[#22C55E]" :
+                                "bg-[#00629E]/10 text-[#00629E]"
+                              }`}>{l.status}</span>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <button onClick={() => openDetail(l)} className="text-[#0F4C81] text-[10px] font-semibold hover:underline cursor-pointer">Detail</button>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
 
-                  <div className="border-t border-gray-100 p-4 flex items-center justify-between text-xs text-gray-500">
-                    <span>Belum ada laporan</span>
+                  <div className="border-t border-gray-100 p-3 flex items-center justify-between text-[10px] text-gray-500">
+                    <span>{laporanHistory.length === 0 ? "Belum ada laporan" : `${laporanHistory.length} laporan`}</span>
                   </div>
                 </div>
               ) : (
                 /* Tabel Riwayat Laporan untuk Karyawan */
                 <div className="border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden flex flex-col dark:bg-surface">
-                  <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-gray-900">Riwayat Laporan</h2>
-                    <button className="text-sm font-bold text-[#0F4C81] hover:underline cursor-pointer">Lihat Semua</button>
+                  <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-gray-900">Riwayat Laporan</h2>
+                    <button className="text-[10px] font-bold text-[#0F4C81] hover:underline cursor-pointer">Lihat Semua</button>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-gray-700">
-                      <thead className="text-[12px] font-bold text-gray-500 bg-[#F8FAFC] border-b border-gray-100">
+                    <table className="w-full text-left text-xs text-gray-700">
+                      <thead className="text-[10px] font-bold text-gray-500 bg-[#F8FAFC] border-b border-gray-100">
                         <tr>
-                          <th className="px-6 py-4">ID Tugas</th>
-                          <th className="px-6 py-4">Deskripsi Tugas</th>
-                          <th className="px-6 py-4">Waktu</th>
-                          <th className="px-6 py-4">Status</th>
-                          <th className="px-6 py-4 text-center">Aksi</th>
+                          <th className="px-3 py-2">ID Tugas</th>
+                          <th className="px-3 py-2">Deskripsi Tugas</th>
+                          <th className="px-3 py-2">Waktu</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2 text-center">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        <tr>
-                          <td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-400">
-                            Belum ada riwayat laporan.
-                          </td>
-                        </tr>
+                        {laporanHistoryLoading ? (
+                          <tr><td colSpan={5} className="px-3 py-6 text-center text-xs text-gray-400">Memuat...</td></tr>
+                        ) : laporanHistory.length === 0 ? (
+                          <tr><td colSpan={5} className="px-3 py-6 text-center text-xs text-gray-400">Belum ada riwayat laporan.</td></tr>
+                        ) : laporanHistory.map((l) => (
+                          <tr key={l.backendId} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-3 py-2 font-medium text-gray-800 text-[11px]">{l.id_laporan || `LPR-${l.id}`}</td>
+                            <td className="px-3 py-2 text-gray-600 max-w-[200px] truncate">{l.desc}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatTanggal(l.createdAt)}</td>
+                            <td className="px-3 py-2">
+                              <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap ${
+                                l.status === "Menunggu" ? "bg-[#3F4852]/10 text-[#3F4852]" :
+                                l.status === "Dalam Proses" ? "bg-[#FF8D28]/10 text-[#FF8D28]" :
+                                l.status === "Selesai" ? "bg-[#22C55E]/10 text-[#22C55E]" :
+                                "bg-[#00629E]/10 text-[#00629E]"
+                              }`}>{l.status}</span>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <button onClick={() => openDetail(l)} className="text-[#0F4C81] text-[10px] font-semibold hover:underline cursor-pointer">Detail</button>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -534,39 +612,29 @@ const UserDetail = () => {
                     </div>
                   ) : (
                     <>
+                      {obRank && (
+                        <div className="flex items-center gap-2 mb-4 bg-white/10 rounded-lg px-3 py-2">
+                          <span className="text-lg font-extrabold">#{obRank.rank}</span>
+                          <span className="text-[11px] font-medium text-blue-100">Peringkat</span>
+                        </div>
+                      )}
                       <div className="mb-6">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Total Tugas Selesai</p>
-                        <p className="text-5xl font-bold">{obPerf?.tugas_selesai ?? user.stats?.tasksCompleted ?? "-"}</p>
+                        <p className="text-5xl font-bold">{obRank?.item.total_tugas_selesai ?? obPerf?.tugas_selesai ?? user.stats?.tasksCompleted ?? "-"}</p>
                       </div>
-                      
+
                       <div className="border-t border-blue-400/30 pt-4">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Rata-Rata Kecepatan Pengerjaan</p>
                         <p className="text-3xl font-bold">
-                          {obPerf?.kecepatan_rata_rata != null
-                            ? `${Math.round(obPerf.kecepatan_rata_rata / 60)}`
-                            : user.stats?.avgResponseMinutes ?? "-"}
+                          {obRank?.item.rata_rata_kecepatan != null
+                            ? `${Math.round(obRank.item.rata_rata_kecepatan / 60)}`
+                            : obPerf?.kecepatan_rata_rata != null
+                              ? `${Math.round(obPerf.kecepatan_rata_rata / 60)}`
+                              : user.stats?.avgResponseMinutes ?? "-"}
                           <span className="text-lg font-medium"> Menit</span>
                         </p>
                       </div>
                     </>
-                  )}
-                </div>
-              )}
-
-              {/* Metrik Kinerja Karyawan */}
-              {user?.role === "Karyawan" && (
-                <div className="bg-[#0F4C81] rounded-2xl p-6 text-white shadow-sm relative overflow-hidden">
-                  <h2 className="text-lg font-bold mb-4">Ringkasan Kinerja</h2>
-                  {perfError && (
-                    <p className="text-xs text-red-200 mb-2 bg-red-500/20 rounded px-2 py-1">{perfError}</p>
-                  )}
-                  {perfLoading && !obPerf ? (
-                    <div className="animate-pulse h-8 w-16 bg-blue-400/30 rounded" />
-                  ) : (
-                    <div>
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100 mb-1">Laporan Terkirim</p>
-                      <p className="text-5xl font-bold">{obPerf?.laporan_terkirim ?? "-"}</p>
-                    </div>
                   )}
                 </div>
               )}
@@ -836,6 +904,12 @@ const UserDetail = () => {
         onConfirm={handleConfirmDelete}
         title="Hapus Akun Pengguna?"
         message={`Apakah Anda yakin ingin menghapus akun ${user?.namaLengkap}? Tindakan ini bersifat permanen dan tidak dapat dibatalkan.`}
+      />
+
+      <ReportDetailModal
+        laporan={detailTarget}
+        onClose={closeDetail}
+        onStatusChange={handleDetailStatusChange}
       />
     </div>
   );

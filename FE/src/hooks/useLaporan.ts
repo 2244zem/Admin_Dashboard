@@ -134,6 +134,7 @@ function useLaporan(filters?: Record<string, unknown>) {
       if (payload.status !== undefined) body.status = statusToBackend(payload.status as StatusLaporan);
       if (payload.admin_catatan !== undefined) body.admin_catatan = payload.admin_catatan;
       if (payload.prioritas !== undefined) body.prioritas = payload.prioritas;
+      if (payload.ob_id !== undefined) body.ob_id = payload.ob_id;
       if (Object.keys(body).length === 0) return;
       await updateAdminLaporan(id, body);
       await refetch();
@@ -142,8 +143,6 @@ function useLaporan(filters?: Record<string, unknown>) {
       const id = laporan.backendId || String(laporan.id);
       const raw = await getAdminLaporanDetail(id) as Record<string, unknown>;
       const mapped = mapApiLaporanToLaporan(raw);
-      // Preserve detail-fetched fields; only keep caller values when present
-      // (a deep-link passes only backendId, so name/createdAt come from detail).
       return {
         ...mapped,
         ...(laporan.id ? { id: laporan.id } : {}),

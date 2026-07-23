@@ -7,10 +7,12 @@ import ReportDetailModal from "../components/ReportDetailModal";
 import DailyChecklistModal, { type OBChecklistDetail } from "../components/DailyChecklistModal";
 import * as XLSX from "xlsx";
 import { useLaporan } from "../hooks/useLaporan";
+import { useDashboard } from "../hooks/useDashboard";
 import { useTasks } from "../hooks/useTasks";
 import { StatCardsSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import Avatar from "../components/ui/Avatar";
+import SmoothLineChart from "../components/ui/SmoothLineChart";
 import { formatDateTime } from "../lib/utils";
 
 type Tab = "Hari ini" | "Mingguan" | "Bulanan" | "Tahunan";
@@ -104,6 +106,18 @@ function exportToExcel(list: Laporan[]) {
 }
 
 function getDurasiTugas(task: Task): string {
+  if (task.waktuMulai && task.waktuSelesai) {
+    const mulai = new Date(task.waktuMulai).getTime();
+    const selesai = new Date(task.waktuSelesai).getTime();
+    if (!isNaN(mulai) && !isNaN(selesai) && selesai > mulai) {
+      const diffMs = selesai - mulai;
+      const menit = Math.floor(diffMs / 60000);
+      if (menit < 60) return `${menit} menit`;
+      const jam = Math.floor(menit / 60);
+      const sisaMenit = menit % 60;
+      return sisaMenit ? `${jam}j ${sisaMenit}m` : `${jam} jam`;
+    }
+  }
   const raw = (task as unknown as { durasi?: string; duration?: string }).durasi
     ?? (task as unknown as { durasi?: string; duration?: string }).duration;
   if (raw) return raw;
@@ -111,68 +125,7 @@ function getDurasiTugas(task: Task): string {
 }
 
 // ---------- Komponen Grafik SVG Garis Mulus ----------
-const SmoothLineChart = ({ data }: { data: { label: string; count: number }[] }) => {
-  const max = Math.max(...data.map(d => d.count), 1);
-  const isAllZero = data.every(d => d.count === 0);
-  const svgWidth = 800;
-  const svgHeight = 220;
-  const pt = 20;
-  const pb = 10;
-  const pl = 0;
-  const pr = 0;
-  const w = svgWidth - pl - pr;
-  const h = svgHeight - pt - pb;
-
-  const points = data.map((d, i) => {
-    const x = pl + (i / Math.max(data.length - 1, 1)) * w;
-    const y = isAllZero ? pt + h : pt + h - (d.count / max) * h;
-    return { x, y, label: d.label };
-  });
-
-  let pathD = `M ${points[0]?.x || 0} ${points[0]?.y || 0}`;
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const cpX = prev.x + (curr.x - prev.x) / 2;
-    pathD += ` C ${cpX} ${prev.y}, ${cpX} ${curr.y}, ${curr.x} ${curr.y}`;
-  }
-
-  const areaD = points.length > 0 ? `${pathD} L ${points[points.length - 1].x} ${pt + h} L ${points[0].x} ${pt + h} Z` : "";
-
-  return (
-    <div className="w-full mt-4 flex flex-col relative h-[280px]">
-      <div className="flex-1 relative w-full h-full">
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
-          <defs>
-            <linearGradient id="gradientArea" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          {points.length > 0 && (
-            <>
-              <path d={areaD} fill="url(#gradientArea)" />
-              <path
-                d={pathD}
-                fill="none"
-                stroke="#0ea5e9"
-                strokeWidth="4"
-                vectorEffect="non-scaling-stroke"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </>
-          )}
-        </svg>
-      </div>
-      <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 uppercase mt-4 px-1 z-10">
-        {data.map((d, i) => (
-          <span key={i} className="text-center truncate max-w-[60px]">{d.label}</span>
-        ))}
-      </div>
-    </div>
-  );
-};
+// (pindah ke components/ui/SmoothLineChart.tsx)
 
 function RowActionMenu({
   onDetail,
@@ -258,7 +211,15 @@ const Dashboard = () => {
     [],
   );
 
-  const { laporanList, isLoading: isLaporanLoading, error: laporanError, fetchLaporan, getLaporanDetail, deleteLaporan } = useLaporan(laporanFilters);
+  const {
+    laporanList,
+    isLoading: isLaporanLoading,
+    error: laporanError,
+    fetchLaporan,
+    getLaporanDetail,
+    deleteLaporan,
+  } = useLaporan(laporanFilters);
+  const { dashboard } = useDashboard();
   const { tasks: taskList, isLoading: isTasksLoading, error: tasksError, fetchTasks } = useTasks();
 
   const [detailTarget, setDetailTarget] = useState<Laporan | null>(null);
@@ -298,20 +259,6 @@ const Dashboard = () => {
     fetchLaporan();
     fetchTasks();
   }, [fetchLaporan, fetchTasks]);
-
-  const totalLaporan = laporanList.length;
-  const laporanSelesai = laporanList.filter((l) => l.status === "Selesai").length;
-  const tugasUnassigned = taskList.filter((t) => t.status === "Belum").length;
-
-  const kpiRates = useMemo(() => {
-    const total = laporanList.length;
-    const urgent = laporanList.filter((l) => l.tingkat === "MENDESAK").length;
-    return {
-      urgentRate: total ? Math.round((urgent / total) * 100) : 0,
-      selesaiRate: total ? Math.round((laporanSelesai / total) * 100) : 0,
-      unassignedRate: taskList.length ? Math.round((tugasUnassigned / taskList.length) * 100) : 0,
-    };
-  }, [laporanList, taskList, laporanSelesai, tugasUnassigned]);
 
   const chartData = useMemo(() => {
     if (activeTab === "Hari ini") return getHarianData(laporanList);
@@ -655,7 +602,7 @@ const Dashboard = () => {
 
               {/* --- STAT CARDS SECTION --- */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                
+
                 {/* Total Laporan Karyawan */}
                 <div className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow dark:bg-surface dark:border-line">
                   <div className="flex justify-between items-start mb-6">
@@ -666,7 +613,7 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{totalLaporan}</h3>
+                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{dashboard?.total_laporan_karyawan ?? laporanList.length}</h3>
                     <p className="text-xs text-gray-500 font-semibold dark:text-gray-400">Total Laporan Karyawan</p>
                   </div>
                 </div>
@@ -681,12 +628,12 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{laporanSelesai}</h3>
+                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{dashboard?.laporan_selesai ?? laporanList.filter((l) => l.status === "Selesai").length}</h3>
                     <p className="text-xs text-gray-500 font-semibold dark:text-gray-400">Laporan Selesai</p>
                   </div>
                 </div>
 
-                {/* Tugas Unassigned */}
+                {/* Tugas Belum Diambil */}
                 <div className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow dark:bg-surface dark:border-line">
                   <div className="flex justify-between items-start mb-6">
                     <div className="h-11 w-11 bg-amber-50 rounded-[14px] flex items-center justify-center text-amber-500 shrink-0 dark:bg-amber-900/30 dark:text-amber-400">
@@ -696,7 +643,7 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{tugasUnassigned}</h3>
+                    <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{dashboard?.tugas_belum_diambil ?? taskList.filter((t) => !t.petugas?.nama).length}</h3>
                     <p className="text-xs text-gray-500 font-semibold dark:text-gray-400">Tugas Belum Diambil</p>
                   </div>
                 </div>

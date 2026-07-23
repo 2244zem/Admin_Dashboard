@@ -106,7 +106,7 @@ const EditUserModal = ({ open, user, onClose, onSave }: EditUserModalProps) => {
               </button>
             </div>
 
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-5 space-y-4 min-h-[200px]">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Lengkap</label>

@@ -11,9 +11,6 @@ class ApiClient {
     this.axiosInstance = axios.create({
       baseURL,
       timeout: 30000,
-      headers: {
-        "Content-Type": "application/json",
-      },
     });
 
     this.setupRequestInterceptor();
@@ -64,6 +61,14 @@ class ApiClient {
 
         // Handle specific error codes
         switch (statusCode) {
+          case 400:
+            return Promise.reject({
+              ...errorData,
+              statusCode: errorData?.statusCode || 400,
+              message: errorData?.message || "Data yang dikirim tidak valid",
+              error: errorData?.error || "BadRequest",
+            } as ApiErrorResponse);
+
           case 401:
             // Unauthorized - clear tokens and redirect to login
             this.clearAuthData();
@@ -147,13 +152,7 @@ class ApiClient {
    * boundary) instead of being force-converted to JSON by the default
    * application/json Content-Type header.
    */
-  private withFormDataConfig(data: unknown, config?: AxiosRequestConfig): AxiosRequestConfig | undefined {
-    if (typeof FormData !== "undefined" && data instanceof FormData) {
-      return {
-        ...config,
-        headers: { ...(config?.headers as Record<string, unknown> | undefined), "Content-Type": undefined },
-      };
-    }
+  private withFormDataConfig(_data: unknown, config?: AxiosRequestConfig): AxiosRequestConfig | undefined {
     return config;
   }
 
@@ -185,8 +184,14 @@ class ApiClient {
    * PATCH request
    */
   async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.axiosInstance.patch<T>(url, data, this.withFormDataConfig(data, config));
-    return response.data;
+    console.log("[apiClient.patch]", url, data instanceof FormData ? "FormData" : data);
+    try {
+      const response = await this.axiosInstance.patch<T>(url, data, this.withFormDataConfig(data, config));
+      return response.data;
+    } catch (err) {
+      console.error("[apiClient.patch ERROR]", (err as { response?: unknown })?.response ?? err);
+      throw err;
+    }
   }
 }
 

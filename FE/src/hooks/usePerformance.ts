@@ -6,12 +6,13 @@ import {
   type ObRankingItem,
   type PerformancePeriod,
 } from "../api/performance";
-import { getObAchievements, type ObAchievement } from "../api/achievement";
 import { getErrorMessage } from "../lib/utils";
+import { resolveAssetUrl } from "../lib/assets";
 
 export interface ObPerformanceRow {
   userId: string;
   nama: string;
+  fotoProfil?: string;
   tugasDiklaim?: number;
   kecepatanRataRata?: string;
   achievements: Array<{ nama: string; icon?: string }>;
@@ -37,27 +38,20 @@ export function usePerformanceOb() {
 
         const ranking = (rankingData as ObRankingItem[]) ?? [];
 
-        // Parallel-fetch achievements per OB (N parallel — fine for small OB list)
-        const achievementResults = await Promise.allSettled(
-          ranking.map((item) => getObAchievements(item.ob.id))
-        );
-
-        const enrichedRows: ObPerformanceRow[] = ranking.map((item, idx) => {
-          const raw = achievementResults[idx];
-          const achievements: Array<{ nama: string; icon?: string }> =
-            raw.status === "fulfilled"
-              ? ((raw.value as unknown as ObAchievement[]) ?? []).map(
-                  (a: ObAchievement) => ({ nama: a.nama, icon: a.icon })
-                )
-              : [];
+        const enrichedRows: ObPerformanceRow[] = ranking.map((item) => {
+          const achievements = (item.ob.skills ?? []).map((s) => ({
+            nama: s.nama_skill,
+            icon: undefined,
+          }));
 
           return {
             userId: item.ob.id,
             nama: item.ob.nama_lengkap,
+            fotoProfil: resolveAssetUrl(item.ob.profile_picture),
             tugasDiklaim: item.total_tugas_claimed,
             kecepatanRataRata:
               item.rata_rata_kecepatan > 0
-                ? `${(item.rata_rata_kecepatan / 60).toFixed(1)} min`
+                ? `${(item.rata_rata_kecepatan / 60).toFixed(1)}`
                 : undefined,
             achievements,
           };

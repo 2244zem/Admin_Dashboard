@@ -46,6 +46,24 @@ export interface AdminLaporanResponse {
   };
 }
 
+export interface LaporanStats {
+  laporan_baru: number;
+  sedang_dikerjakan: number;
+  selesai_hari_ini: number;
+}
+
+export interface LaporanStatsParams {
+  period?: "harian" | "mingguan" | "bulanan" | "tahunan";
+  lokasi_id?: string;
+}
+
+export interface LaporanHistoryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  user_id?: string;
+}
+
 export interface AdminLaporanResult {
   items: Record<string, unknown>[];
   meta: { total_items: number; current_page: number; limit: number; total_pages: number };
@@ -64,6 +82,16 @@ export async function getAdminLaporanDetail(id: string) {
   const response = await apiClient.get<Record<string, unknown>>(`/api/admin/laporan/${id}`);
   // Return data directly for detail
   return response?.data ?? response;
+}
+
+export async function getLaporanStats(params?: LaporanStatsParams): Promise<LaporanStats> {
+  const response = await apiClient.get<{ success: boolean; data: LaporanStats }>("/api/admin/laporan/stats", { params });
+  return response?.data ?? { laporan_baru: 0, sedang_dikerjakan: 0, selesai_hari_ini: 0 };
+}
+
+export async function getLaporanHistory(params?: LaporanHistoryParams) {
+  const response = await apiClient.get<{ success: boolean; data: { items: Record<string, unknown>[]; meta: { total_items: number; current_page: number; limit: number; total_pages: number } } }>("/api/admin/laporan/history", { params });
+  return response?.data ?? { items: [], meta: { total_items: 0, current_page: 1, limit: 0, total_pages: 1 } };
 }
 
 export async function updateAdminLaporan(id: string, payload: Record<string, unknown>) {

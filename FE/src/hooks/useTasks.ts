@@ -63,6 +63,8 @@ export function mapApiChecklistToTask(row: Record<string, unknown>, jenis: Kateg
     jenis,
     approved: row.approved === true,
     pelapor: row.pelapor != null ? String(row.pelapor) : undefined,
+    waktuMulai: row.dikerjakan_at != null ? String(row.dikerjakan_at) : undefined,
+    waktuSelesai: row.selesai_at != null ? String(row.selesai_at) : undefined,
   };
 }
 
@@ -122,6 +124,8 @@ function mapApiTugasToTask(row: Record<string, unknown>): Task {
     jenis: "Tidak Rutin",
     approved: row.approved === true,
     pelapor: row.pelapor != null ? String(row.pelapor) : undefined,
+    waktuMulai: row.dikerjakan_at != null ? String(row.dikerjakan_at) : undefined,
+    waktuSelesai: row.selesai_at != null ? String(row.selesai_at) : undefined,
   };
 }
 
