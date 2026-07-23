@@ -11,6 +11,7 @@ import { useTasks } from "../hooks/useTasks";
 import { StatCardsSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import Avatar from "../components/ui/Avatar";
+import { formatDateTime } from "../lib/utils";
 
 type Tab = "Hari ini" | "Mingguan" | "Bulanan" | "Tahunan";
 
@@ -289,6 +290,10 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<Tab>("Hari ini");
   const [checklistDetail, setChecklistDetail] = useState<OBChecklistDetail | null>(null);
 
+  const PAGE_SIZE = 4;
+  const [laporanPage, setLaporanPage] = useState(1);
+  const [tugasPage, setTugasPage] = useState(1);
+
   useEffect(() => {
     fetchLaporan();
     fetchTasks();
@@ -337,18 +342,24 @@ const Dashboard = () => {
     return `conic-gradient(${stops.join(", ")})`;
   }, [donutData]);
 
-  const laporanKaryawanTerbaru = useMemo(() => {
+  const laporanSorted = useMemo(() => {
     return [...laporanList]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 4);
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [laporanList]);
 
-  const riwayatTugasOB = useMemo(() => {
+  const laporanTerbaruTampil = useMemo(() => {
+    return laporanSorted.slice((laporanPage - 1) * PAGE_SIZE, laporanPage * PAGE_SIZE);
+  }, [laporanSorted, laporanPage]);
+
+  const tugasSorted = useMemo(() => {
     return [...taskList]
       .filter((t) => t.status === "Selesai" && Boolean(t.petugas?.nama))
-      .sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1))
-      .slice(0, 4);
+      .sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1));
   }, [taskList]);
+
+  const riwayatTugasTampil = useMemo(() => {
+    return tugasSorted.slice((tugasPage - 1) * PAGE_SIZE, tugasPage * PAGE_SIZE);
+  }, [tugasSorted, tugasPage]);
 
   const openTaskDetailFromRiwayat = (task: Task) => {
     setChecklistDetail({
@@ -403,7 +414,7 @@ const Dashboard = () => {
                     </button>
                   </div>
 
-                  {laporanKaryawanTerbaru.length === 0 ? (
+                  {laporanTerbaruTampil.length === 0 ? (
                     <div className="flex-1 min-h-[160px] bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 text-sm dark:bg-elevated">
                       Data belum tersedia
                     </div>
@@ -412,7 +423,7 @@ const Dashboard = () => {
                       <table className="w-full text-xs bg-white dark:bg-surface text-left">
                         <thead>
                           <tr className="text-[10px] font-bold text-gray-500 uppercase border-b border-gray-100">
-                            <th className="pb-2 pt-0.5 pr-2">ID</th>
+                            <th className="pb-2 pt-0.5 pr-2">ID &amp; Waktu</th>
                             <th className="pb-2 pt-0.5 pr-2">Karyawan</th>
                             <th className="pb-2 pt-0.5 pr-2">Lokasi</th>
                             <th className="pb-2 pt-0.5 pr-2">Tingkat</th>
@@ -421,12 +432,13 @@ const Dashboard = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {laporanKaryawanTerbaru.map((l) => (
+                          {laporanTerbaruTampil.map((l) => (
                             <tr key={l.id} className="border-b border-gray-50 last:border-0 hover:bg-slate-50/50 transition-colors">
-                              <td className="py-2 pr-2">
-                                <span className="font-semibold text-gray-700 text-[11px]">
+                              <td className="py-2 pr-2 whitespace-nowrap">
+                                <div className="font-semibold text-gray-700 text-[11px]">
                                   {l.id_laporan || `LPR-${String(l.id).padStart(3, "0")}`}
-                                </span>
+                                </div>
+                                <p className="text-[9px] text-gray-400">{formatDateTime(l.createdAt)}</p>
                               </td>
                               <td className="py-2 pr-2">
                                 <div className="flex items-center gap-1.5">
@@ -473,14 +485,33 @@ const Dashboard = () => {
                       </table>
                       
                       <div className="flex items-center justify-between mt-3 px-1 text-[10px] text-gray-500 font-medium border-t border-gray-100 pt-3">
-                        <span>1-{laporanKaryawanTerbaru.length} dari {laporanList.length}</span>
+                        <span>
+                          {laporanSorted.length === 0
+                            ? "Tidak ada laporan"
+                            : `Menampilkan ${(laporanPage - 1) * PAGE_SIZE + 1} sampai ${Math.min(laporanPage * PAGE_SIZE, laporanSorted.length)} dari ${laporanSorted.length} laporan`}
+                        </span>
                         <div className="flex items-center gap-1">
-                          <button className="p-0.5 hover:bg-gray-100 rounded text-gray-400 font-bold">&lt;</button>
-                          <button className="w-5 h-5 rounded bg-[#1e3a8a] text-white font-semibold flex items-center justify-center shadow-sm text-[10px]">1</button>
-                          {laporanList.length > 4 && (
-                            <button className="w-5 h-5 rounded hover:bg-gray-100 text-gray-600 font-semibold flex items-center justify-center transition-colors text-[10px]">2</button>
-                          )}
-                          <button className="p-0.5 hover:bg-gray-100 rounded text-gray-600 font-bold">&gt;</button>
+                          <button
+                            onClick={() => setLaporanPage(p => Math.max(1, p - 1))}
+                            disabled={laporanPage === 1}
+                            className={`p-0.5 rounded font-bold ${laporanPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:bg-gray-100 cursor-pointer"}`}
+                          >&lt;</button>
+                          {Array.from({ length: Math.ceil(laporanSorted.length / PAGE_SIZE) }, (_, i) => i + 1).map((page) => (
+                            <button
+                              key={page}
+                              onClick={() => setLaporanPage(page)}
+                              className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-semibold transition-colors ${
+                                page === laporanPage
+                                  ? "bg-[#1e3a8a] text-white shadow-sm"
+                                  : "hover:bg-gray-100 text-gray-600 cursor-pointer"
+                              }`}
+                            >{page}</button>
+                          ))}
+                          <button
+                            onClick={() => setLaporanPage(p => Math.min(Math.ceil(laporanSorted.length / PAGE_SIZE), p + 1))}
+                            disabled={laporanPage === Math.ceil(laporanSorted.length / PAGE_SIZE) || laporanSorted.length === 0}
+                            className={`p-0.5 rounded font-bold ${laporanPage === Math.ceil(laporanSorted.length / PAGE_SIZE) || laporanSorted.length === 0 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:bg-gray-100 cursor-pointer"}`}
+                          >&gt;</button>
                         </div>
                       </div>
                     </div>
@@ -496,7 +527,7 @@ const Dashboard = () => {
                     </button>
                   </div>
 
-                  {riwayatTugasOB.length === 0 ? (
+                  {riwayatTugasTampil.length === 0 ? (
                     <div className="flex-1 min-h-[160px] bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 text-sm dark:bg-elevated">
                       Data belum tersedia
                     </div>
@@ -506,17 +537,27 @@ const Dashboard = () => {
                         <thead>
                           <tr className="text-[10px] font-bold text-gray-500 uppercase border-b border-gray-100">
                             <th className="pb-2 pt-0.5 pr-2">Tugas</th>
+                            <th className="pb-2 pt-0.5 pr-2">Kategori</th>
                             <th className="pb-2 pt-0.5 pr-2">Durasi</th>
                             <th className="pb-2 pt-0.5 pr-2">Status</th>
                             <th className="pb-2 pt-0.5 text-right">Aksi</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {riwayatTugasOB.map((task) => (
+                          {riwayatTugasTampil.map((task) => (
                             <tr key={task.id} className="border-b border-gray-50 last:border-0 hover:bg-slate-50/50 transition-colors">
                               <td className="py-2.5 pr-2">
                                 <p className="font-bold text-gray-800 text-[11px]">{task.namaTugas}</p>
                                 <p className="text-[10px] font-medium text-gray-400">{task.petugas.nama}</p>
+                              </td>
+                              <td className="py-2.5 pr-2">
+                                <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap border ${
+                                  task.jenis === "Tidak Rutin"
+                                    ? "bg-[#FF8D28]/10 text-[#FF8D28] border-[#FF8D28]/20"
+                                    : "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20"
+                                }`}>
+                                  {task.jenis ?? "Rutin"}
+                                </span>
                               </td>
                               <td className="py-2.5 pr-2">
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500">
@@ -527,7 +568,7 @@ const Dashboard = () => {
                                 </span>
                               </td>
                               <td className="py-2.5 pr-2">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-500">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20">
                                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
@@ -549,6 +590,36 @@ const Dashboard = () => {
                           ))}
                         </tbody>
                       </table>
+                      <div className="flex items-center justify-between mt-3 px-1 text-[10px] text-gray-500 font-medium border-t border-gray-100 pt-3">
+                        <span>
+                          {tugasSorted.length === 0
+                            ? "Tidak ada tugas"
+                            : `Menampilkan ${(tugasPage - 1) * PAGE_SIZE + 1} sampai ${Math.min(tugasPage * PAGE_SIZE, tugasSorted.length)} dari ${tugasSorted.length} tugas`}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setTugasPage(p => Math.max(1, p - 1))}
+                            disabled={tugasPage === 1}
+                            className={`p-0.5 rounded font-bold ${tugasPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:bg-gray-100 cursor-pointer"}`}
+                          >&lt;</button>
+                          {Array.from({ length: Math.ceil(tugasSorted.length / PAGE_SIZE) }, (_, i) => i + 1).map((page) => (
+                            <button
+                              key={page}
+                              onClick={() => setTugasPage(page)}
+                              className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-semibold transition-colors ${
+                                page === tugasPage
+                                  ? "bg-[#1e3a8a] text-white shadow-sm"
+                                  : "hover:bg-gray-100 text-gray-600 cursor-pointer"
+                              }`}
+                            >{page}</button>
+                          ))}
+                          <button
+                            onClick={() => setTugasPage(p => Math.min(Math.ceil(tugasSorted.length / PAGE_SIZE), p + 1))}
+                            disabled={tugasPage === Math.ceil(tugasSorted.length / PAGE_SIZE) || tugasSorted.length === 0}
+                            className={`p-0.5 rounded font-bold ${tugasPage === Math.ceil(tugasSorted.length / PAGE_SIZE) || tugasSorted.length === 0 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:bg-gray-100 cursor-pointer"}`}
+                          >&gt;</button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
