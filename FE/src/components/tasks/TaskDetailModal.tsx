@@ -128,7 +128,6 @@ const TugasDetailModal = ({ row, onClose, onApprove }: Props) => {
             {row.catatanOb || "Tidak ada catatan."}
           </div>
         </div>
-masih
         {/* Catatan Admin */}
         <div className="px-6 pb-5">
           <p className="text-xs font-bold text-gray-500 mb-2">Catatan Admin</p>

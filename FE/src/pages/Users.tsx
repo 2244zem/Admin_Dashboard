@@ -281,7 +281,7 @@ const Users = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <motion.div whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }} className="border border-gray-200 rounded-xl p-4 flex items-center justify-between">
               <div>
-                <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total User</span>
+                <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pengguna</span>
                 <span className="text-xl font-bold text-[#0F4C81]">{totalUser.toLocaleString("id-ID")}</span>
               </div>
               <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-[#0F4C81]">
@@ -293,7 +293,7 @@ const Users = () => {
 
             <motion.div whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }} className="border border-gray-200 rounded-xl p-4 flex items-center justify-between">
               <div>
-                <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">User Aktif</span>
+                <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pengguna Aktif</span>
                 <span className="text-xl font-bold text-green-600">{userAktif.toLocaleString("id-ID")}</span>
               </div>
               <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
@@ -305,7 +305,7 @@ const Users = () => {
 
             <motion.div whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }} className="border border-gray-200 rounded-xl p-4 flex items-center justify-between">
               <div>
-                <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">User Non-Aktif</span>
+                <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pengguna Aktif</span>
                 <span className="text-xl font-bold text-gray-500">{userNonAktif.toLocaleString("id-ID")}</span>
               </div>
               <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 dark:bg-elevated">
@@ -331,11 +331,11 @@ const Users = () => {
           {/* Filter Panel */}
           <div className="border border-gray-200 rounded-xl p-5 mb-6 flex flex-wrap md:flex-nowrap gap-4 items-end bg-gray-50/50 dark:bg-surface">
             <div className="flex-1">
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Cari User</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Cari Pengguna</label>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Nama Lengkap / Username..."
+                  placeholder="Nama Lengkap / Pengguna..."
                   value={searchDraft}
                   onChange={(e) => setSearchDraft(e.target.value)}
                   className="w-full bg-white text-gray-800 text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all duration-200 dark:bg-surface"
@@ -349,14 +349,14 @@ const Users = () => {
             </div>
 
             <div className="w-full md:w-56">
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Filter Role</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Filter Peran</label>
               <div className="relative">
                 <select
                   value={roleDraft}
                   onChange={(e) => setRoleDraft(e.target.value)}
                   className="w-full bg-white text-gray-800 text-sm rounded-xl pl-4 pr-10 py-2.5 outline-none border border-gray-200 focus:border-[#0F4C81] focus:ring-2 focus:ring-blue-100 transition-all duration-200 appearance-none cursor-pointer dark:bg-surface"
                 >
-                  <option value="Semua Role">Semua Role</option>
+                  <option value="Semua Role">Semua Peran</option>
                   {roleOptions.map((r) => {
                     let label = r.nama_role.charAt(0).toUpperCase() + r.nama_role.slice(1);
                     if (label.toLowerCase() === "ob") label = "OB";
@@ -400,9 +400,9 @@ const Users = () => {
                 <table className="w-full text-left text-sm text-gray-600">
                   <thead className="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200 bg-gray-100/50 dark:bg-elevated">
                     <tr>
-                      <th className="px-6 py-4">User</th>
-                      <th className="px-6 py-4">Username</th>
-                      <th className="px-6 py-4">Role</th>
+                      <th className="px-6 py-4">Pengguna</th>
+                      <th className="px-6 py-4">Nama Pengguna</th>
+                      <th className="px-6 py-4">Peran</th>
                       <th className="px-6 py-4">Status Token</th>
                       <th className="px-6 py-4">Status Akun</th>
                       <th className="px-6 py-4 text-right">Aksi</th>
@@ -448,7 +448,7 @@ const Users = () => {
               {/* Pagination */}
               <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500 dark:bg-surface">
                 <span>
-                  Menampilkan {startIndex} sampai {endIndex} dari {userList.length} user
+                  Menampilkan {startIndex} sampai {endIndex} dari {userList.length} Pengguna
                 </span>
                 <div className="flex items-center gap-1">
                   <button
