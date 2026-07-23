@@ -44,7 +44,7 @@ const Performa = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <PageHeader title="Performa OB" />
 
-        <main className="flex-1 overflow-auto bg-white p-8 font-sans dark:bg-base">
+        <main className="flex-1 overflow-auto bg-white p-6 font-sans dark:bg-base">
           {isLoading && rows.length === 0 ? (
             <div>
               <Skeleton className="h-8 w-64 mb-2" />
@@ -60,7 +60,7 @@ const Performa = () => {
             <ErrorState message={error} onRetry={() => fetchAll(undefined, period)} />
           ) : (
             <>
-              <div className="flex items-start justify-between mb-6">
+              <div className="flex items-start justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">Analitik Performa</h2>
                   <p className="text-sm text-gray-400 mt-0.5">

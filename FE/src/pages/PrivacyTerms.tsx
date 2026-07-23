@@ -203,7 +203,7 @@ export default function PrivacyTerms() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto bg-white p-8 dark:bg-base">
+        <main className="flex-1 overflow-auto bg-white p-6 dark:bg-base">
           <div className="flex items-center gap-6 border-b border-gray-200 mb-6">
             <button onClick={() => setActiveTab("syarat")} className={activeTab === "syarat" ? "pb-3 text-sm font-semibold border-b-2 text-[#0F4C81] border-[#0F4C81] cursor-pointer" : "pb-3 text-sm font-semibold border-b-2 text-gray-400 border-transparent hover:text-gray-600 cursor-pointer"}>
               Syarat dan Ketentuan

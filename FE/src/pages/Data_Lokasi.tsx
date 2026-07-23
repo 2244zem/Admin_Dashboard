@@ -214,7 +214,7 @@ const DataLokasi = () => {
     <div className="flex h-screen bg-white font-sans text-gray-800 dark:bg-base dark:text-ink">
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* BODY: 2 KOLOM */}
-        <main className="flex-1 overflow-hidden flex flex-col md:flex-row gap-6 p-8 bg-white dark:bg-base">
+        <main className="flex-1 overflow-hidden flex flex-col md:flex-row gap-4 p-6 bg-white dark:bg-base">
           {isLoading && gedungList.length === 0 ? (
             <>
               <div className="w-full md:w-[300px] flex-shrink-0 space-y-3">

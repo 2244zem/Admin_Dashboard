@@ -28,7 +28,7 @@ const STATUS_MAP: Record<string, string | undefined> = {
 
 const STATUS_OPTIONS = Object.keys(STATUS_MAP);
 const LOKASI_OPTIONS = ["Semua Area", "Toilet", "Lobi", "Area Kantor", "Parkir"];
-const LEVEL_OPTIONS = ["Semua Level", "URGENT", "STANDARD"];
+const LEVEL_OPTIONS = ["Semua Tingkat", "MENDESAK", "STANDAR"];
 
 const ITEMS_PER_PAGE = 4;
 
@@ -115,7 +115,7 @@ const Reports = () => {
   // --- Filter state ---
   const [filterStatus, setFilterStatus] = useState("Semua Status");
   const [filterLokasi, setFilterLokasi] = useState("Semua Area");
-  const [filterLevel, setFilterLevel] = useState("Semua Level");
+  const [filterLevel, setFilterLevel] = useState("Semua Tingkat");
   const [currentPage, setCurrentPage] = useState(1);
 
   // Real data dari API
@@ -137,7 +137,7 @@ const Reports = () => {
   const apiFilters = useMemo(() => ({
     // Convert UI status label to backend enum (server-side filter)
     status: STATUS_MAP[filterStatus],
-    // NOTE: area (lokasi) & level are filtered client-side below because the
+    // NOTE: area (lokasi) & tingkat are filtered client-side below because the
     // API only accepts UUID lokasi_id, not the display names used here.
     page: currentPage,
     limit: ITEMS_PER_PAGE,
@@ -167,10 +167,10 @@ const Reports = () => {
     return laporanList.filter((row) => row.area === filterLokasi);
   }, [laporanList, filterLokasi]);
 
-  // Client-side filter for level/prioritas
+  // Client-side filter for tingkat/prioritas
   const filteredByLevel = useMemo(() => {
-    if (filterLevel === "Semua Level") return filteredByArea;
-    return filteredByArea.filter((row) => row.level === filterLevel);
+    if (filterLevel === "Semua Tingkat") return filteredByArea;
+    return filteredByArea.filter((row) => row.tingkat === filterLevel);
   }, [filteredByArea, filterLevel]);
 
   // Foto bukti dan deskripsi ditampilkan melalui modal detail laporan.
@@ -255,7 +255,7 @@ const Reports = () => {
     }
   };
 
-  // Pagination (server-side via meta). Area/level filters above only narrow the
+  // Pagination (server-side via meta). Area/tingkat filters above only narrow the
   // rows already fetched for the current page.
   const totalPages = Math.max(1, meta.total_pages || 1);
   const totalItems = meta.total_items || 0;
@@ -270,10 +270,10 @@ const Reports = () => {
   return (
     <div className="flex h-screen bg-white font-sans text-gray-800 dark:bg-base dark:text-white">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-white p-8 dark:bg-base">
+        <main className="flex-1 overflow-auto bg-white p-6 dark:bg-base">
           {isLoading && filteredByLevel.length === 0 ? (
             <div>
-              <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
+              <div className="flex flex-wrap md:flex-nowrap gap-4 mb-4">
                 <Skeleton className="h-24 flex-1 rounded-xl" />
                 <Skeleton className="h-24 flex-1 rounded-xl" />
                 <Skeleton className="h-24 flex-1 rounded-xl" />
@@ -346,7 +346,7 @@ const Reports = () => {
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
               className="border border-gray-200 rounded-xl p-4 transition-shadow flex-1"
             >
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Level</label>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Tingkat</label>
               <div className="relative">
                 <select
                   value={filterLevel}
@@ -421,7 +421,7 @@ const Reports = () => {
             initial="initial"
             animate="animate"
             transition={{ duration: 0.25, delay: 0.05 }}
-            className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden mb-6 mt-6 animate-fadeIn dark:bg-surface"
+            className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden mb-4 mt-4 animate-fadeIn dark:bg-surface"
           >
             <div className="overflow-x-auto">
               <table className="w-full text-center text-sm">
@@ -476,15 +476,15 @@ const Reports = () => {
 
                         {/* LEVEL */}
                         <td className="px-6 py-3 text-center">
-                          {data.level === "URGENT" ? (
+                          {data.tingkat === "MENDESAK" ? (
                             <div className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 rounded">
                               <div className="h-2 w-2 bg-red-600 rounded-full"></div>
-                              <span className="text-xs font-bold text-red-600">URGENT</span>
+                              <span className="text-xs font-bold text-red-600">MENDESAK</span>
                             </div>
                           ) : (
                             <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 rounded">
                               <div className="h-2 w-2 bg-orange-600 rounded-full"></div>
-                              <span className="text-xs font-bold text-orange-600">STANDARD</span>
+                              <span className="text-xs font-bold text-orange-600">STANDAR</span>
                             </div>
                           )}
                         </td>

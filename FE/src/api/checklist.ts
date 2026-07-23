@@ -55,9 +55,42 @@ export interface JadwalChecklistPayload {
 }
 
 export async function getTugasCombination(params?: TugasCombinationParams): Promise<TugasCombinationResponse> {
-  const data = await apiClient.get<TugasCombinationResponse>(COMBINATION_ENDPOINT, { params });
-  return data ?? { checklist: { items: [], meta: { total_items: 0, current_page: 1, limit: 10, total_pages: 1 } }, tugas: { items: [], meta: { total_items: 0, current_page: 1, limit: 10, total_pages: 1 } } };
+  const raw = await apiClient.get<unknown>(COMBINATION_ENDPOINT, { params });
+  return unwrapData<TugasCombinationResponse>(raw);
 }
+
+// ── Jadwal Checklist ──
+
+export interface JadwalChecklist {
+  id: string;
+  nama_tugas: string;
+  kategori_id: string;
+  lantai_id: string;
+  ob_id?: string;
+  hari: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function getAllJadwalChecklist(): Promise<JadwalChecklist[]> {
+  const raw = await apiClient.get<unknown>(JADWAL_ENDPOINT);
+  return extractArray<JadwalChecklist>(raw);
+}
+
+export async function getJadwalChecklistDetail(id: string): Promise<JadwalChecklist> {
+  const raw = await apiClient.get<unknown>(`${JADWAL_ENDPOINT}/${id}`);
+  return unwrapData<JadwalChecklist>(raw);
+}
+
+export async function updateJadwalChecklist(id: string, payload: JadwalChecklistPayload) {
+  return apiClient.patch<unknown>(`${JADWAL_ENDPOINT}/${id}`, payload);
+}
+
+export async function deleteJadwalChecklist(id: string) {
+  return apiClient.delete(`${JADWAL_ENDPOINT}/${id}`);
+}
+
+// ── Checklist Harian ──
 
 export async function getChecklistHarian(params?: ChecklistParams): Promise<ChecklistHarianResponse> {
   const data = await apiClient.get<ChecklistHarianResponse>(ENDPOINT, { params });
@@ -78,6 +111,10 @@ export async function getChecklistHarianDetail(id: string): Promise<ChecklistRow
 
 export async function updateChecklistHarian(id: string, payload: ChecklistPayload) {
   return apiClient.patch<unknown>(`${ENDPOINT}/${id}`, payload);
+}
+
+export async function approveChecklistHarian(id: string) {
+  return apiClient.patch<unknown>(`/api/admin/checklist-harian/${id}/approve`);
 }
 
 export async function deleteChecklistHarian(id: string) {

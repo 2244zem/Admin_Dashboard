@@ -244,7 +244,7 @@ const Users = () => {
   return (
     <div className="flex h-screen bg-white font-sans text-gray-800 dark:bg-base dark:text-ink">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-white p-8 dark:bg-base">
+        <main className="flex-1 overflow-auto bg-white p-6 dark:bg-base">
           {isLoading && userList.length === 0 ? (
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -260,7 +260,7 @@ const Users = () => {
           ) : (
             <React.Fragment>
               {/* Sub-header: Daftar Pengguna + Tambah Pengguna */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-[#0F4C81]">Daftar Pengguna</h2>
             <Can permission="users:all" roles={["Admin", "HR"]} anyOf>
               <motion.button

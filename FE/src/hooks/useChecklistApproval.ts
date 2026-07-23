@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { approveChecklistHarian } from "../api/checklist";
+import { unwrapData } from "../lib/response";
 import apiClient from "../services/apiClient";
-import { stripIdPrefix } from "../lib/response";
 
 // Approval list for daily checklists per CLAUDE.md
 export interface ChecklistApprovalItem {
@@ -11,8 +12,8 @@ export interface ChecklistApprovalItem {
 async function fetchChecklistApproval(period = "harian", lokasi_id?: string): Promise<ChecklistApprovalItem[]> {
   const params: Record<string, string> = { period };
   if (lokasi_id) params.lokasi_id = lokasi_id;
-  const res = await apiClient.get<{ data: ChecklistApprovalItem[] }>("/api/admin/checklist-harian/approval-list", { params });
-  const data = res?.data ?? res;
+  const res = await apiClient.get<unknown>("/api/admin/checklist-harian/approval-list", { params });
+  const data = unwrapData<ChecklistApprovalItem[]>(res);
   return Array.isArray(data) ? data : [];
 }
 
@@ -27,7 +28,7 @@ function useChecklistApproval(period = "harian", lokasi_id?: string) {
   });
 
   const approve = async (id: string) => {
-    await apiClient.patch(`/api/admin/checklist-harian/${stripIdPrefix(id)}/approve`);
+    await approveChecklistHarian(id);
     qc.invalidateQueries({ queryKey: ["admin-checklist-approval"] });
   };
 

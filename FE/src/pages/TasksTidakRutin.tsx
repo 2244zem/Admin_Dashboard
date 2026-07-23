@@ -1,19 +1,21 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import useTugasKatalog from "../hooks/useTugasKatalog";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import useLokasi from "../hooks/useLokasi";
 import useKategori from "../hooks/useKategori";
 import { useToast } from "../hooks/useToast";
+import { getTugasCombination } from "../api/checklist";
+import { createTugas, updateTugas, deleteTugas, getTugasById, approveTugas } from "../api/tugas";
 import TaskFormModal from "../components/tasks/TaskFormModal";
-import type { Option } from "../components/tasks/TaskFormModal";
+import type { Option, TaskFormValues } from "../components/tasks/TaskFormModal";
+import TaskDetailModal from "../components/tasks/TaskDetailModal";
+import type { DetailRow } from "../components/tasks/TaskDetailModal";
 import { getErrorMessage } from "../lib/utils";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
 import { TableSkeleton } from "../components/ui/Skeleton";
-import Avatar from "../components/ui/Avatar";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import RowActionMenu from "../components/ui/RowActionMenu";
-import TugasDetailModal from "../components/tasks/TugasDetailModal";
 
 type Tab = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
 
@@ -34,11 +36,29 @@ function inPeriod(dateStr: string | undefined, tab: Tab): boolean {
   return d >= monday && d < sunday;
 }
 
-interface FormValues {
-  kategori_id: string;
-  nama_tugas: string;
-  lantai_id: string;
-  catatan: string;
+function formatWaktu(dateStr?: string) {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  const tanggal = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+  const jam = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return `${tanggal}, ${jam}`;
+}
+
+// Sama seperti di TasksRutin.tsx — palet warna avatar stabil berdasarkan nama
+const AVATAR_COLORS = [
+  "bg-purple-100 text-purple-600",
+  "bg-blue-100 text-blue-600",
+  "bg-orange-100 text-orange-600",
+  "bg-emerald-100 text-emerald-600",
+  "bg-pink-100 text-pink-600",
+];
+function avatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+function initials(name: string) {
+  return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 }
 
 interface Row {
@@ -47,13 +67,26 @@ interface Row {
   kategori: string;
   lantai: string;
   status: string;
+  approved: boolean;
   catatan: string;
   kategori_id: string;
+  gedung_id: string;
   lantai_id: string;
   ob_id: string | null;
+  obNama: string | null;
   createdAt: string;
   pelapor: string;
 }
+
+const UI_STATUS_STYLE: Record<string, { pill: string; label: string }> = {
+  BELUM_DIKERJAKAN: { pill: "bg-gray-100 text-gray-500", label: "Menunggu" },
+  SEDANG_DIKERJAKAN: { pill: "bg-amber-100 text-amber-600", label: "Dalam Proses" },
+  MENUNGGU_APPROVAL: { pill: "bg-blue-100 text-blue-600", label: "Menunggu Persetujuan Admin" },
+  SELESAI: { pill: "bg-green-100 text-green-600", label: "Selesai" },
+};
+const getStatusStyle = (s?: string) => UI_STATUS_STYLE[s ?? "BELUM_DIKERJAKAN"] ?? UI_STATUS_STYLE.BELUM_DIKERJAKAN;
+
+const PAGE_SIZE = 4;
 
 const TasksTidakRutin = () => {
   const { push } = useToast();
@@ -63,9 +96,14 @@ const TasksTidakRutin = () => {
 
   const [gedungFilter, setGedungFilter] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>("Hari Ini");
-  const [rowToView, setRowToView] = useState<Row | null>(null);
+  const [detailRow, setDetailRow] = useState<DetailRow | null>(null);
+  const [page, setPage] = useState(1);
 
-  const { tugasList, isLoading, error, refetch, createTugas, updateTugas, deleteTugas } = useTugasKatalog();
+  const { data: comboData, isLoading, error, refetch } = useQuery({
+    queryKey: ["tugas-tidakrutin-kombinasi"],
+    queryFn: () => getTugasCombination(),
+    refetchInterval: 30_000,
+  });
 
   const kategoriOptions: Option[] = useMemo(() => kategoriList.map((k) => ({ id: k.id, nama: k.nama })), [kategoriList]);
   const gedungOptions: Option[] = useMemo(() => gedungList.map((g) => ({ id: g.id, nama: g.nama })), [gedungList]);
@@ -85,22 +123,31 @@ const TasksTidakRutin = () => {
     return m;
   }, [gedungList]);
 
+  const rawTugasItems = useMemo(() => (comboData?.tugas?.items ?? []), [comboData]);
+
   const rows: Row[] = useMemo(
     () =>
-      tugasList.map((t) => ({
-        id: t.id,
-        namaTugas: t.nama_tugas,
-        kategori: kategoriNameById.get(t.kategori_id) ?? "-",
-        lantai: (t.lantai_id && lantaiNameById.get(t.lantai_id)) ?? "-",
-        status: t.status ?? "BELUM_DIKERJAKAN",
-        catatan: t.catatan ?? "",
-        kategori_id: t.kategori_id,
-        lantai_id: t.lantai_id ?? "",
-        ob_id: t.ob_id ?? null,
-        createdAt: t.created_at ?? "",
-        pelapor: "Admin",
-      })),
-    [tugasList, kategoriNameById, lantaiNameById]
+      rawTugasItems.map((t: Record<string, unknown>) => {
+        const ob = t.ob as { id?: unknown; nama_lengkap?: unknown } | undefined;
+        const obId = String(t.ob_id ?? ob?.id ?? "");
+        return {
+          id: String(t.id ?? ""),
+          namaTugas: String(t.nama_tugas ?? "-"),
+          kategori: kategoriNameById.get(String(t.kategori_id ?? "")) ?? "-",
+          lantai: t.lantai_id ? (lantaiNameById.get(String(t.lantai_id)) ?? "-") : "-",
+          status: String(t.status ?? "BELUM_DIKERJAKAN"),
+          approved: t.approved === true,
+          catatan: t.catatan != null ? String(t.catatan) : "",
+          kategori_id: String(t.kategori_id ?? ""),
+          gedung_id: String(t.gedung_id ?? ""),
+          lantai_id: String(t.lantai_id ?? ""),
+          ob_id: obId || null,
+          obNama: String(ob?.nama_lengkap ?? t.nama_ob ?? "") || null,
+          createdAt: String(t.created_at ?? ""),
+          pelapor: t.pelapor != null ? String(t.pelapor) : "Admin",
+        };
+      }),
+    [rawTugasItems, kategoriNameById, lantaiNameById]
   );
 
   const filteredRows = useMemo(
@@ -113,15 +160,60 @@ const TasksTidakRutin = () => {
     [rows, gedungFilter, activeTab, lantaiToGedung]
   );
 
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const pagedRows = useMemo(
+    () => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredRows, page]
+  );
+
+  const laporanBaruCount = filteredRows.filter((r) => r.status === "BELUM_DIKERJAKAN").length;
+  const sedangDikerjakanCount = filteredRows.filter((r) => r.status === "SEDANG_DIKERJAKAN").length;
+  const selesaiHariIniCount = filteredRows.filter(
+    (r) => r.status === "SELESAI" && new Date(r.createdAt).toDateString() === new Date().toDateString()
+  ).length;
+
   const prefill = (location.state as { prefill?: { nama_tugas: string; kategori_id: string; lantai_id: string } } | null)?.prefill;
+  const queryClient = useQueryClient();
 
   const [isModalOpen, setIsModalOpen] = useState(Boolean(prefill));
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [modalInitial, setModalInitial] = useState<Record<string, unknown> | null>(
-    prefill ? { kategori_id: prefill.kategori_id, namaTugas: prefill.nama_tugas, lantai_id: prefill.lantai_id, catatan: "" } : null
+    prefill
+      ? { kategori_id: prefill.kategori_id, namaTugas: prefill.nama_tugas, lantai_id: prefill.lantai_id, catatan: "" }
+      : null
   );
 
+  const openDetail = async (row: Row) => {
+    const base: DetailRow = {
+      id: row.id, namaTugas: row.namaTugas, kategori: row.kategori, lantai: row.lantai,
+      status: row.status, catatan: row.catatan, ob_id: row.ob_id, obNama: row.obNama,
+      fotoSebelum: null, fotoSesudah: null, waktuMulai: null, waktuSelesai: null, catatanOb: null,
+      isNonRutin: true,
+    };
+    setDetailRow(base);
+    try {
+      const raw = await getTugasById(row.id);
+      const ob = raw.ob as { nama_lengkap?: string; id?: string } | undefined;
+      setDetailRow((prev) => prev ? {
+        ...prev,
+        obNama: String(ob?.nama_lengkap ?? raw.nama_ob ?? prev.obNama ?? ""),
+        ob_id: String(raw.ob_id ?? ob?.id ?? "") || null,
+      } : prev);
+    } catch {}
+  };
+
+  const handleApprove = async (id: string, _catatanAdmin: string) => {
+    setDetailRow(null);
+    try {
+      await approveTugas(id);
+      push("success", "Tugas Disetujui");
+      queryClient.invalidateQueries({ queryKey: ["tugas-tidakrutin-kombinasi"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    } catch (e) {
+      push("error", getErrorMessage(e) || "Gagal menyetujui tugas");
+    }
+  };
 
   const openCreate = () => {
     setModalMode("create");
@@ -133,21 +225,35 @@ const TasksTidakRutin = () => {
   const openEdit = (row: Row) => {
     setModalMode("edit");
     setEditingId(row.id);
-    setModalInitial({ kategori_id: row.kategori_id, namaTugas: row.namaTugas, lantai_id: row.lantai_id, catatan: row.catatan });
+    setModalInitial({
+      kategori_id: row.kategori_id,
+      namaTugas: row.namaTugas,
+      gedung_id: row.gedung_id,
+      lantai_id: row.lantai_id,
+      catatan: row.catatan,
+    });
     setIsModalOpen(true);
   };
 
-  const handleSave = async (form: FormValues) => {
+  const handleSave = async (form: TaskFormValues) => {
     if (!form.kategori_id || !form.nama_tugas || !form.lantai_id) {
       push("error", "Lengkapi Kategori, Nama Tugas, dan Lantai.");
       return;
     }
-    const payload = { kategori_id: form.kategori_id, nama_tugas: form.nama_tugas, lantai_id: form.lantai_id, catatan: form.catatan || "" };
+    const payload = {
+      kategori_id: form.kategori_id,
+      nama_tugas: form.nama_tugas,
+      lantai_id: form.lantai_id,
+      tanggal_selesai: form.tanggal_selesai, // NEW — deadline, ganti dari frekuensi_kerja
+      jam_selesai: form.jam_selesai, // NEW
+      catatan: form.catatan || "",
+    };
     try {
       if (modalMode === "edit" && editingId) await updateTugas(editingId, payload);
       else await createTugas(payload);
       push("success", "Tugas berhasil disimpan");
       setIsModalOpen(false);
+      refetch();
     } catch (e) {
       push("error", getErrorMessage(e) || "Gagal menyimpan tugas");
     }
@@ -159,6 +265,7 @@ const TasksTidakRutin = () => {
     try {
       await deleteTugas(rowToDelete.id);
       push("success", "Tugas berhasil dihapus");
+      refetch();
     } catch (e) {
       push("error", getErrorMessage(e) || "Gagal menghapus tugas");
     }
@@ -167,16 +274,33 @@ const TasksTidakRutin = () => {
 
   return (
     <div className="flex h-screen bg-white font-sans dark:bg-base">
+      <style>{`
+        @keyframes heartbeat {
+          0%, 100% { transform: scale(1); }
+          15% { transform: scale(1.3); }
+          30% { transform: scale(1); }
+          45% { transform: scale(1.25); }
+          60% { transform: scale(1); }
+        }
+        .animate-heartbeat { animation: heartbeat 1.6s ease-in-out infinite; }
+      `}</style>
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-white p-8 dark:bg-base">
+        <main className="flex-1 overflow-auto bg-white p-6 dark:bg-base">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-[#0F4C81]">Tugas Tidak Rutin</h1>
+          </div>
 
           {/* Tabs + filter */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex bg-gray-100 rounded-full p-1 dark:bg-elevated">
               {(["Hari Ini", "Mingguan", "Bulanan", "Tahunan"] as Tab[]).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setPage(1);
+                  }}
                   className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
                     activeTab === tab ? "bg-[#0F4C81] text-white" : "text-gray-500 hover:text-gray-700"
                   }`}
@@ -190,7 +314,10 @@ const TasksTidakRutin = () => {
               <div className="relative inline-block">
                 <select
                   value={gedungFilter}
-                  onChange={(e) => setGedungFilter(e.target.value)}
+                  onChange={(e) => {
+                    setGedungFilter(e.target.value);
+                    setPage(1);
+                  }}
                   className="appearance-none bg-blue-50 text-[#0F4C81] font-semibold text-sm rounded-full pl-4 pr-9 py-2 outline-none cursor-pointer border border-blue-100"
                 >
                   <option value="">Semua Gedung</option>
@@ -209,51 +336,56 @@ const TasksTidakRutin = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
-                Tambah Tugas Baru
+                Tambah Tugas
               </button>
             </div>
           </div>
 
           {/* Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div className="border border-gray-200 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="h-9 w-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                <span className="text-xs font-bold text-gray-400 uppercase">Laporan Baru</span>
+                <div className="h-9 w-9 rounded-full bg-red-50 text-red-500 flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                   </svg>
                 </div>
               </div>
-              <span className="block text-xs font-semibold text-gray-500 mb-1">Total Tugas</span>
-              <span className="text-2xl font-bold text-gray-900">{String(filteredRows.length).padStart(2, "0")} Tugas</span>
+              <span className="text-2xl font-bold text-gray-900">{String(laporanBaruCount).padStart(2, "0")}</span>
+              <p className="text-xs font-medium text-red-500 mt-1 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> Menunggu
+              </p>
             </div>
 
             <div className="border border-gray-200 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="h-9 w-9 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
+                <span className="text-xs font-bold text-gray-400 uppercase">Sedang Dikerjakan</span>
+                <div className="h-9 w-9 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2.13a4 4 0 10-4-4 4 4 0 004 4z" />
                   </svg>
                 </div>
               </div>
-              <span className="block text-xs font-semibold text-gray-500 mb-1">Sedang Diproses</span>
-              <span className="text-2xl font-bold text-gray-900">
-                {String(filteredRows.filter((r) => r.status === "SEDANG_DIKERJAKAN").length).padStart(2, "0")} Tugas
-              </span>
+              <span className="text-2xl font-bold text-gray-900">{String(sedangDikerjakanCount).padStart(2, "0")}</span>
+              <p className="text-xs font-medium text-blue-500 mt-1 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Proses
+              </p>
             </div>
 
             <div className="border border-gray-200 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="h-9 w-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <span className="text-xs font-bold text-gray-400 uppercase">Selesai Hari Ini</span>
+                <div className="h-9 w-9 rounded-full bg-green-50 text-green-600 flex items-center justify-center animate-heartbeat">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
               </div>
-              <span className="block text-xs font-semibold text-gray-500 mb-1">Selesai</span>
-              <span className="text-2xl font-bold text-gray-900">
-                {String(filteredRows.filter((r) => r.status === "SELESAI").length).padStart(2, "0")} Tugas
-              </span>
+              <span className="text-2xl font-bold text-gray-900">{String(selesaiHariIniCount).padStart(2, "0")}</span>
+              <p className="text-xs font-medium text-green-600 mt-1 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> Terverifikasi admin
+              </p>
             </div>
           </div>
 
@@ -268,15 +400,15 @@ const TasksTidakRutin = () => {
 
             {isLoading && filteredRows.length === 0 ? (
               <div className="p-6">
-                <TableSkeleton columns={6} rows={3} />
+                <TableSkeleton columns={5} rows={3} />
               </div>
             ) : error ? (
-              <ErrorState message={error} onRetry={refetch} />
+              <ErrorState message={error instanceof Error ? error.message : "Terjadi kesalahan"} onRetry={refetch} />
             ) : filteredRows.length === 0 ? (
               <EmptyState
                 title="Belum Ada Tugas"
-                description="Tambahkan tugas tidak rutin baru melalui tombol Tambah Tugas Baru."
-                actionText="Tambah Tugas Baru"
+                description="Tambahkan tugas tidak rutin baru melalui tombol Tambah Tugas."
+                actionText="Tambah Tugas"
                 onAction={openCreate}
               />
             ) : (
@@ -284,8 +416,7 @@ const TasksTidakRutin = () => {
                 <table className="w-full text-left text-sm text-gray-600">
                   <thead className="text-[11px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50 dark:bg-surface">
                     <tr>
-                      <th className="px-6 py-3">ID Laporan</th>
-                      <th className="px-6 py-3">Pelapor</th>
+                      <th className="px-6 py-3">ID &amp; Waktu</th>
                       <th className="px-6 py-3">Detail Pekerjaan &amp; Lokasi</th>
                       <th className="px-6 py-3">Status</th>
                       <th className="px-6 py-3">Pekerja</th>
@@ -293,17 +424,14 @@ const TasksTidakRutin = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {filteredRows.map((row) => {
-                      const st = getStatusStyle(row.status);
-
+                    {pagedRows.map((row) => {
+                      const pillStatus = row.status === "SELESAI" && !row.approved ? "MENUNGGU_APPROVAL" : row.status;
+                      const st = getStatusStyle(pillStatus);
                       return (
                         <tr key={row.id} className="hover:bg-gray-50/50 transition-colors dark:bg-surface">
-                          <td className="px-6 py-4 font-semibold text-[#0F4C81] whitespace-nowrap">#{row.id.slice(0, 8).toUpperCase()}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <Avatar name={row.pelapor} size="sm" />
-                              <span className="font-medium text-gray-700 whitespace-nowrap">{row.pelapor}</span>
-                            </div>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <p className="font-semibold text-[#0F4C81]">#{row.id.slice(0, 8).toUpperCase()}</p>
+                            <p className="text-xs text-gray-400">{formatWaktu(row.createdAt)}</p>
                           </td>
                           <td className="px-6 py-4">
                             <p className="font-semibold text-gray-800">{row.namaTugas}</p>
@@ -316,21 +444,25 @@ const TasksTidakRutin = () => {
                             </p>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${st.text}`}>
-                              <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${st.pill}`}>
                               {st.label}
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            {row.ob_id ? (
-                              <span className="text-sm text-gray-400 italic">OB Assigned</span>
+                            {row.ob_id && row.obNama ? (
+                              <div className="flex items-center gap-2">
+                                <span className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold ${avatarColor(row.obNama)}`}>
+                                  {initials(row.obNama)}
+                                </span>
+                                <span className="text-sm text-gray-700">{row.obNama}</span>
+                              </div>
                             ) : (
-                              <span className="text-xs text-gray-400 italic">Waiting for OB...</span>
+                              <span className="text-xs text-gray-400 italic">Menunggu OB....</span>
                             )}
                           </td>
                           <td className="px-6 py-4 text-right">
                             <RowActionMenu
-                              onDetail={() => setRowToView(row)}
+                              onDetail={() => openDetail(row)}
                               onEdit={() => openEdit(row)}
                               onDelete={() => setRowToDelete(row)}
                             />
@@ -344,11 +476,36 @@ const TasksTidakRutin = () => {
             )}
 
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 text-xs text-gray-400">
-              <span>Showing 1 to {filteredRows.length} of {filteredRows.length} tasks</span>
+              <span>
+                Menampilkan {filteredRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} sampai{" "}
+                {Math.min(page * PAGE_SIZE, filteredRows.length)} dari {filteredRows.length}
+              </span>
               <div className="flex items-center gap-1">
-                <button className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-400 opacity-40 cursor-pointer dark:bg-surface">‹</button>
-                <button className="h-7 w-7 flex items-center justify-center rounded-md bg-[#0F4C81] text-white font-semibold cursor-pointer">1</button>
-                <button className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-400 opacity-40 cursor-pointer dark:bg-surface">›</button>
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-400 disabled:opacity-40 cursor-pointer dark:bg-surface"
+                >
+                  ‹
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`h-7 w-7 flex items-center justify-center rounded-md font-semibold cursor-pointer ${
+                      p === page ? "bg-[#0F4C81] text-white" : "border border-gray-200 text-gray-500 dark:bg-surface"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-400 disabled:opacity-40 cursor-pointer dark:bg-surface"
+                >
+                  ›
+                </button>
               </div>
             </div>
           </div>
@@ -364,9 +521,10 @@ const TasksTidakRutin = () => {
           gedungOptions={gedungOptions}
           lantaiOptions={lantaiOptions}
           kategoriOptions={kategoriOptions}
+          variant="non-rutin"
         />
 
-        <TugasDetailModal row={rowToView} onClose={() => setRowToView(null)} />
+        <TaskDetailModal row={detailRow} onClose={() => setDetailRow(null)} onApprove={handleApprove} />
 
         <ConfirmDialog
           open={!!rowToDelete}
@@ -379,13 +537,5 @@ const TasksTidakRutin = () => {
     </div>
   );
 };
-
-// Status helper — kept outside component
-const UI_STATUS_STYLE: Record<string, { dot: string; text: string; label: string }> = {
-  BELUM_DIKERJAKAN: { dot: "bg-gray-300", text: "text-gray-500", label: "Menunggu OB" },
-  SEDANG_DIKERJAKAN: { dot: "bg-amber-500", text: "text-amber-600", label: "Dikerjakan" },
-  SELESAI: { dot: "bg-green-500", text: "text-green-600", label: "Selesai" },
-};
-const getStatusStyle = (s?: string) => UI_STATUS_STYLE[s ?? "BELUM_DIKERJAKAN"] ?? UI_STATUS_STYLE.BELUM_DIKERJAKAN;
 
 export default TasksTidakRutin;

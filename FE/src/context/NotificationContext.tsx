@@ -123,7 +123,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           // Silent fail
         }
       },
-      onConnected: () => setIsConnected(true),
+      onConnected: () => {
+        setIsConnected(true);
+        // Mark all as read when user comes back (WS reconnects),
+        // so only real-time notifications arriving after this point appear unread.
+        markAllNotificationsRead()
+          .then(() => {
+            setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+            setUnreadCount(0);
+          })
+          .catch(() => {});
+      },
       onError: () => setIsConnected(false),
     });
 

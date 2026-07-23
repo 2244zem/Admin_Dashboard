@@ -1,6 +1,6 @@
 export type StatusLaporan = "Menunggu" | "Dalam Proses" | "Menunggu Persetujuan Admin" | "Selesai";
 export type AreaLaporan = "Toilet" | "Lobi" | "Area Kantor" | "Parkir";
-export type LevelLaporan = "URGENT" | "STANDARD";
+export type TingkatLaporan = "MENDESAK" | "STANDAR";
 
 // Interface untuk data laporan yang ditampilkan di frontend
 export interface Laporan {
@@ -17,7 +17,7 @@ export interface Laporan {
   desc: string;
   createdAt: string;
   status: StatusLaporan;
-  level: LevelLaporan; // Level prioritas (URGENT atau STANDARD)
+  tingkat: TingkatLaporan; // Tingkat prioritas (MENDESAK atau STANDAR)
   prioritas?: string; // Fallback field untuk prioritas
   foto: string;
   fotoProfil?: string;

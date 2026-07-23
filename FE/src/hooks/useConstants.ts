@@ -19,7 +19,7 @@ async function fetchConstants(): Promise<Constants> {
     checklist_status: ["BELUM_DIKERJAKAN", "SEDANG_DIKERJAKAN", "SELESAI", "TERLEWAT"],
     tugas_status: ["BELUM_DIKERJAKAN", "SEDANG_DIKERJAKAN", "SELESAI"],
     laporan_status: ["BELUM_DIKERJAKAN", "PENDING", "SELESAI", "DIBATALKAN"],
-    laporan_priority: ["STANDARD", "URGENT"],
+    laporan_priority: ["STANDAR", "MENDESAK"],
     kolaborasi_status: ["PENDING", "APPROVED", "REJECTED"],
     user_role: ["Admin", "HR", "OB", "Karyawan"],
   };

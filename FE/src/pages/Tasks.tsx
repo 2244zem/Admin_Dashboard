@@ -1,13 +1,15 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useToast } from "../hooks/useToast";
-import type { Task, StatusTask, KategoriTugas } from "../types/task";
+import type { Task, KategoriTugas } from "../types/task";
 import useTasks, { type TaskFilters } from "../hooks/useTasks";
 import useLokasi from "../hooks/useLokasi";
 import useUsers from "../hooks/useUsers";
 import useKategori from "../hooks/useKategori";
 import { useTugasStats } from "../hooks/useTugasStats";
+import { useTugasApproval } from "../hooks/useTugasApproval";
+import { useChecklistApproval } from "../hooks/useChecklistApproval";
 import Can from "../components/auth/Can";
 import { StatCardsSkeleton, CardListSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
@@ -15,6 +17,9 @@ import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import TaskFormModal from "../components/tasks/TaskFormModal";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
+import type { DetailRow } from "../components/tasks/TaskDetailModal";
+import { createJadwalChecklist, updateJadwalChecklist, getChecklistHarianDetail } from "../api/checklist";
+import { getTugasById } from "../api/tugas";
 import Avatar from "../components/ui/Avatar";
 
 type Periode = "Hari Ini" | "Mingguan" | "Bulanan" | "Tahunan";
@@ -92,7 +97,7 @@ function RowActionMenu({
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(e: MouseEvent) {
-      if (!triggerRef.current?.closest("[data-dropdown]")?.contains(e.target as Node)) {
+      if (!document.querySelector("[data-dropdown]")?.contains(e.target as Node)) {
         setOpen(false);
       }
     }
@@ -205,6 +210,8 @@ const Tasks = () => {
   const periodMap: Record<Periode, string> = { "Hari Ini": "harian", Mingguan: "mingguan", Bulanan: "bulanan", Tahunan: "tahunan" };
 
   const { stats, isLoading: isStatsLoading } = useTugasStats(periodMap[periode], selectedGedungObj?.id);
+  const { approvalList: tugasApproval, approve: approveTugas } = useTugasApproval(periodMap[periode], selectedGedungObj?.id);
+  const { approvalList: checklistApproval, approve: approveChecklist } = useChecklistApproval(periodMap[periode], selectedGedungObj?.id);
 
   const taskFilters = useMemo((): TaskFilters => {
     const filters: TaskFilters = {};
@@ -212,7 +219,7 @@ const Tasks = () => {
     return filters;
   }, [selectedGedung, selectedGedungObj]);
 
-  const { tasks, isLoading: isTasksLoading, error: tasksError, fetchTasks, fetchTaskDetail, createTask, updateTask, deleteTask, updateTaskStatus } = useTasks(taskFilters);
+  const { tasks, isLoading: isTasksLoading, error: tasksError, fetchTasks, createTask, updateTask, deleteTask, approveTask } = useTasks(taskFilters);
 
   const lantaiNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -284,33 +291,57 @@ const Tasks = () => {
   const openEditModal = (task: UnifiedTask) => {
     const selectedKategori = kategoriOptions.find((k) => k.nama === task.kategori);
     const selectedLantai = lantaiOptions.find((l) => l.nama === task.lantai);
+    const selectedGedung = gedungOptions.find((g) => g.nama === task.gedung);
     setModalMode("edit");
     setEditingTaskId(task.id);
     setTaskToEditData({
       kategori_id: selectedKategori?.id || "",
       namaTugas: task.namaTugas,
+      gedung_id: selectedGedung?.id ?? "",
       lantai_id: selectedLantai?.id || "",
+      // ponytail: `frekuensi_kerja` not available on Task type → upgrade path: fetch jadwal detail from API
+      frekuensi_kerja: [],
       catatan: task.catatan || "",
     });
     setIsModalOpen(true);
   };
 
-  const handleSimpanTugas = async (form: any) => {
+  const handleSimpanTugas = async (form: {
+    kategori_id: string; nama_tugas: string; gedung_id: string; lantai_id: string; frekuensi_kerja: string[]; catatan: string;
+  }) => {
     if (!form.kategori_id || !form.nama_tugas || !form.lantai_id) {
       push("error", "Tugas Gagal Disimpan: Mohon lengkapi Kategori, Nama Tugas, dan Lokasi Lantai.");
       return;
     }
-    const payload = {
-      kategori_id: form.kategori_id,
-      nama_tugas: form.nama_tugas,
-      lantai_id: form.lantai_id,
-      catatan: form.catatan || "",
-    };
     try {
-      if (modalMode === "edit" && editingTaskId) await updateTask(editingTaskId, payload);
-      else await createTask(payload);
+      if (form.frekuensi_kerja.length > 0) {
+        // Rutin → create/update Jadwal Checklist
+        const jadwalPayload = {
+          nama_tugas: form.nama_tugas,
+          kategori_id: form.kategori_id,
+          lantai_id: form.lantai_id,
+          hari: form.frekuensi_kerja,
+          catatan: form.catatan || "",
+        };
+        if (modalMode === "edit" && editingTaskId) {
+          await updateJadwalChecklist(editingTaskId, jadwalPayload);
+        } else {
+          await createJadwalChecklist(jadwalPayload);
+        }
+      } else {
+        // Tidak Rutin → create/update Tugas
+        const payload = {
+          kategori_id: form.kategori_id,
+          nama_tugas: form.nama_tugas,
+          lantai_id: form.lantai_id,
+          catatan: form.catatan || "",
+        };
+        if (modalMode === "edit" && editingTaskId) await updateTask(editingTaskId, payload);
+        else await createTask(payload);
+      }
       push("success", "Tugas Berhasil Disimpan");
       setIsModalOpen(false);
+      fetchTasks();
     } catch (err) {
       push("error", err instanceof Error ? err.message : "Tugas Gagal Disimpan");
     }
@@ -328,29 +359,52 @@ const Tasks = () => {
     }
   };
 
-  const [taskToView, setTaskToView] = useState<Task | null>(null);
-  const [detailData, setDetailData] = useState<Task | null>(null);
-  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [detailRow, setDetailRow] = useState<DetailRow | null>(null);
 
   const openDetailModal = async (task: UnifiedTask) => {
-    setTaskToView(task);
-    setDetailData(null);
-    setIsDetailLoading(true);
+    const base: DetailRow = {
+      id: task.id,
+      namaTugas: task.namaTugas,
+      kategori: task.kategori,
+      lantai: task.lantai,
+      status: task.status,
+      catatan: task.catatan ?? "",
+      ob_id: null,
+      obNama: task.petugas?.nama ?? null,
+      fotoSebelum: null,
+      fotoSesudah: null,
+      waktuMulai: null,
+      waktuSelesai: null,
+      catatanOb: null,
+      isNonRutin: task.jenis === "Tidak Rutin",
+    };
+
     try {
-      const fresh = await fetchTaskDetail(task.id);
-      setDetailData(fresh ?? task);
-    } catch {
-      setDetailData(task);
-    } finally {
-      setIsDetailLoading(false);
-    }
+      if (task.jenis === "Tidak Rutin") {
+        const raw = await getTugasById(task.id);
+        const ob = raw.ob as { nama_lengkap?: unknown; id?: unknown } | undefined;
+        base.obNama = String(ob?.nama_lengkap ?? raw.nama_ob ?? base.obNama ?? "");
+        base.ob_id = String(raw.ob_id ?? ob?.id ?? "") || null;
+      } else {
+        const raw = await getChecklistHarianDetail(task.id);
+        base.obNama = String((raw.ob as { nama_lengkap?: string } | undefined)?.nama_lengkap ?? raw.nama_ob ?? base.obNama ?? "");
+        base.ob_id = String(raw.ob_id ?? (raw.ob as { id?: string } | undefined)?.id ?? "") || null;
+        base.fotoSebelum = String(raw.foto_sebelum ?? "") || null;
+        base.fotoSesudah = String(raw.foto_sesudah ?? "") || null;
+        base.waktuMulai = String(raw.waktu_mulai ?? "") || null;
+        base.waktuSelesai = String(raw.waktu_selesai ?? "") || null;
+        base.catatanOb = String(raw.catatan_ob ?? "") || null;
+      }
+    } catch {}
+
+    setDetailRow(base);
   };
 
-  const handleApprove = async (task: Task) => {
+  const handleApprove = async (id: string, _catatanAdmin: string) => {
+    setDetailRow(null);
     try {
-      await updateTaskStatus(task.id, "Selesai");
+      await approveTask(id, detailRow?.isNonRutin ? "Tidak Rutin" : "Rutin");
       push("success", "Tugas Disetujui");
-      setTaskToView(null);
     } catch (err) {
       push("error", err instanceof Error ? err.message : "Gagal menyetujui tugas");
     }
@@ -362,7 +416,7 @@ const Tasks = () => {
   return (
     <div className="flex h-screen bg-white font-sans">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-white p-8 font-sans">
+        <main className="flex-1 overflow-auto bg-white p-6 font-sans">
           {isLoadingInitial ? (
             <div>
               <Skeleton className="h-9 w-72 rounded-full mb-6" />
@@ -383,7 +437,7 @@ const Tasks = () => {
           ) : (
             <>
               {/* Tabs periode + filter gedung */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <div className="inline-flex bg-gray-100 rounded-full p-1">
                   {(["Hari Ini", "Mingguan", "Bulanan", "Tahunan"] as Periode[]).map((p) => (
                     <button
@@ -416,7 +470,7 @@ const Tasks = () => {
               </div>
 
               {/* Stat Cards — 3 kartu, sesuai gambar 1 */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="border border-gray-200 rounded-xl p-4">
                   <div className="h-9 w-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -452,6 +506,54 @@ const Tasks = () => {
                   <span className="text-2xl font-bold text-gray-900">{String(menungguPersetujuan).padStart(2, "0")} Tugas</span>
                 </div>
               </div>
+
+              {/* Approval lists */}
+              {(tugasApproval.length > 0 || checklistApproval.length > 0) && (
+                <div className="border border-amber-200 bg-amber-50/50 rounded-2xl p-4 mb-4">
+                  <h3 className="text-sm font-bold text-amber-800 mb-3 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    </svg>
+                    Menunggu Persetujuan
+                  </h3>
+                  <div className="space-y-2">
+                    {checklistApproval.map((item) => (
+                      <div key={`cl-${item.id}`} className="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-amber-100">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{item.nama_tugas}</p>
+                          <p className="text-[11px] text-gray-500">{item.nama_ob} • {item.lokasi} • {item.kategori}</p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 ml-3">
+                          <span className="text-[10px] text-gray-400">{item.selesai_at?.slice(0, 10)}</span>
+                          <button
+                            onClick={async () => { await approveChecklist(item.id); fetchTasks(); push("success", "Checklist disetujui"); }}
+                            className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                          >
+                            Setujui
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {tugasApproval.map((item) => (
+                      <div key={`tg-${item.id}`} className="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-amber-100">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{item.nama_tugas}</p>
+                          <p className="text-[11px] text-gray-500">{item.nama_ob} • {item.lokasi} • {item.kategori}</p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 ml-3">
+                          <span className="text-[10px] text-gray-400">{item.selesai_at?.slice(0, 10)}</span>
+                          <button
+                            onClick={async () => { await approveTugas(item.id); fetchTasks(); push("success", "Tugas disetujui"); }}
+                            className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                          >
+                            Setujui
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end mb-4">
                 <Can permission="tasks:create">
@@ -569,10 +671,8 @@ const Tasks = () => {
       />
 
       <TaskDetailModal
-        task={taskToView}
-        detailData={detailData}
-        isLoading={isDetailLoading}
-        onClose={() => setTaskToView(null)}
+        row={detailRow}
+        onClose={() => setDetailRow(null)}
         onApprove={handleApprove}
       />
 

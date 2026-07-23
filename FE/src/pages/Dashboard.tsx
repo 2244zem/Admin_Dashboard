@@ -300,7 +300,7 @@ const Dashboard = () => {
 
   const kpiRates = useMemo(() => {
     const total = laporanList.length;
-    const urgent = laporanList.filter((l) => l.level === "URGENT").length;
+    const urgent = laporanList.filter((l) => l.tingkat === "MENDESAK").length;
     return {
       urgentRate: total ? Math.round((urgent / total) * 100) : 0,
       selesaiRate: total ? Math.round((laporanSelesai / total) * 100) : 0,
@@ -345,7 +345,7 @@ const Dashboard = () => {
 
   const riwayatTugasOB = useMemo(() => {
     return [...taskList]
-      .filter((t) => Boolean(t.petugas?.nama))
+      .filter((t) => t.status === "Selesai" && Boolean(t.petugas?.nama))
       .sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1))
       .slice(0, 4);
   }, [taskList]);
@@ -367,11 +367,11 @@ const Dashboard = () => {
   return (
     <div className="flex h-screen font-sans dark:bg-base bg-white">
       <div className="flex-1 flex flex-col overflow-hidden w-full">
-        <main className="flex-1 overflow-auto bg-[#f8fafc] p-6 lg:p-8 dark:bg-base text-gray-800">
+        <main className="flex-1 overflow-auto bg-[#f8fafc] p-6 dark:bg-base text-gray-800">
           {hasLoadingState ? (
             <div className="max-w-[1600px] mx-auto w-full">
-              <Skeleton className="h-64 w-full rounded-2xl mb-8" />
-              <div className="flex items-center justify-between mb-6">
+              <Skeleton className="h-64 w-full rounded-2xl mb-6" />
+              <div className="flex items-center justify-between mb-4">
                 <Skeleton className="h-9 w-64 rounded-xl" />
                 <Skeleton className="h-10 w-32 rounded-xl" />
               </div>
@@ -392,12 +392,12 @@ const Dashboard = () => {
           ) : (
             <div className="max-w-[1600px] mx-auto w-full">
               {/* --- BAGIAN TABEL TERBARU --- */}
-              <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8">
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mb-6">
                 
                 {/* Laporan Terbaru Karyawan */}
-                <div className="xl:col-span-3 border border-gray-200 rounded-2xl p-6 bg-white shadow-sm dark:bg-surface flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-base font-bold text-gray-800 dark:text-white">Laporan Terbaru Karyawan</h2>
+                <div className="xl:col-span-3 border border-gray-200 rounded-2xl p-4 bg-white shadow-sm dark:bg-surface flex flex-col">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-bold text-gray-800 dark:text-white">Laporan Terbaru Karyawan</h2>
                     <button onClick={() => navigate("/reports")} className="text-xs font-semibold text-[#0ea5e9] hover:underline cursor-pointer">
                       Lihat Semua
                     </button>
@@ -409,49 +409,49 @@ const Dashboard = () => {
                     </div>
                   ) : (
                     <div className="flex-1 flex flex-col justify-between">
-                      <table className="w-full text-sm bg-white dark:bg-surface text-left">
+                      <table className="w-full text-xs bg-white dark:bg-surface text-left">
                         <thead>
-                          <tr className="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-100">
-                            <th className="pb-3 pt-1">ID Laporan</th>
-                            <th className="pb-3 pt-1">Nama Karyawan</th>
-                            <th className="pb-3 pt-1">Lokasi</th>
-                            <th className="pb-3 pt-1">Level</th>
-                            <th className="pb-3 pt-1">Status</th>
-                            <th className="pb-3 pt-1 text-right">Aksi</th>
+                          <tr className="text-[10px] font-bold text-gray-500 uppercase border-b border-gray-100">
+                            <th className="pb-2 pt-0.5 pr-2">ID</th>
+                            <th className="pb-2 pt-0.5 pr-2">Karyawan</th>
+                            <th className="pb-2 pt-0.5 pr-2">Lokasi</th>
+                            <th className="pb-2 pt-0.5 pr-2">Tingkat</th>
+                            <th className="pb-2 pt-0.5 pr-2">Status</th>
+                            <th className="pb-2 pt-0.5 text-right">Aksi</th>
                           </tr>
                         </thead>
                         <tbody>
                           {laporanKaryawanTerbaru.map((l) => (
                             <tr key={l.id} className="border-b border-gray-50 last:border-0 hover:bg-slate-50/50 transition-colors">
-                              <td className="py-3.5">
-                                <span className="font-semibold text-gray-700 text-xs">
+                              <td className="py-2 pr-2">
+                                <span className="font-semibold text-gray-700 text-[11px]">
                                   {l.id_laporan || `LPR-${String(l.id).padStart(3, "0")}`}
                                 </span>
                               </td>
-                              <td className="py-3.5">
-                                <div className="flex items-center gap-2.5">
+                              <td className="py-2 pr-2">
+                                <div className="flex items-center gap-1.5">
                                   <Avatar name={l.name} src={l.fotoProfil} size="sm" />
-                                  <span className="font-medium text-gray-700 text-xs">{l.name}</span>
+                                  <span className="font-medium text-gray-700 text-[11px]">{l.name}</span>
                                 </div>
                               </td>
-                              <td className="py-3.5">
-                                <span className="text-gray-500 text-xs">{l.loc}</span>
+                              <td className="py-2 pr-2">
+                                <span className="text-gray-500 text-[11px]">{l.loc}</span>
                               </td>
-                              <td className="py-3.5">
-                                {l.level === "URGENT" ? (
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 rounded-full text-[10px] font-bold text-red-600 border border-red-100">
-                                    <span className="w-3.5 h-3.5 rounded-full bg-red-600 text-white flex items-center justify-center text-[8px]">!</span>
-                                    URGENT
+                              <td className="py-2 pr-2">
+                                {l.tingkat === "MENDESAK" ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 rounded-full text-[9px] font-bold text-red-600 border border-red-100">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 text-white flex items-center justify-center text-[7px]">!</span>
+                                    MENDESAK
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-full text-[10px] font-bold text-amber-600 border border-amber-100">
-                                    <span className="w-3.5 h-3.5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[8px]">!</span>
-                                    STANDARD
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 rounded-full text-[9px] font-bold text-amber-600 border border-amber-100">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[7px]">!</span>
+                                    STANDAR
                                   </span>
                                 )}
                               </td>
-                              <td className="py-3.5">
-                                <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
+                              <td className="py-2 pr-2">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap ${
                                   l.status === "Menunggu" ? "bg-[#3F4852]/10 text-[#3F4852] border border-[#3F4852]/20" :
                                   l.status === "Dalam Proses" ? "bg-[#FF8D28]/10 text-[#FF8D28] border border-[#FF8D28]/20" :
                                   l.status === "Selesai" ? "bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20" :
@@ -460,7 +460,7 @@ const Dashboard = () => {
                                   {l.status}
                                 </span>
                               </td>
-                              <td className="py-3.5 text-right">
+                              <td className="py-2 text-right">
                                 <RowActionMenu
                                   onDetail={() => openDetailModal(l)}
                                   onEdit={() => navigate(`/reports?edit=${l.id}`)}
@@ -472,15 +472,15 @@ const Dashboard = () => {
                         </tbody>
                       </table>
                       
-                      <div className="flex items-center justify-between mt-4 px-1 text-xs text-gray-500 font-medium border-t border-gray-100 pt-4">
-                        <span>Menampilkan 1 sampai {laporanKaryawanTerbaru.length} dari {laporanList.length} laporan</span>
-                        <div className="flex items-center gap-1.5">
-                          <button className="p-1 hover:bg-gray-100 rounded text-gray-400 font-bold">&lt;</button>
-                          <button className="w-6 h-6 rounded bg-[#1e3a8a] text-white font-semibold flex items-center justify-center shadow-sm">1</button>
+                      <div className="flex items-center justify-between mt-3 px-1 text-[10px] text-gray-500 font-medium border-t border-gray-100 pt-3">
+                        <span>1-{laporanKaryawanTerbaru.length} dari {laporanList.length}</span>
+                        <div className="flex items-center gap-1">
+                          <button className="p-0.5 hover:bg-gray-100 rounded text-gray-400 font-bold">&lt;</button>
+                          <button className="w-5 h-5 rounded bg-[#1e3a8a] text-white font-semibold flex items-center justify-center shadow-sm text-[10px]">1</button>
                           {laporanList.length > 4 && (
-                            <button className="w-6 h-6 rounded hover:bg-gray-100 text-gray-600 font-semibold flex items-center justify-center transition-colors">2</button>
+                            <button className="w-5 h-5 rounded hover:bg-gray-100 text-gray-600 font-semibold flex items-center justify-center transition-colors text-[10px]">2</button>
                           )}
-                          <button className="p-1 hover:bg-gray-100 rounded text-gray-600 font-bold">&gt;</button>
+                          <button className="p-0.5 hover:bg-gray-100 rounded text-gray-600 font-bold">&gt;</button>
                         </div>
                       </div>
                     </div>
@@ -488,9 +488,9 @@ const Dashboard = () => {
                 </div>
 
                 {/* Riwayat Tugas OB */}
-                <div className="xl:col-span-2 border border-gray-200 rounded-2xl p-6 bg-white shadow-sm dark:bg-surface flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-base font-bold text-gray-800 dark:text-white">Riwayat Tugas OB</h2>
+                <div className="xl:col-span-2 border border-gray-200 rounded-2xl p-4 bg-white shadow-sm dark:bg-surface flex flex-col">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-bold text-gray-800 dark:text-white">Riwayat Tugas OB</h2>
                     <button onClick={() => navigate("/tasks")} className="text-xs font-semibold text-[#0ea5e9] hover:underline cursor-pointer">
                       Lihat semua
                     </button>
@@ -502,53 +502,39 @@ const Dashboard = () => {
                     </div>
                   ) : (
                     <div className="flex-1">
-                      <table className="w-full text-sm bg-white dark:bg-surface text-left">
+                      <table className="w-full text-xs bg-white dark:bg-surface text-left">
                         <thead>
-                          <tr className="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-100">
-                            <th className="pb-3 pt-1">Tugas &amp; Pengerja</th>
-                            <th className="pb-3 pt-1">Durasi</th>
-                            <th className="pb-3 pt-1">Status</th>
-                            <th className="pb-3 pt-1 text-right">Aksi</th>
+                          <tr className="text-[10px] font-bold text-gray-500 uppercase border-b border-gray-100">
+                            <th className="pb-2 pt-0.5 pr-2">Tugas</th>
+                            <th className="pb-2 pt-0.5 pr-2">Durasi</th>
+                            <th className="pb-2 pt-0.5 pr-2">Status</th>
+                            <th className="pb-2 pt-0.5 text-right">Aksi</th>
                           </tr>
                         </thead>
                         <tbody>
                           {riwayatTugasOB.map((task) => (
                             <tr key={task.id} className="border-b border-gray-50 last:border-0 hover:bg-slate-50/50 transition-colors">
-                              <td className="py-4">
-                                <p className="font-bold text-gray-800 text-[13px]">{task.namaTugas}</p>
-                                <p className="text-[11px] font-medium text-gray-400 mt-0.5">{task.petugas.nama}</p>
+                              <td className="py-2.5 pr-2">
+                                <p className="font-bold text-gray-800 text-[11px]">{task.namaTugas}</p>
+                                <p className="text-[10px] font-medium text-gray-400">{task.petugas.nama}</p>
                               </td>
-                              <td className="py-4">
-                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500">
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <td className="py-2.5 pr-2">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
                                   {getDurasiTugas(task)}
                                 </span>
                               </td>
-                              <td className="py-4">
-                                {task.status === "Selesai" ? (
-                                  <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-green-500">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    Completed
-                                  </span>
-                                ) : task.status === "Proses" ? (
-                                  <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-amber-500">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> In Progress
-                                  </span>
-                                ) : task.status === "Delayed" ? (
-                                  <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-red-500">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> Delayed
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-gray-400">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-gray-400" /> Unassigned
-                                  </span>
-                                )}
+                              <td className="py-2.5 pr-2">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-500">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Selesai
+                                </span>
                               </td>
-                              <td className="py-4 text-right">
+                              <td className="py-2.5 text-right">
                                 <button
                                   onClick={() => openTaskDetailFromRiwayat(task)}
                                   className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer dark:bg-elevated"
@@ -569,7 +555,7 @@ const Dashboard = () => {
               </div>
 
               {/* --- TABS & EXPORT SECTION --- */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                 <div className="inline-flex bg-white border border-gray-100 rounded-xl p-1 shadow-sm">
                   {(["Hari ini", "Mingguan", "Bulanan", "Tahunan"] as Tab[]).map((tab) => (
                     <button
@@ -640,7 +626,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <h3 className="text-[28px] font-extrabold text-gray-900 mb-1 leading-none dark:text-white">{tugasUnassigned}</h3>
-                    <p className="text-xs text-gray-500 font-semibold dark:text-gray-400">Tugas Unassigned</p>
+                    <p className="text-xs text-gray-500 font-semibold dark:text-gray-400">Tugas Belum Diambil</p>
                   </div>
                 </div>
 

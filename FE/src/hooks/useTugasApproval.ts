@@ -1,4 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { approveTugas } from "../api/tugas";
+import { unwrapData } from "../lib/response";
 import apiClient from "../services/apiClient";
 
 // Approval list for ad-hoc tasks per CLAUDE.md
@@ -10,8 +12,8 @@ export interface TugasApprovalItem {
 async function fetchTugasApproval(period = "harian", lokasi_id?: string): Promise<TugasApprovalItem[]> {
   const params: Record<string, string> = { period };
   if (lokasi_id) params.lokasi_id = lokasi_id;
-  const res = await apiClient.get<{ data: TugasApprovalItem[] }>("/api/admin/tugas/approval-list", { params });
-  const data = res?.data ?? res;
+  const res = await apiClient.get<unknown>("/api/admin/tugas/approval-list", { params });
+  const data = unwrapData<TugasApprovalItem[]>(res);
   return Array.isArray(data) ? data : [];
 }
 
@@ -26,7 +28,7 @@ function useTugasApproval(period = "harian", lokasi_id?: string) {
   });
 
   const approve = async (id: string) => {
-    await apiClient.patch(`/api/admin/tugas/${id}/approve`);
+    await approveTugas(id);
     qc.invalidateQueries({ queryKey: ["admin-tugas-approval"] });
   };
 

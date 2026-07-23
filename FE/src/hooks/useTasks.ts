@@ -2,17 +2,16 @@ import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Task, StatusTask, KategoriTugas } from "../types/task";
 import {
-  createJadwalChecklist,
-  deleteChecklistHarian,
-  getChecklistHarian,
+  approveChecklistHarian,
   getChecklistHarianDetail,
+  getTugasCombination,
   updateChecklistHarian,
   type ChecklistStatus,
-  type JadwalChecklistPayload,
+  type TugasCombinationParams,
 } from "../api/checklist";
-import { getAllTugas, createTugas, updateTugas, deleteTugas } from "../api/tugas";
-import { getErrorMessage } from "../lib/utils";
+import { approveTugas, createTugas, getTugasById, updateTugas, deleteTugas } from "../api/tugas";
 import { stripIdPrefix } from "../lib/response";
+import { getErrorMessage } from "../lib/utils";
 import { taskSchema, validateList } from "../schemas";
 
 // Status mappers
@@ -62,6 +61,7 @@ export function mapApiChecklistToTask(row: Record<string, unknown>, jenis: Kateg
     catatan: row.catatan != null ? String(row.catatan) : undefined,
     status: mapApiStatus(row.status),
     jenis,
+    approved: row.approved === true,
   };
 }
 
@@ -84,37 +84,19 @@ interface TaskPayload {
   tanggal_selesai?: string;
 }
 
-// Build payload for jadwal checklist API
-const toJadwalPayload = (p: TaskPayload): JadwalChecklistPayload => ({
-  nama_tugas: p.nama_tugas ?? "",
-  kategori_id: stripIdPrefix(p.kategori_id ?? ""),
-  lantai_id: stripIdPrefix(p.lantai_id ?? ""),
-  ...(p.ob_id && { ob_id: stripIdPrefix(p.ob_id) }),
-  ...(p.catatan && { catatan: p.catatan }),
-  ...(p.hari && { hari: p.hari }),
-  ...(p.tanggal_ulang && { tanggal_ulang: p.tanggal_ulang }),
-  ...(p.tanggal_spesifik && { tanggal_spesifik: p.tanggal_spesifik }),
-  ...(p.tanggal_mulai && { tanggal_mulai: p.tanggal_mulai }),
-  ...(p.tanggal_selesai && { tanggal_selesai: p.tanggal_selesai }),
-});
-
 const TASKS_KEY = ["tasks"] as const;
 
 async function fetchTasks(filters?: TaskFilters): Promise<Task[]> {
-  // Fetch checklist-harian (Rutin) dan /api/tugas (Tidak Rutin) secara parallel
-  const [checklistData, tugasData] = await Promise.all([
-    getChecklistHarian(filters).catch(() => ({ items: [] })),
-    getAllTugas(filters).catch(() => []),
-  ]);
+  const params: TugasCombinationParams = {};
+  if (filters?.search) params.search = filters.search;
 
-  // Map checklist sebagai "Rutin"
-  const checklistItems = Array.isArray(checklistData) ? checklistData : (checklistData?.items ?? []);
-  const rutinTasks = checklistItems.map((item) => mapApiChecklistToTask(item, "Rutin"));
+  const data = await getTugasCombination(params).catch(() => null);
 
-  // Map tugas sebagai "Tidak Rutin"
-  const tidakRutinTasks = (Array.isArray(tugasData) ? tugasData : []).map((item) => mapApiTugasToTask(item));
+  if (!data) return [];
 
-  // Gabungkan
+  const rutinTasks = (data.checklist?.items ?? []).map((item) => mapApiChecklistToTask(item as Record<string, unknown>, "Rutin"));
+  const tidakRutinTasks = (data.tugas?.items ?? []).map((item) => mapApiTugasToTask(item as Record<string, unknown>));
+
   return validateList(taskSchema, [...rutinTasks, ...tidakRutinTasks]);
 }
 
@@ -137,6 +119,7 @@ function mapApiTugasToTask(row: Record<string, unknown>): Task {
     catatan: row.catatan != null ? String(row.catatan) : undefined,
     status: mapApiStatus(row.status),
     jenis: "Tidak Rutin",
+    approved: row.approved === true,
   };
 }
 
@@ -164,8 +147,13 @@ function useTasks(filters?: TaskFilters) {
     } finally { setMutating(false); }
   }, []);
 
-  const fetchTaskDetail = async (id: string): Promise<Task | null> => {
-    try { return mapApiChecklistToTask(await getChecklistHarianDetail(id) as Record<string, unknown>); }
+  const fetchTaskDetail = async (id: string, jenis?: KategoriTugas): Promise<Task | null> => {
+    try {
+      if (jenis === "Tidak Rutin") {
+        return mapApiTugasToTask(await getTugasById(id));
+      }
+      return mapApiChecklistToTask(await getChecklistHarianDetail(id) as Record<string, unknown>);
+    }
     catch { return null; }
   };
 
@@ -204,6 +192,14 @@ function useTasks(filters?: TaskFilters) {
     }),
     updateTaskStatus: async (id: string, status: StatusTask) => {
       await updateChecklistHarian(id, { status: mapUiStatus(status) });
+      await qc.invalidateQueries({ queryKey: TASKS_KEY });
+    },
+    approveTask: async (id: string, jenis: KategoriTugas) => {
+      if (jenis === "Rutin") {
+        await approveChecklistHarian(stripIdPrefix(id));
+      } else {
+        await approveTugas(stripIdPrefix(id));
+      }
       await qc.invalidateQueries({ queryKey: TASKS_KEY });
     },
   };

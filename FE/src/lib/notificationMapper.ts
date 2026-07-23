@@ -28,7 +28,7 @@ export function mapApiNotificationToAppNotification(row: ApiNotification): AppNo
     type: mapNotifType(type),
     title: String(title),
     message: String(message),
-    highPriority: String(type).toUpperCase().includes("URGENT"),
+    highPriority: String(type).toUpperCase().includes("MENDESAK") || String(type).toUpperCase().includes("URGENT"),
     createdAt: String(createdAt),
     read: Boolean(isRead),
     senderName: String(senderName),

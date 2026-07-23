@@ -117,7 +117,7 @@ export default function NotificationPanel({
                 )}
                 {n.highPriority && (
                   <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600">
-                    HIGH PRIORITY
+                    MENDESAK
                   </span>
                 )}
               </div>

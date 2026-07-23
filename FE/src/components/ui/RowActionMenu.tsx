@@ -16,7 +16,7 @@ export default function RowActionMenu({ onDetail, onEdit, onDelete }: RowActionM
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(e: MouseEvent) {
-      if (triggerRef.current && !triggerRef.current.closest("[data-dropdown]")?.contains(e.target as Node)) {
+      if (!document.querySelector("[data-dropdown]")?.contains(e.target as Node)) {
         setOpen(false);
       }
     }

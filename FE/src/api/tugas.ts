@@ -13,6 +13,7 @@ export interface Tugas {
   status?: TugasStatus;
   catatan?: string;
   tanggal_selesai?: string;
+  jam_selesai?: string;
   is_active?: boolean;
   created_at?: string;
 }
@@ -38,8 +39,8 @@ export async function getAllTugas(params?: GetTugasParams) {
   return unwrapData<Tugas[]>(data);
 }
 
-// POST /api/tugas — body: { kategori_id, nama_tugas, lantai_id, catatan, tanggal_selesai }
-export async function createTugas(payload: { kategori_id: string; nama_tugas: string; lantai_id: string; catatan?: string; tanggal_selesai?: string }) {
+// POST /api/tugas — body: { kategori_id, nama_tugas, lantai_id, catatan, tanggal_selesai, jam_selesai }
+export async function createTugas(payload: { kategori_id: string; nama_tugas: string; lantai_id: string; catatan?: string; tanggal_selesai?: string; jam_selesai?: string }) {
   const { catatan, ...body } = normalizeTugasIds(payload);
   return apiClient.post("/api/tugas", {
     ...body,
@@ -48,9 +49,18 @@ export async function createTugas(payload: { kategori_id: string; nama_tugas: st
   });
 }
 
-// PATCH /api/tugas/{id} — partial: kategori_id, nama_tugas, lantai_id, catatan, is_active, status, ob_id
+// PATCH /api/tugas/{id} — partial: semua field Tugas termasuk jam_selesai
 export async function updateTugas(id: string, payload: Partial<Tugas>) {
   return apiClient.patch(`/api/tugas/${stripIdPrefix(id)}`, normalizeTugasIds(payload));
+}
+
+export async function getTugasById(id: string) {
+  const data = await apiClient.get<unknown>(`/api/tugas/${stripIdPrefix(id)}`);
+  return unwrapData<Record<string, unknown>>(data);
+}
+
+export async function approveTugas(id: string) {
+  return apiClient.patch(`/api/admin/tugas/${stripIdPrefix(id)}/approve`);
 }
 
 export async function deleteTugas(id: string) {

@@ -14,6 +14,8 @@ import Can from "../components/auth/Can";
 import { useObSkills, useSkillDefinitions } from "../hooks/useSkill";
 import { getObPerformance, getKaryawanPerformance } from "../api/performance";
 import type { ObPerformanceData, KaryawanPerformanceData } from "../api/performance";
+import { getObAchievements } from "../api/achievement";
+import type { ObAchievement } from "../api/achievement";
 
 
 const UserDetail = () => {
@@ -40,6 +42,9 @@ const UserDetail = () => {
   const [obPerf, setObPerf] = useState<(ObPerformanceData & KaryawanPerformanceData) | null>(null);
   const [perfLoading, setPerfLoading] = useState(false);
   const [perfError, setPerfError] = useState<string | null>(null);
+
+  // Achievement state untuk OB
+  const [achievements, setAchievements] = useState<ObAchievement[]>([]);
 
   // Skill state untuk OB (useObSkills internal enabled guard handles undefined ob_id)
   const { obSkills, assignSkill, refetch: refetchSkills } = useObSkills(user?.backendId);
@@ -94,6 +99,12 @@ const UserDetail = () => {
     fn.then((data) => setObPerf(data as ObPerformanceData & KaryawanPerformanceData))
       .catch((err) => setPerfError(getErrorMessage(err)))
       .finally(() => setPerfLoading(false))
+
+    if (role === "OB") {
+      getObAchievements(user.backendId)
+        .then((data) => setAchievements(data as ObAchievement[]))
+        .catch(() => { /* non-critical */ })
+    }
   }, [user?.backendId, user?.role])
 
   // === HANDLERS ===
@@ -197,7 +208,7 @@ const UserDetail = () => {
   return (
     <div className="flex h-screen bg-white font-sans text-gray-800 dark:bg-base dark:text-ink">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto bg-[#FAFAFA] p-8 dark:bg-base">
+        <main className="flex-1 overflow-auto bg-[#FAFAFA] p-6 dark:bg-base">
           {/* Breadcrumb */}
           <div className="flex items-center gap-3 mb-6">
             <button
@@ -222,9 +233,15 @@ const UserDetail = () => {
               {isOB ? (
                 /* === TAMPILAN PROFIL OB === */
                 <div className="relative border border-gray-200 rounded-2xl p-7 bg-white shadow-sm dark:bg-surface">
-                  <div className="absolute top-6 right-6 bg-[#FEF3C7] text-[#D97706] px-3 py-1 rounded-full text-[11px] font-bold">
-                    Gedung A
-                  </div>
+                  {achievements.length > 0 && (
+                    <div className="absolute top-6 right-6 flex flex-wrap gap-1.5">
+                      {achievements.slice(0, 2).map((a) => (
+                        <span key={a.id} className="bg-[#FEF3C7] text-[#D97706] px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap">
+                          {a.nama}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-start justify-between mb-8">
                     <div className="flex gap-5">
                       <div className="relative">
@@ -245,12 +262,14 @@ const UserDetail = () => {
                         <h2 className="text-2xl font-black text-[#1F2937] tracking-tight uppercase">{user.namaLengkap}</h2>
                         <p className="text-sm font-medium text-gray-500 mb-2">@{user.username || `${user.namaLengkap.toLowerCase()}_OB`}</p>
 
-                        <div className="bg-[#382314] text-[#F3E8E0] text-xs font-semibold px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 mb-3 shadow-sm">
-                          <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                          </svg>
-                          Fast Responder - {user.stats?.tasksCompleted ?? 0} Tasks Completed
-                        </div>
+                        {achievements.map((a) => (
+                          <div key={a.id} className="bg-[#382314] text-[#F3E8E0] text-xs font-semibold px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 mb-1.5 mr-1.5 shadow-sm">
+                            <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                            </svg>
+                            {a.nama}
+                          </div>
+                        ))}
 
                         <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
                           <span className="flex items-center gap-1.5">

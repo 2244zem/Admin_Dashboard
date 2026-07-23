@@ -19,7 +19,8 @@ export interface Task {
   tanggal: string;
   catatan?: string;
   status: StatusTask;
-  jenis?: KategoriTugas; // Untuk membedakan Rutin atau Tidak Rutin
+  jenis?: KategoriTugas;
+  approved?: boolean;
 }
 
 export const STATUS_TASK_OPTIONS: StatusTask[] = ["Belum", "Proses", "Selesai", "Delayed"];
