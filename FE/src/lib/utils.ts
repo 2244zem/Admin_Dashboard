@@ -3,6 +3,14 @@ export function formatWaktu(createdAt: string): string {
   return new Date(createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 }
 
+export function formatDateTime(iso?: string): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  const tgl = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+  const jam = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return `${tgl}, ${jam}`;
+}
+
 export function waktuKategori(createdAt: string): "Hari Ini" | "Kemarin" | "Lebih Lama" {
   if (!createdAt) return "Lebih Lama";
   const date = new Date(createdAt);

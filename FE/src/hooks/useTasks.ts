@@ -62,6 +62,7 @@ export function mapApiChecklistToTask(row: Record<string, unknown>, jenis: Kateg
     status: mapApiStatus(row.status),
     jenis,
     approved: row.approved === true,
+    pelapor: row.pelapor != null ? String(row.pelapor) : undefined,
   };
 }
 
@@ -120,6 +121,7 @@ function mapApiTugasToTask(row: Record<string, unknown>): Task {
     status: mapApiStatus(row.status),
     jenis: "Tidak Rutin",
     approved: row.approved === true,
+    pelapor: row.pelapor != null ? String(row.pelapor) : undefined,
   };
 }
 

@@ -134,12 +134,6 @@ function useLaporan(filters?: Record<string, unknown>) {
       if (payload.status !== undefined) body.status = statusToBackend(payload.status as StatusLaporan);
       if (payload.admin_catatan !== undefined) body.admin_catatan = payload.admin_catatan;
       if (payload.prioritas !== undefined) body.prioritas = payload.prioritas;
-      if (payload.ob_id !== undefined && payload.ob_id !== "") body.ob_id = payload.ob_id;
-      // Backend requires an OB assigned before status can become PENDING (Ditugaskan).
-      // assignedTo (from the current row) means an OB is already set on the server.
-      if (body.status === "PENDING" && !body.ob_id && !payload.assignedTo) {
-        throw new Error("Pilih OB terlebih dahulu sebelum menetapkan status Ditugaskan.");
-      }
       if (Object.keys(body).length === 0) return;
       await updateAdminLaporan(id, body);
       await refetch();

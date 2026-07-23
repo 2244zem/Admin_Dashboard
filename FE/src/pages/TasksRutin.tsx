@@ -10,7 +10,7 @@ import TaskFormModal from "../components/tasks/TaskFormModal";
 import type { Option } from "../components/tasks/TaskFormModal";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import type { DetailRow } from "../components/tasks/TaskDetailModal";
-import { getErrorMessage } from "../lib/utils";
+import { getErrorMessage, formatDateTime } from "../lib/utils";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
 import { TableSkeleton } from "../components/ui/Skeleton";
@@ -34,14 +34,6 @@ function inPeriod(dateStr: string | undefined, tab: Tab): boolean {
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 7);
   return d >= monday && d < sunday;
-}
-
-function formatWaktu(dateStr?: string) {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  const tanggal = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
-  const jam = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-  return `${tanggal}, ${jam}`;
 }
 
 // Avatar color palette so each OB name gets a stable, distinct color
@@ -88,9 +80,9 @@ interface Row {
   ob_id: string | null;
   obNama: string | null;
   createdAt: string;
+  pelapor: string;
 }
 
-// Pill-style badges to match the reference image (previously dot+text)
 const UI_STATUS_STYLE: Record<string, { pill: string; label: string }> = {
   BELUM_DIKERJAKAN: { pill: "bg-gray-100 text-gray-500", label: "Menunggu" },
   SEDANG_DIKERJAKAN: { pill: "bg-amber-100 text-amber-600", label: "Dalam Proses" },
@@ -99,7 +91,7 @@ const UI_STATUS_STYLE: Record<string, { pill: string; label: string }> = {
 };
 const getStatusStyle = (s?: string) => UI_STATUS_STYLE[s ?? "BELUM_DIKERJAKAN"] ?? UI_STATUS_STYLE.BELUM_DIKERJAKAN;
 
-const PAGE_SIZE = 4; // matches "Menampilkan 1 sampai 4 dari 17" in reference
+const PAGE_SIZE = 4; 
 
 const TasksRutin = () => {
   const { push } = useToast();
@@ -112,7 +104,6 @@ const TasksRutin = () => {
   const [detailRow, setDetailRow] = useState<DetailRow | null>(null);
   const [page, setPage] = useState(1);
 
-  // ═══ Data dari endpoint yang sama dengan Manajemen Tugas (hanya filter checklist/rutin) ═══
   const { data: comboData, isLoading, error, refetch } = useQuery({
     queryKey: ["tugas-rutin-kombinasi"],
     queryFn: () => getTugasCombination(),
@@ -136,7 +127,6 @@ const TasksRutin = () => {
 
   const rawChecklistItems = useMemo(() => (comboData?.checklist?.items ?? []), [comboData]);
 
-  // Ponytail: nested-safe getter matching mapApiChecklistToTask in useTasks.ts
   const rows: Row[] = useMemo(
     () =>
       rawChecklistItems.map((item: Record<string, unknown>) => {
@@ -161,6 +151,7 @@ const TasksRutin = () => {
           ob_id: String(item.ob_id ?? get("ob", "id") ?? "") || null,
           obNama: String(ob?.nama_lengkap ?? item.nama_ob ?? "") || null,
           createdAt: String(item.created_at ?? ""),
+          pelapor: item.pelapor != null ? String(item.pelapor) : "Admin",
         };
       }),
     [rawChecklistItems]
@@ -288,7 +279,6 @@ const TasksRutin = () => {
 
   return (
     <div className="flex h-screen bg-white font-sans dark:bg-base">
-      {/* Heartbeat keyframes for the "Selesai" stat icon — move to global CSS if preferred */}
       <style>{`
         @keyframes heartbeat {
           0%, 100% { transform: scale(1); }
@@ -432,11 +422,12 @@ const TasksRutin = () => {
                 <table className="w-full text-left text-sm text-gray-600">
                   <thead className="text-[11px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50 dark:bg-surface">
                     <tr>
-                      <th className="px-6 py-3">ID &amp; Waktu</th>
-                      <th className="px-6 py-3">Detail Pekerjaan &amp; Lokasi</th>
-                      <th className="px-6 py-3">Status</th>
-                      <th className="px-6 py-3">Pekerja</th>
-                      <th className="px-6 py-3 text-right">Aksi</th>
+                      <th className="px-2 py-2">ID &amp; Waktu</th>
+                      <th className="px-2 py-2">Pelapor</th>
+                      <th className="px-2 py-2">Detail Pekerjaan</th>
+                      <th className="px-2 py-2">Status</th>
+                      <th className="px-2 py-2">Pekerja</th>
+                      <th className="px-2 py-2 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -445,38 +436,41 @@ const TasksRutin = () => {
                       const st = getStatusStyle(pillStatus);
                       return (
                         <tr key={row.id} className="hover:bg-gray-50/50 transition-colors dark:bg-surface">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <p className="font-semibold text-[#0F4C81]">#{row.id.slice(0, 8).toUpperCase()}</p>
-                            <p className="text-xs text-gray-400">{formatWaktu(row.createdAt)}</p>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <p className="font-semibold text-[#0F4C81] text-xs">#{row.id.slice(0, 8).toUpperCase()}</p>
+                            <p className="text-[10px] text-gray-400">{formatDateTime(row.createdAt)}</p>
                           </td>
-                          <td className="px-6 py-4">
-                            <p className="font-semibold text-gray-800">{row.namaTugas}</p>
-                            <p className="text-xs text-gray-400 flex items-center gap-1">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <span className="text-xs text-gray-700">{row.pelapor}</span>
+                          </td>
+                          <td className="px-2 py-2">
+                            <p className="font-semibold text-gray-800 text-xs">{row.namaTugas}</p>
+                            <p className="text-[10px] text-gray-400 flex items-center gap-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
                               </svg>
                               {row.kategori}, {row.lantai}
                             </p>
                           </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${st.pill}`}>
+                          <td className="px-2 py-2">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${st.pill}`}>
                               {st.label}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-2 py-2">
                             {row.ob_id && row.obNama ? (
-                              <div className="flex items-center gap-2">
-                                <span className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold ${avatarColor(row.obNama)}`}>
+                              <div className="flex items-center gap-1">
+                                <span className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${avatarColor(row.obNama)}`}>
                                   {initials(row.obNama)}
                                 </span>
-                                <span className="text-sm text-gray-700">{row.obNama}</span>
+                                <span className="text-xs text-gray-700">{row.obNama}</span>
                               </div>
                             ) : (
-                              <span className="text-xs text-gray-400 italic">Menunggu OB....</span>
+                              <span className="text-[10px] text-gray-400 italic">Menunggu OB....</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-2 py-2 text-right">
                             <RowActionMenu
                               onDetail={() => openDetail(row)}
                               onEdit={() => openEdit(row)}

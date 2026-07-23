@@ -18,6 +18,7 @@ import ConfirmDialog from "../components/ui/ConfirmDialog";
 import TaskFormModal from "../components/tasks/TaskFormModal";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import type { DetailRow } from "../components/tasks/TaskDetailModal";
+import { formatDateTime } from "../lib/utils";
 import { createJadwalChecklist, updateJadwalChecklist, getChecklistHarianDetail } from "../api/checklist";
 import { getTugasById } from "../api/tugas";
 import Avatar from "../components/ui/Avatar";
@@ -68,12 +69,6 @@ function isInPeriod(tanggal: string, periode: Periode): boolean {
   return d.getFullYear() === now.getFullYear();
 }
 
-function formatTanggalWaktu(tanggal: string, waktu: string): string {
-  if (!tanggal) return "-";
-  const d = new Date(tanggal);
-  const tgl = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
-  return waktu && waktu !== "-" ? `${tgl}, ${waktu}` : tgl;
-}
 
 const ITEMS_PER_PAGE = 10;
 
@@ -575,15 +570,16 @@ const Tasks = () => {
                   <p className="text-xs text-gray-400 mt-0.5">Monitoring antrian tugas.</p>
                 </div>
 
-                <table className="w-full text-left text-sm text-gray-600">
-                  <thead className="text-[11px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50">
+                <table className="w-full text-left text-xs text-gray-600">
+                  <thead className="text-[10px] font-bold text-gray-400 uppercase border-b border-gray-100 bg-gray-50/50">
                     <tr>
-                      <th className="px-6 py-3">ID &amp; Waktu</th>
-                      <th className="px-6 py-3">Detail Pekerjaan &amp; Lokasi</th>
-                      <th className="px-6 py-3">Kategori Tugas</th>
-                      <th className="px-6 py-3">Status</th>
-                      <th className="px-6 py-3">Pekerja</th>
-                      <th className="px-6 py-3 text-right">Aksi</th>
+                      <th className="px-2 py-2">ID &amp; Waktu</th>
+                      <th className="px-2 py-2">Pelapor</th>
+                      <th className="px-2 py-2">Detail Pekerjaan</th>
+                      <th className="px-2 py-2">Kategori</th>
+                      <th className="px-2 py-2">Status</th>
+                      <th className="px-2 py-2">Pekerja</th>
+                      <th className="px-2 py-2 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -593,36 +589,39 @@ const Tasks = () => {
 
                       return (
                         <tr key={task.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <p className="font-semibold text-gray-800">#{task.id}</p>
-                            <p className="text-[11px] text-gray-400">{formatTanggalWaktu(task.tanggal, task.waktu)}</p>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <p className="font-semibold text-gray-800 text-xs">#{task.id}</p>
+                            <p className="text-[10px] text-gray-400">{formatDateTime(task.tanggal)}</p>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <span className="text-gray-700">{task.pelapor ?? "Admin"}</span>
+                          </td>
+                          <td className="px-2 py-2">
                             <p className="font-semibold text-gray-800">{task.namaTugas}</p>
-                            <p className="text-xs text-gray-400">{task.gedung}, {task.lantai}</p>
+                            <p className="text-[10px] text-gray-400">{task.gedung}, {task.lantai}</p>
                           </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${KATEGORI_TUGAS_STYLE[task.jenis]}`}>
+                          <td className="px-2 py-2">
+                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold ${KATEGORI_TUGAS_STYLE[task.jenis]}`}>
                               {task.jenis}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusStyle.text}`}>
+                          <td className="px-2 py-2">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${statusStyle.text}`}>
                               <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
                               {statusStyle.label}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-2 py-2">
                             {hasOb ? (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
                                 <Avatar name={task.petugas.nama} src={task.petugas.fotoProfil} size="sm" />
-                                <span className="font-medium text-gray-700 whitespace-nowrap">{task.petugas.nama}</span>
+                                <span className="font-medium text-gray-700 whitespace-nowrap text-xs">{task.petugas.nama}</span>
                               </div>
                             ) : (
-                              <span className="text-xs text-gray-400 italic">Menunggu OB...</span>
+                              <span className="text-[10px] text-gray-400 italic">Menunggu OB...</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-2 py-2 text-right">
                             <RowActionMenu
                               onEdit={() => openEditModal(task)}
                               onDetail={() => openDetailModal(task)}

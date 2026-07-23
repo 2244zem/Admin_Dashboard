@@ -11,6 +11,7 @@ import { useToast } from "../hooks/useToast";
 import { StatCardsSkeleton, TableSkeleton, Skeleton } from "../components/ui/Skeleton";
 import ErrorState from "../components/ui/ErrorState";
 import Avatar from "../components/ui/Avatar";
+import { formatDateTime } from "../lib/utils";
 
 const fadeUp = {
   initial: { opacity: 0, y: 10 },
@@ -427,18 +428,18 @@ const Reports = () => {
               <table className="w-full text-center text-sm">
                 <thead className="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200 bg-gray-100/50 dark:bg-elevated">
                   <tr>
-                    <th className="px-6 py-4 w-32 text-center">ID LAPORAN</th>
-                    <th className="px-6 py-4 text-center">NAMA KARYAWAN</th>
-                    <th className="px-6 py-4 text-center">LOKASI</th>
-                    <th className="px-6 py-4 w-28 text-center">LEVEL</th>
-                    <th className="px-6 py-4 w-32 text-center">STATUS</th>
-                    <th className="px-6 py-4 w-36 text-center">AKSI</th>
+                    <th className="px-2 py-2 text-center w-28">ID &amp; WAKTU</th>
+                    <th className="px-2 py-2 text-center w-40">PELAPOR</th>
+                    <th className="px-2 py-2 text-center w-40">LOKASI</th>
+                    <th className="px-2 py-2 text-center w-20">TINGKAT</th>
+                    <th className="px-2 py-2 text-center w-24">STATUS</th>
+                    <th className="px-2 py-2 text-center w-24">AKSI</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white text-gray-700 dark:bg-surface">
                   {filteredByLevel.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-gray-500">
+                      <td colSpan={7} className="px-2 py-6 text-center text-gray-500">
                         Belum ada laporan yang sesuai dengan filter saat ini.
                       </td>
                     </tr>
@@ -449,55 +450,54 @@ const Reports = () => {
                         whileHover={{ backgroundColor: "rgba(15, 76, 129, 0.03)" }}
                         className="transition-colors"
                       >
-                        {/* ID LAPORAN */}
-                        <td className="px-6 py-3 text-center">
-                          <div className="font-semibold text-gray-800">
+                        {/* ID & WAKTU */}
+                        <td className="px-2 py-2 text-center whitespace-nowrap">
+                          <div className="font-semibold text-gray-800 text-xs">
                             {data.id_laporan || `LPR-${String(data.id).padStart(3, '0')}`}
                           </div>
+                          <p className="text-[10px] text-gray-400">{formatDateTime(data.createdAt)}</p>
                         </td>
 
-                        {/* NAMA KARYAWAN */}
-                        <td className="px-6 py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <Avatar name={data.name} src={data.fotoProfil} size="md" />
+                        {/* PELAPOR */}
+                        <td className="px-2 py-2 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Avatar name={data.name} src={data.fotoProfil} size="sm" />
                             <div>
-                              <div className="font-medium text-gray-800">{data.name}</div>
+                              <div className="font-medium text-gray-800 text-xs">{data.name}</div>
                             </div>
                           </div>
                         </td>
 
                         {/* LOKASI */}
-                        <td className="px-6 py-3 text-center">
-                          <div>
-                            <div className="font-medium text-gray-700">{data.loc}</div>
-                          </div>
+                        <td className="px-2 py-2 text-center max-w-0">
+                          <div className="font-medium text-gray-700 text-xs truncate">{data.loc}</div>
                         </td>
 
 
-                        {/* LEVEL */}
-                        <td className="px-6 py-3 text-center">
+                        {/* TINGKAT */}
+                        <td className="px-2 py-2 text-center">
                           {data.tingkat === "MENDESAK" ? (
-                            <div className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 rounded">
-                              <div className="h-2 w-2 bg-red-600 rounded-full"></div>
-                              <span className="text-xs font-bold text-red-600">MENDESAK</span>
-                            </div>
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-100 rounded text-[10px] font-bold text-red-600">
+                              <span className="h-1.5 w-1.5 bg-red-600 rounded-full"></span>
+                              MENDESAK
+                            </span>
                           ) : (
-                            <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 rounded">
-                              <div className="h-2 w-2 bg-orange-600 rounded-full"></div>
-                              <span className="text-xs font-bold text-orange-600">STANDAR</span>
-                            </div>
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-100 rounded text-[10px] font-bold text-orange-600">
+                              <span className="h-1.5 w-1.5 bg-orange-600 rounded-full"></span>
+                              STANDAR
+                            </span>
                           )}
                         </td>
 
                         {/* STATUS */}
-                        <td className="px-6 py-3 text-center">
-                          <div className={`inline-block px-2 py-1 rounded text-xs font-bold ${STATUS_COLOR[data.status]}`}>
+                        <td className="px-2 py-2 text-center">
+                          <div className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${STATUS_COLOR[data.status]}`}>
                             {data.status}
                           </div>
                         </td>
 
                         {/* AKSI */}
-                        <td className="px-6 py-3 text-right">
+                        <td className="px-2 py-2 text-center">
                           <RowActionMenu
                             onDetail={() => openDetailModal(data)}
                             onEdit={() => openEditModal(data)}
